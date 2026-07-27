@@ -18,13 +18,17 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 |---|---|---|
 | 0 | Monorepo, season mechanics, database schema | ✅ Complete |
 | 1 | Marketing site | ✅ Complete |
-| 1 | Application funnel (phone OTP → profile → selfie) | ⬜ Blocked on the App Layout Gate |
+| 1 | Application funnel (phone OTP → profile → selfie) | ✅ Complete (runs on seed data) |
 | 2 | Admissions + Stripe | ⬜ |
 | 3 | The Drop + Connect | ⬜ |
 | 4 | Chat + Fuse + Dates | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
 | 6 | Mobile (Expo) | ⬜ |
 | 7 | Ops hardening + launch | ⬜ |
+
+**Layouts (locked):** funnel — Asymmetric Editorial + stepped form. Member app
+— Focus Mode, Split Canvas for Inbox/Chats. Admin — Split Canvas + dense
+sections. Reasoning in [`docs/design-decisions.md`](./docs/design-decisions.md).
 
 **Design direction (locked):** Editorial Refined → Warm Serif Magazine.
 Fraunces + DM Sans. Cream `#FAF7F2` / ink `#1A1815` / ochre `#B8741A` /
@@ -45,7 +49,7 @@ Flipping `NEXT_PUBLIC_USE_SEED_DATA` to `false` is the only change needed to
 point it at the real database.
 
 ```bash
-pnpm test        # 115 tests, all in packages/logic
+pnpm test        # 135 tests, all in packages/logic
 pnpm typecheck
 pnpm build
 pnpm db:seed     # regenerate supabase/seed.sql from the generator
@@ -102,13 +106,16 @@ Three, all deliberate, all flagged for the §2 decision log:
 
 ## Copy awaiting sign-off
 
-Everything user-facing is verbatim from spec §9, with three exceptions where
+Everything user-facing is verbatim from spec §9, with four exceptions where
 §9 specifies content requirements rather than finished prose:
 
 - The five email bodies in `packages/config/src/copy/lifecycle.ts`
   (`signedOff: false`; subjects and SMS are verbatim).
 - The Apply CTA section on the home page — §9.1 names the section but gives no
   wording.
+- The application funnel's step statements and the under-review screen. §9
+  covers the marketing site, the notifications and the closure notes; it does
+  not cover the funnel interior.
 - The Terms, Privacy, and Community Standards pages. These are drafted and
   **have not been legally reviewed.** A dating app holding selfies and phone
   numbers should not launch on a template.

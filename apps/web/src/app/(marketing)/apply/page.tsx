@@ -94,7 +94,7 @@ export default async function ApplyPage() {
             By starting, you confirm: {interpolate(CONSENT.application, vars)}
           </p>
           <div className="mt-8">
-            <ButtonLink href="/apply/verify">Start with your phone number</ButtonLink>
+            <ButtonLink href="/apply/start">Start with your phone number</ButtonLink>
           </div>
         </Reveal>
       </Section>
