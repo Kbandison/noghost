@@ -1,0 +1,186 @@
+/*
+ * NoGhost design tokens — Editorial Refined / Warm Serif Magazine.
+ * Mirrors packages/ui-tokens/src/index.ts. Imported by each app's globals.css
+ * immediately after `@import "tailwindcss";`.
+ *
+ * Contrast ratios in the comments are computed against the cream page, not
+ * estimated. WCAG 2.2 AA: 4.5:1 body text, 3:1 large text and UI components.
+ */
+
+:root {
+  /* Warm neutral scale, cream -> ink */
+  --n-50: #faf7f2;
+  --n-100: #f4f0e8;
+  --n-200: #e8e2d6;
+  --n-300: #d6cec0;
+  --n-400: #b5ab9b;
+  --n-500: #8e8578;
+  --n-600: #6b6459;
+  --n-700: #4e4941;
+  --n-800: #33302b;
+  --n-900: #1a1815;
+
+  --bg-primary: var(--n-50);
+  --bg-secondary: var(--n-100);
+  --bg-tertiary: #ffffff;
+
+  --text-primary: var(--n-900); /* 15.7:1 */
+  --text-secondary: #5c564c; /* 6.8:1 */
+  --text-dim: #6e675b; /* 4.6:1 — at the AA floor, do not lighten */
+
+  --accent: #b8741a; /* 3.54:1 — fills and large accents only */
+  --accent-text: #8a5412; /* 5.85:1 — links and accent body text */
+  --accent-hover: #a06315;
+  --on-accent: var(--n-900); /* 4.68:1 on ochre */
+
+  --sage: #8b9d83; /* 2.71:1 — decorative only, never text */
+  --sage-text: #5f7057; /* 4.99:1 */
+
+  --border: var(--n-300);
+  --border-subtle: var(--n-200);
+
+  /* Fuse ring — calm > 72h, amber < 48h, warm-red < 24h. A coach, not a threat. */
+  --fuse-calm: #5f7057;
+  --fuse-amber: #b8741a;
+  --fuse-urgent: #a8442a;
+  --fuse-paused: var(--n-400);
+
+  --error: #8f2c1e;
+  --success: #4a6b3f;
+
+  /* DENSITY 3 */
+  --section-py: clamp(6rem, 12vw, 12rem);
+  --content-max: 1040px;
+  --prose-max: 62ch;
+
+  /* MOTION 4 */
+  --dur-fast: 160ms;
+  --dur-base: 280ms;
+  --dur-slow: 520ms;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+ * Register the tokens that should generate real utilities (text-accent,
+ * bg-surface, border-line). Plain vars consumed only through var() stay in
+ * :root — registering everything bloats the generated CSS.
+ */
+@theme inline {
+  --color-surface: var(--bg-primary);
+  --color-surface-raised: var(--bg-tertiary);
+  --color-surface-sunken: var(--bg-secondary);
+  --color-ink: var(--text-primary);
+  --color-ink-muted: var(--text-secondary);
+  --color-ink-faint: var(--text-dim);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-on-accent: var(--on-accent);
+  --color-sage: var(--sage);
+  --color-sage-text: var(--sage-text);
+  --color-line: var(--border);
+  --color-line-subtle: var(--border-subtle);
+  --color-fuse-calm: var(--fuse-calm);
+  --color-fuse-amber: var(--fuse-amber);
+  --color-fuse-urgent: var(--fuse-urgent);
+
+  --font-display: var(--font-fraunces);
+  --font-body: var(--font-dm-sans);
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    /* Lenis owns smooth scrolling; native smooth would fight it. */
+    scroll-behavior: auto;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display), ui-serif, Georgia, serif;
+    line-height: 1.06;
+    letter-spacing: -0.028em;
+    font-weight: 700;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* A visible focus ring on the cream page, in ochre so it reads as brand. */
+  :focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--accent);
+    color: var(--on-accent);
+  }
+}
+
+@layer utilities {
+  /* Below-fold sections skip initial layout. Never apply to the hero. */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 800px;
+  }
+
+  .prose-measure {
+    max-width: var(--prose-max);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--n-300);
+  border-radius: 999px;
+  border: 3px solid var(--bg-primary);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--n-400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
