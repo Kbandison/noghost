@@ -1,7 +1,7 @@
 import { CONNECT_NUDGE_HOURS } from "@noghost/config";
 import type { CardAction, ConnectStatus, PromptRef } from "@noghost/types";
-import { hoursBetween } from "./time.js";
-import { openingFuseExpiry } from "./fuse.js";
+import { hoursBetween } from "./time";
+import { openingFuseExpiry } from "./fuse";
 
 /**
  * The connect flow — spec §6.2, the inbox model.

@@ -17,7 +17,7 @@ import {
   SEED_SEATS_CLAIMED,
   SEED_ID_PREFIX,
   seedId,
-} from "../src/seed/data.js";
+} from "../src/seed/data";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(here, "../../../supabase/seed.sql");

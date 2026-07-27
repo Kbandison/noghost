@@ -6,8 +6,8 @@ import {
   validateConnect,
   type ConnectCardContext,
   type ConnectDraft,
-} from "./connect.js";
-import { addDays, addHours } from "./time.js";
+} from "./connect";
+import { addDays, addHours } from "./time";
 
 const NOW = "2026-09-20T20:30:00.000Z";
 

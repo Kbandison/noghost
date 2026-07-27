@@ -4,8 +4,8 @@ import {
   SEED_APPLICATIONS_CLOSE,
   SEED_SEASON,
   SEED_SEATS_CLAIMED,
-} from "./seed/data.js";
-import { createServiceClient } from "./supabase/service.js";
+} from "./seed/data";
+import { createServiceClient } from "./supabase/service";
 
 /**
  * The anon-safe season summary behind the marketing hero. Mirrors the
@@ -21,6 +21,7 @@ export interface PublicSeasonStats {
   applicationsOpenAt: string | null;
   applicationsCloseAt: string;
   memberCap: number;
+  claimHours: number;
   seatsRemaining: number;
   priceEarlyCents: number;
   priceStandardCents: number;
@@ -39,6 +40,7 @@ function fromSeed(): PublicSeasonStats {
     applicationsOpenAt: SEED_SEASON.applications_open_at,
     applicationsCloseAt: SEED_APPLICATIONS_CLOSE,
     memberCap: SEED_SEASON.member_cap,
+    claimHours: SEED_SEASON.claim_hours,
     seatsRemaining: Math.max(SEED_SEASON.member_cap - SEED_SEATS_CLAIMED, 0),
     priceEarlyCents: SEED_SEASON.price_early_cents,
     priceStandardCents: SEED_SEASON.price_standard_cents,
@@ -67,7 +69,7 @@ export async function getPublicSeasonStats(): Promise<PublicSeasonStats | null> 
   // concatenated string is just `string`, which collapses the result to `never`.
   const { data, error } = await supabase
     .from("public_season_stats")
-    .select("id,name,city,phase,starts_at,ends_at,applications_open_at,member_cap,seats_remaining,price_early_cents,price_standard_cents,early_bird_cap,timezone")
+    .select("id,name,city,phase,starts_at,ends_at,applications_open_at,member_cap,claim_hours,seats_remaining,price_early_cents,price_standard_cents,early_bird_cap,timezone")
     .order("starts_at", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -88,6 +90,7 @@ export async function getPublicSeasonStats(): Promise<PublicSeasonStats | null> 
       Date.parse(data.starts_at) - 7 * 24 * 60 * 60 * 1000,
     ).toISOString(),
     memberCap: data.member_cap,
+    claimHours: data.claim_hours,
     seatsRemaining: data.seats_remaining,
     priceEarlyCents: data.price_early_cents,
     priceStandardCents: data.price_standard_cents,

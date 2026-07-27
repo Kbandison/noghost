@@ -11,12 +11,12 @@
  *   2. Idempotent. Applying the same event twice is a no-op, because every
  *      cron in §4.3 must be safe to re-run.
  */
-export * from "./time.js";
-export * from "./random.js";
-export * from "./drop.js";
-export * from "./fuse.js";
-export * from "./connect.js";
-export * from "./checkin.js";
-export * from "./dates.js";
-export * from "./graduation.js";
-export * from "./tone-check.js";
+export * from "./time";
+export * from "./random";
+export * from "./drop";
+export * from "./fuse";
+export * from "./connect";
+export * from "./checkin";
+export * from "./dates";
+export * from "./graduation";
+export * from "./tone-check";

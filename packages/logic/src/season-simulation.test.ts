@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { isChatClosed } from "@noghost/types";
-import { fuseTransition, type FuseChat, type FuseConfig, type FuseEvent } from "./fuse.js";
-import { hashSeed, seededRandom } from "./random.js";
-import { addDays, addHours, toIso, toMs } from "./time.js";
+import { fuseTransition, type FuseChat, type FuseConfig, type FuseEvent } from "./fuse";
+import { hashSeed, seededRandom } from "./random";
+import { addDays, addHours, toIso, toMs } from "./time";
 
 /**
  * Full-season simulation — spec §10 Phase 7: "time-travel test: 56 days in

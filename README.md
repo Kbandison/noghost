@@ -1,36 +1,124 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NoGhost
 
-## Getting Started
+Dating in seasons. Everyone starts together. Nobody gets ghosted.
 
-First, run the development server:
+An eight-week, one-city dating season. Up to three curated profiles land at
+8:00 PM daily. Every conversation carries a seven-day fuse: put a real date on
+the calendar or the chat closes itself with a kind note. Nobody on NoGhost can
+be ghosted — mechanically.
+
+Built from [`noghost-season-one-spec.md`](./noghost-season-one-spec.md).
+Design direction from [`luxweb-master/`](./luxweb-master).
+
+---
+
+## Status
+
+| Phase | Scope | State |
+|---|---|---|
+| 0 | Monorepo, season mechanics, database schema | ✅ Complete |
+| 1 | Marketing site | ✅ Complete |
+| 1 | Application funnel (phone OTP → profile → selfie) | ⬜ Blocked on the App Layout Gate |
+| 2 | Admissions + Stripe | ⬜ |
+| 3 | The Drop + Connect | ⬜ |
+| 4 | Chat + Fuse + Dates | ⬜ |
+| 5 | Notifications + PWA | ⬜ |
+| 6 | Mobile (Expo) | ⬜ |
+| 7 | Ops hardening + launch | ⬜ |
+
+**Design direction (locked):** Editorial Refined → Warm Serif Magazine.
+Fraunces + DM Sans. Cream `#FAF7F2` / ink `#1A1815` / ochre `#B8741A` /
+sage `#8B9D83`. VARIANCE 4 · MOTION 4 · DENSITY 3 · LIGHT.
+
+---
+
+## Quickstart
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example apps/web/.env.local     # NEXT_PUBLIC_USE_SEED_DATA=true works with no services
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app runs entirely on local seed fixtures until Supabase is provisioned.
+Flipping `NEXT_PUBLIC_USE_SEED_DATA` to `false` is the only change needed to
+point it at the real database.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm test        # 115 tests, all in packages/logic
+pnpm typecheck
+pnpm build
+pnpm db:seed     # regenerate supabase/seed.sql from the generator
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Layout
 
-To learn more about Next.js, take a look at the following resources:
+```
+apps/
+  web/            Next.js 16 — (marketing) now, (app) next
+  admin/          Next.js 16 — admin.noghost.app (Phase 2)
+packages/
+  config/         Brand constants, season defaults, zod env schema, the §9 copy library
+  types/          Domain types, Postgres enums, the supabase-js Database type
+  logic/          Every season mechanic, pure and unit-tested
+  db/             Supabase clients (browser/server/service) + the seed layer
+  ui-tokens/      Archetype tokens for Tailwind (web) and NativeWind (mobile)
+supabase/
+  migrations/     The §5 schema: tables, RLS, RPCs, storage buckets
+  seed.sql        Generated — 1 season + 40 profiles, all prefixed `deadbeef-`
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Two rules that shape everything
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Mechanics live in `packages/logic`, and they are pure.** No `Date.now()`
+anywhere — "now" is always an argument. That is what makes
+`season-simulation.test.ts` possible: 56 days of hourly sweeps across four
+seeds, asserting that no chat can reach a closed state without a closure note
+being delivered to someone. If that test fails, the product's one promise is
+broken.
 
-## Deploy on Vercel
+**State transitions are Postgres RPCs, not client writes.** Every RLS policy
+that could let a client set a state column is deliberately absent. "Nobody can
+be ghosted" is enforced in the database, not the UI.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deviations from the spec
+
+Three, all deliberate, all flagged for the §2 decision log:
+
+1. **`profiles` gains `age_min`, `age_max`, `interests`.** §6.1's hard age
+   filter and interest-overlap score have no columns to read without them, and
+   §7.2's onboarding already collects both.
+2. **An `admin_users` table exists.** Every table's RLS references "admin", and
+   a policy cannot read the `ADMIN_EMAILS` env var that §7.3 specifies. The
+   admin app syncs this table from that allow-list; TOTP and password remain
+   app-layer factors.
+3. **The `e164` domain type.** §5 writes `phone e164 text unique`, which isn't
+   valid SQL. The intent is an E.164-constrained column, and it appears on two
+   tables, so it became a real domain.
+
+## Copy awaiting sign-off
+
+Everything user-facing is verbatim from spec §9, with three exceptions where
+§9 specifies content requirements rather than finished prose:
+
+- The five email bodies in `packages/config/src/copy/lifecycle.ts`
+  (`signedOff: false`; subjects and SMS are verbatim).
+- The Apply CTA section on the home page — §9.1 names the section but gives no
+  wording.
+- The Terms, Privacy, and Community Standards pages. These are drafted and
+  **have not been legally reviewed.** A dating app holding selfies and phone
+  numbers should not launch on a template.
+
+## Before launch
+
+- Provision the dedicated Supabase project (locked decision #17 — it must not
+  share a project with anything else).
+- Rate-limit and BotID the waitlist action and every auth endpoint.
+- Source photography (LuxWeb workflow Phase 4); the profile-photo pipeline is
+  wired but there are no assets yet.
+- Set Supabase usage alerts at ~70% and decide the spend-cap posture
+  consciously.

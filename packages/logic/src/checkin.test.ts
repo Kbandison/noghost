@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkinCloser, checkinExpiresAt, checkinOpensAt, resolveCheckin } from "./checkin.js";
-import { addHours } from "./time.js";
+import { checkinCloser, checkinExpiresAt, checkinOpensAt, resolveCheckin } from "./checkin";
+import { addHours } from "./time";
 
 const OPENED = "2026-09-22T02:00:00.000Z";
 

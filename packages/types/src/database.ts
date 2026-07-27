@@ -18,7 +18,7 @@ import type {
   Verification,
   VisibleProfile,
   WaitlistEntry,
-} from "./domain.js";
+} from "./domain";
 import type {
   ApplicationStatus,
   CardAction,
@@ -30,7 +30,7 @@ import type {
   MessageKind,
   NotifChannel,
   SeasonPhase,
-} from "./enums.js";
+} from "./enums";
 
 /**
  * The `Database` type supabase-js is generic over.
@@ -73,6 +73,7 @@ export interface PublicSeasonStatsRow {
   ends_at: string;
   applications_open_at: string | null;
   member_cap: number;
+  claim_hours: number;
   seats_remaining: number;
   price_early_cents: number;
   price_standard_cents: number;

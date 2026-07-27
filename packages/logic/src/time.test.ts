@@ -9,7 +9,7 @@ import {
   hoursBetween,
   isQuietHour,
   seasonWeek,
-} from "./time.js";
+} from "./time";
 
 describe("arithmetic", () => {
   it("adds hours and days", () => {

@@ -1,5 +1,5 @@
 import { DATE_MAX_LEAD_DAYS, DATE_MIN_LEAD_HOURS } from "@noghost/config";
-import { daysBetween, hoursBetween } from "./time.js";
+import { daysBetween, hoursBetween } from "./time";
 
 /**
  * Date proposals — spec §6.3, "What counts as a date".

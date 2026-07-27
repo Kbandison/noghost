@@ -1,3 +1,3 @@
-export * from "./enums.js";
-export * from "./domain.js";
-export * from "./database.js";
+export * from "./enums";
+export * from "./domain";
+export * from "./database";

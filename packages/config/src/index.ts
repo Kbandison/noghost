@@ -1,4 +1,4 @@
-export * from "./brand.js";
-export * from "./season.js";
-export * from "./interpolate.js";
-export * as copy from "./copy/index.js";
+export * from "./brand";
+export * from "./season";
+export * from "./interpolate";
+export * as copy from "./copy/index";

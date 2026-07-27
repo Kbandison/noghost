@@ -4,7 +4,7 @@ import {
 } from "@noghost/config";
 import type { ChatState } from "@noghost/types";
 import { isChatClosed } from "@noghost/types";
-import { addDays, addHours, hoursBetween, isAtOrAfter, toMs } from "./time.js";
+import { addDays, addHours, hoursBetween, isAtOrAfter, toMs } from "./time";
 
 /**
  * The fuse state machine — spec §6.3.

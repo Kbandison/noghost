@@ -1,6 +1,6 @@
 import { CHECKIN_EXPIRE_AFTER_HOURS, CHECKIN_OPEN_AFTER_HOURS } from "@noghost/config";
 import type { CheckinAnswer } from "@noghost/types";
-import { addHours, hoursBetween } from "./time.js";
+import { addHours, hoursBetween } from "./time";
 
 /**
  * Post-date check-in — spec §6.3.

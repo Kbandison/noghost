@@ -143,6 +143,7 @@ with (security_invoker = false) as
     s.starts_at,
     s.ends_at,
     s.member_cap,
+    s.claim_hours,
     s.applications_open_at,
     s.price_early_cents,
     s.price_standard_cents,

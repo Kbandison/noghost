@@ -8,8 +8,8 @@ import {
   type FuseChat,
   type FuseConfig,
   type FuseEvent,
-} from "./fuse.js";
-import { addDays, addHours } from "./time.js";
+} from "./fuse";
+import { addDays, addHours } from "./time";
 
 const START = "2026-09-14T20:00:00.000Z";
 const CONFIG: FuseConfig = {

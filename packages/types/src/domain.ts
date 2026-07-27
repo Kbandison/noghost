@@ -9,7 +9,7 @@ import type {
   MessageKind,
   NotifChannel,
   SeasonPhase,
-} from "./enums.js";
+} from "./enums";
 
 /** ISO-8601 timestamp string, as Supabase returns `timestamptz`. */
 export type Timestamp = string;

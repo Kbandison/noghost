@@ -9,11 +9,11 @@
  * where §9.5 specifies content requirements rather than finished prose. Those
  * are marked `signedOff: false`.
  */
-export * from "./marketing.js";
-export * from "./closure.js";
-export * from "./drop.js";
-export * from "./notifications.js";
-export * from "./empty-states.js";
-export * from "./prompts.js";
-export * from "./lifecycle.js";
-export * from "./legal.js";
+export * from "./marketing";
+export * from "./closure";
+export * from "./drop";
+export * from "./notifications";
+export * from "./empty-states";
+export * from "./prompts";
+export * from "./lifecycle";
+export * from "./legal";

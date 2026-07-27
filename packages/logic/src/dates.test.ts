@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { canConfirmDate, validateDateProposal } from "./dates.js";
-import { addDays, addHours } from "./time.js";
+import { canConfirmDate, validateDateProposal } from "./dates";
+import { addDays, addHours } from "./time";
 
 const NOW = "2026-09-20T18:00:00.000Z";
 

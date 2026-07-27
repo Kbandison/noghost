@@ -5,7 +5,7 @@ import {
   toneCheck,
   toneCheckAuditRecord,
   buildToneCheckPrompt,
-} from "./tone-check.js";
+} from "./tone-check";
 
 const pass = async () => ({ pass: true, category: "ok", suggestion: "" });
 

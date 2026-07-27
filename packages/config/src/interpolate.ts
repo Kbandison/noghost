@@ -1,4 +1,4 @@
-import { BRAND } from "./brand.js";
+import { BRAND } from "./brand";
 
 /**
  * Copy variables — the same `{{VAR}}` convention the LuxWeb legal docs use

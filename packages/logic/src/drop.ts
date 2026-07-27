@@ -1,7 +1,7 @@
 import { clusterFor } from "@noghost/config";
 import type { Gender, MemberStatus } from "@noghost/types";
-import { seededShuffle } from "./random.js";
-import { ageOn, seasonWeek } from "./time.js";
+import { seededShuffle } from "./random";
+import { ageOn, seasonWeek } from "./time";
 
 /**
  * The drop algorithm — spec §6.1.
