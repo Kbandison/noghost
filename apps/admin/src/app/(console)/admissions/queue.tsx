@@ -20,6 +20,9 @@ const FILTERS: { label: string; value: ApplicationStatus | "all" }[] = [
   { label: "Claimed", value: "claimed" },
   { label: "Waitlisted", value: "waitlisted" },
   { label: "Rejected", value: "rejected" },
+  // Claim windows that lapsed. Reachable now that claim-sweep expires them —
+  // a reviewer needs to see who lost a seat, not just who was given one.
+  { label: "Expired", value: "expired" },
   { label: "All", value: "all" },
 ];
 

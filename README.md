@@ -21,7 +21,8 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 | 1 | Application funnel (phone OTP → profile → selfie) | ✅ Complete · wired to Supabase |
 | 1 | Live database — schema, RLS, storage, write path | ✅ Verified against the real project |
 | 2 | Admin console — auth + TOTP, admissions queue, ratio dashboard | ✅ Verified against the real project |
-| 2 | Stripe checkout, webhook, claim-sweep | ⬜ Blocked on a Stripe account |
+| 2 | `claim-sweep` cron — expiry, waitlist promotion, reminders | ✅ Verified against the real project |
+| 2 | Stripe checkout + webhook | ⬜ Blocked on a Stripe account |
 | 3 | The Drop + Connect | ⬜ |
 | 4 | Chat + Fuse + Dates | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
@@ -108,6 +109,29 @@ called as the service role there is no `auth.uid()`, and every decision lands in
 the trail credited to the zero uuid. Migration `0009_admin_rpc_attribution.sql`
 is what makes that possible; without it the console refuses decisions and says
 so.
+
+### Scheduled jobs
+
+`claim-sweep` (§4.3) runs hourly, declared in `apps/web/vercel.json`. It expires
+lapsed claim windows, promotes from the waitlist into the seats those release —
+in the same pass, so a seat is never idle for an hour — and texts anyone inside
+their last 12 hours **once**. That dedupe matters: the job runs hourly against a
+12-hour horizon, and `claim_reminder` is `required: true` in §8's matrix, so it
+is precisely the message a member cannot mute.
+
+Every cron endpoint verifies `CRON_SECRET` with a constant-time compare and
+answers `404` — not `401` — so an unauthenticated caller learns nothing about
+which endpoints exist. A missing secret fails closed.
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3100/api/cron/claim-sweep
+```
+
+The mechanic itself is pure and lives in `packages/logic/src/claim.ts`, so it is
+covered by unit tests rather than only by running it: seats occupied by an open
+window are never promoted into, a deadline exactly equal to `now` has not lapsed
+(someone may be mid-checkout), and re-running the plan against its own output is
+a no-op.
 
 ### Console settings the migrations cannot make
 

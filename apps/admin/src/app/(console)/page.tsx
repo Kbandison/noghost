@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GENDER_LABELS } from "@noghost/config";
+import { CLAIM_REMINDER_HOURS_LEFT } from "@noghost/logic";
 import { cn, Empty, Panel, Stat } from "@/components/ui";
 import { statusCounts } from "@/lib/admissions";
 import { claimWindows, cohortHealth } from "@/lib/cohort";
@@ -170,9 +171,9 @@ export default async function OverviewPage() {
             </ul>
           )}
           <p className="border-t border-[var(--border)] px-4 py-3 text-[12px] leading-relaxed text-[var(--text-dim)]">
-            Expired windows are swept by the <span className="tabular">claim-sweep</span> cron,
-            which releases the seat and promotes from the waitlist. That job is not built yet, so
-            these do not currently expire on their own.
+            The <span className="tabular">claim-sweep</span> cron runs hourly: it expires lapsed
+            windows, promotes from the waitlist into the seats those release, and texts anyone
+            inside their last {CLAIM_REMINDER_HOURS_LEFT} hours once.
           </p>
         </Panel>
       </div>

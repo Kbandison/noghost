@@ -177,6 +177,29 @@ export interface Database {
         };
         Returns: undefined;
       };
+      /*
+       * Service-role and admin only — EXECUTE is revoked from anon and
+       * authenticated. Typed here because the cron routes in §4.3 call them
+       * directly; a member never can.
+       */
+      enqueue_notification: {
+        Args: {
+          p_user: string;
+          p_channel: NotifChannel;
+          p_template: string;
+          p_payload?: Record<string, unknown>;
+        };
+        Returns: undefined;
+      };
+      audit: {
+        Args: {
+          p_action: string;
+          p_table: string;
+          p_target: string;
+          p_detail?: Record<string, unknown>;
+        };
+        Returns: undefined;
+      };
     };
     Enums: {
       application_status: ApplicationStatus;

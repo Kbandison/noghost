@@ -21,3 +21,4 @@ export * from "./dates";
 export * from "./graduation";
 export * from "./tone-check";
 export * from "./application";
+export * from "./claim";
