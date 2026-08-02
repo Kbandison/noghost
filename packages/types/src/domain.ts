@@ -286,3 +286,47 @@ export interface AdminAuditEntry {
   detail: Record<string, unknown>;
   created_at: Timestamp;
 }
+
+/**
+ * The admin allow-list.
+ *
+ * Spec §7.3 describes an `ADMIN_EMAILS` env var, but every `is_admin()` check
+ * is SQL evaluated inside Postgres and Postgres cannot read the app's
+ * environment. The table is the allow-list; `pnpm admin:grant` writes to it.
+ */
+export interface AdminUser {
+  id: UUID;
+  email: string;
+  /** Revoked admins are deactivated, never deleted — `admin_audit` points here. */
+  active: boolean;
+  created_at: Timestamp;
+}
+
+export interface Graduation {
+  id: UUID;
+  chat_id: UUID;
+  proposed_by: UUID;
+  confirmed_by: UUID | null;
+  status: "proposed" | "confirmed" | "declined";
+  responded_at: Timestamp | null;
+  created_at: Timestamp;
+}
+
+export interface ExitSurvey {
+  id: UUID;
+  user_id: UUID;
+  season_id: UUID;
+  dates_count: number | null;
+  would_recommend: boolean | null;
+  quote: string | null;
+  submitted_at: Timestamp | null;
+  created_at: Timestamp;
+}
+
+/** Idempotency ledger for Stripe (and any other) webhooks. */
+export interface ProcessedWebhookEvent {
+  /** The provider's own event id — the primary key, so a replay is a no-op. */
+  id: string;
+  provider: string;
+  processed_at: Timestamp;
+}

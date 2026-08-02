@@ -1,5 +1,6 @@
 import type {
   AdminAuditEntry,
+  AdminUser,
   Application,
   Chat,
   ClosureNote,
@@ -8,7 +9,10 @@ import type {
   Drop,
   DropCard,
   Connect,
+  ExitSurvey,
+  Graduation,
   Message,
+  ProcessedWebhookEvent,
   Notification,
   NotificationPrefs,
   Profile,
@@ -101,7 +105,11 @@ export interface Database {
       waitlist: Table<WaitlistEntry>;
       notifications: Table<Notification>;
       notification_prefs: Table<NotificationPrefs>;
+      graduations: Table<Graduation>;
+      exit_surveys: Table<ExitSurvey>;
       admin_audit: Table<AdminAuditEntry>;
+      admin_users: Table<AdminUser>;
+      processed_webhook_events: Table<ProcessedWebhookEvent>;
     };
     Views: {
       public_season_stats: View<PublicSeasonStatsRow>;

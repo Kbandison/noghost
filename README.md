@@ -20,7 +20,8 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 | 1 | Marketing site | ✅ Complete |
 | 1 | Application funnel (phone OTP → profile → selfie) | ✅ Complete · wired to Supabase |
 | 1 | Live database — schema, RLS, storage, write path | ✅ Verified against the real project |
-| 2 | Admissions + Stripe | ⬜ |
+| 2 | Admin console — auth + TOTP, admissions queue, ratio dashboard | ✅ Verified against the real project |
+| 2 | Stripe checkout, webhook, claim-sweep | ⬜ Blocked on a Stripe account |
 | 3 | The Drop + Connect | ⬜ |
 | 4 | Chat + Fuse + Dates | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
@@ -69,10 +70,15 @@ pnpm db:seed     # regenerate supabase/seed.sql from the generator
 Apply `supabase/migrations/*.sql` in order, then:
 
 ```bash
-pnpm db:seed:remote          # one season + 40 profiles, over the API
-pnpm db:seed:remote --purge  # remove exactly those rows again
-pnpm db:verify               # did the migrations apply, and does anon get denied?
-pnpm db:verify:writes        # sign in as a member; do the writes work, and do the boundaries hold?
+pnpm db:seed:remote                 # one season + 40 profiles, over the API
+pnpm db:seed:remote --applications  # …plus 12 applications with media, sitting at under_review
+pnpm db:seed:remote --purge         # remove exactly those rows and their storage objects
+pnpm db:verify                      # did the migrations apply, and does anon get denied?
+pnpm db:verify:writes               # sign in as a member; do the writes work, and do the boundaries hold?
+
+pnpm admin:grant you@example.com               # create or promote an admin (prints a password once)
+pnpm admin:grant you@example.com --reset-mfa   # lost authenticator — forces re-enrolment
+pnpm admin:grant you@example.com --revoke      # deactivate, keeping their audit history
 ```
 
 `db:seed:remote` exists because `supabase/seed.sql` writes into `auth.users`,
@@ -86,6 +92,22 @@ that its inverse fails — uploading into someone else's photo folder, reading
 back your own verification selfie, advancing your own application to
 `admitted`. A policy that permits everything passes a structural check
 perfectly.
+
+### The admin console
+
+`apps/admin` runs on port 3001. Sign-in is email + password + TOTP, and TOTP is
+**forced** — an admin session reads every member's date of birth, phone number
+and verification selfie, so a password alone isn't a proportionate guard. The
+allow-list is the `admin_users` table rather than the `ADMIN_EMAILS` env var
+§7.3 specifies, because `is_admin()` is SQL and Postgres cannot read the app's
+environment.
+
+Admissions decisions call `advance_application` with the *admin's own session*,
+not the service role. That is what puts the reviewer's id in `admin_audit` —
+called as the service role there is no `auth.uid()`, and every decision lands in
+the trail credited to the zero uuid. Migration `0009_admin_rpc_attribution.sql`
+is what makes that possible; without it the console refuses decisions and says
+so.
 
 ### Console settings the migrations cannot make
 

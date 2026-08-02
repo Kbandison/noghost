@@ -1,0 +1,47 @@
+/* Tailwind first — nothing may precede it (STACK.md CSS pitfall #4). */
+@import "tailwindcss";
+
+/* Same archetype as the marketing site, so an admin recognises the product. */
+@import "@noghost/ui-tokens/tokens.css";
+
+/*
+ * Admin runs at a different density to everything else: DENSITY 8 against the
+ * marketing site's 3, and MOTION 2 against its 4.
+ *
+ * The reason is the job. A reviewer works this screen for an hour at a time and
+ * needs many applications in view at once; a visitor reads one page slowly.
+ * Same palette and same faces, tighter rhythm and far less movement.
+ */
+:root {
+  --admin-row-h: 2.75rem;
+  --admin-gutter: 1rem;
+  --admin-rail: 15rem;
+}
+
+body {
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/* Numbers in tables must line up. Every count, price and countdown is tabular. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/*
+ * A quiet focus ring that works on both the cream surface and the raised one.
+ * Admin has far more interactive targets per screen than the marketing site,
+ * so the default heavy ring becomes visual noise.
+ */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Long tables scroll inside their own container; the page never does. */
+.scroll-x {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}

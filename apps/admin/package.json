@@ -1,0 +1,35 @@
+{
+  "name": "@noghost/admin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start --port 3001",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@noghost/config": "workspace:*",
+    "@noghost/db": "workspace:*",
+    "@noghost/logic": "workspace:*",
+    "@noghost/types": "workspace:*",
+    "@noghost/ui-tokens": "workspace:*",
+    "clsx": "^2.1.1",
+    "next": "16.2.12",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sharp": "^0.34.5",
+    "tailwind-merge": "^3.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.2.12",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3"
+  }
+}
