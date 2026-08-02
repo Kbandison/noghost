@@ -11,10 +11,14 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "db:seed": "pnpm --filter @noghost/db run seed"
+    "db:seed": "pnpm --filter @noghost/db run seed",
+    "db:verify": "tsx packages/db/scripts/verify-schema.ts",
+    "db:seed:remote": "tsx packages/db/scripts/seed-remote.ts",
+    "db:verify:writes": "tsx packages/db/scripts/verify-writes.ts"
   },
   "devDependencies": {
     "prettier": "^3.6.2",
+    "tsx": "^4.23.1",
     "turbo": "^2.6.2",
     "typescript": "^5.9.3"
   }

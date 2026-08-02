@@ -18,6 +18,7 @@ import { CONSENT, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationDraft, FieldErrors } from "@noghost/logic";
 import { Chip, CheckboxRow, SelectField, TextArea, TextField } from "@/components/ui/field";
 import { FieldError } from "@/components/ui/field";
+import { publicPhotoUrl, uploadImage } from "@/lib/upload";
 
 export interface StepProps {
   draft: ApplicationDraft;
@@ -242,64 +243,135 @@ export function InterestsStep({ draft, errors }: StepProps) {
 /**
  * Photos.
  *
- * Files are chosen client-side and their names submitted as `photoPaths`.
- * With Supabase provisioned this step uploads to the `photos` bucket first and
- * submits the returned storage paths instead — the draft never carries bytes.
+ * Each file uploads to the `photos` bucket as soon as it's chosen, and only
+ * the returned storage path is submitted. A photo that hasn't finished
+ * uploading contributes no hidden input, so the server can never receive a
+ * path that doesn't exist in Storage.
  */
+interface PendingPhoto {
+  /** Stable across re-renders; filenames are not unique. */
+  key: string;
+  label: string;
+  /** Local object URL while uploading, CDN URL once stored. */
+  preview: string;
+  path: string | null;
+  error: string | null;
+}
+
 export function PhotosStep({ draft, errors }: StepProps) {
-  const [files, setFiles] = useState<{ name: string; url: string }[]>(
-    (draft.photoPaths ?? []).map((name) => ({ name, url: "" })),
+  const [photos, setPhotos] = useState<PendingPhoto[]>(() =>
+    (draft.photoPaths ?? []).map((path, i) => ({
+      key: `restored-${i}-${path}`,
+      label: path.split("/").pop() ?? path,
+      preview: publicPhotoUrl(path),
+      path,
+      error: null,
+    })),
   );
 
+  const stored = photos.filter((p) => p.path !== null).length;
+  const uploading = photos.filter((p) => p.path === null && p.error === null).length;
+
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = Array.from(e.target.files ?? []).slice(0, PHOTO_MAX - files.length);
-    setFiles((prev) =>
-      [...prev, ...picked.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }))].slice(
-        0,
-        PHOTO_MAX,
-      ),
-    );
+    const picked = Array.from(e.target.files ?? []).slice(0, PHOTO_MAX - photos.length);
     e.target.value = "";
+
+    for (const file of picked) {
+      const key = crypto.randomUUID();
+      setPhotos((prev) =>
+        prev.length >= PHOTO_MAX
+          ? prev
+          : [
+              ...prev,
+              {
+                key,
+                label: file.name,
+                preview: URL.createObjectURL(file),
+                path: null,
+                error: null,
+              },
+            ],
+      );
+
+      void uploadImage("photos", file)
+        .then((path) =>
+          setPhotos((prev) => prev.map((p) => (p.key === key ? { ...p, path } : p))),
+        )
+        .catch((cause: unknown) =>
+          setPhotos((prev) =>
+            prev.map((p) =>
+              p.key === key
+                ? { ...p, error: cause instanceof Error ? cause.message : "Upload failed." }
+                : p,
+            ),
+          ),
+        );
+    }
   }
 
-  function remove(name: string) {
-    setFiles((prev) => prev.filter((f) => f.name !== name));
+  function remove(key: string) {
+    setPhotos((prev) => prev.filter((p) => p.key !== key));
   }
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-3">
-        {files.map((file, i) => (
-          <figure key={file.name} className="relative">
-            <div className="aspect-[4/5] overflow-hidden border border-[var(--border)] bg-[var(--bg-secondary)]">
-              {file.url ? (
-                // A local object URL has no remote host for next/image to optimise.
+        {photos.map((photo, i) => (
+          <figure key={photo.key} className="relative">
+            <div className="relative aspect-[4/5] overflow-hidden border border-[var(--border)] bg-[var(--bg-secondary)]">
+              {photo.preview ? (
+                // Mixed local object URLs and CDN URLs in one list, at thumbnail
+                // size, for the member's own six photos. next/image earns its
+                // keep on the drop (BACKEND.md layer 2), not here.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={file.url} alt="" className="h-full w-full object-cover" />
+                <img
+                  src={photo.preview}
+                  alt=""
+                  className={
+                    photo.path
+                      ? "h-full w-full object-cover"
+                      : "h-full w-full object-cover opacity-50"
+                  }
+                />
               ) : (
                 <div className="flex h-full items-center justify-center px-2 text-center text-[12px] text-[var(--text-dim)]">
-                  {file.name}
+                  {photo.label}
+                </div>
+              )}
+
+              {!photo.path && !photo.error && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[var(--bg-primary)]/60 text-[12px] uppercase tracking-[0.1em] text-[var(--text-dim)]">
+                  Uploading
                 </div>
               )}
             </div>
-            {i === 0 && (
+
+            {i === 0 && photo.path && (
               <figcaption className="mt-1.5 text-[12px] uppercase tracking-[0.1em] text-[var(--text-dim)]">
                 First
               </figcaption>
             )}
+            {photo.error && (
+              <p role="alert" className="mt-1.5 text-[12px] leading-snug text-[var(--error)]">
+                {photo.error}
+              </p>
+            )}
+
             <button
               type="button"
-              onClick={() => remove(file.name)}
-              aria-label={`Remove ${file.name}`}
+              onClick={() => remove(photo.key)}
+              aria-label={`Remove ${photo.label}`}
               className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-primary)]/90 text-[16px] leading-none text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-primary)]"
             >
               ×
             </button>
-            <input type="hidden" name="photoPaths" value={file.name} />
+
+            {/* Only a stored path is submittable. */}
+            {photo.path && <input type="hidden" name="photoPaths" value={photo.path} />}
           </figure>
         ))}
 
-        {files.length < PHOTO_MAX && (
+        {photos.length < PHOTO_MAX && (
           <label className="flex aspect-[4/5] cursor-pointer flex-col items-center justify-center gap-1 border border-dashed border-[var(--border)] text-[13px] text-[var(--text-dim)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent-text)]">
             <span aria-hidden="true" className="text-[22px] leading-none">
               +
@@ -310,8 +382,10 @@ export function PhotosStep({ draft, errors }: StepProps) {
         )}
       </div>
 
-      <p className="text-[15px] text-[var(--text-dim)]">
-        {files.length} of {PHOTO_MIN}&ndash;{PHOTO_MAX}. The first one leads your card.
+      <p aria-live="polite" className="text-[15px] text-[var(--text-dim)]">
+        {uploading > 0
+          ? `${stored} of ${PHOTO_MIN}–${PHOTO_MAX}. ${uploading} still uploading…`
+          : `${stored} of ${PHOTO_MIN}–${PHOTO_MAX}. The first one leads your card.`}
       </p>
       <FieldError id="photos-error">{errors.photos}</FieldError>
     </div>
@@ -387,33 +461,79 @@ export function PromptsStep({ draft, errors }: StepProps) {
   );
 }
 
+/**
+ * Selfie.
+ *
+ * Note the asymmetry with photos: a selfie restored from the draft shows a
+ * confirmation, never a thumbnail. `verification-selfies` is private and has
+ * no member SELECT policy at all — spec §9.8, "review-team eyes only" — so
+ * there is no URL to render even for the person who uploaded it. That's the
+ * promise working, not a gap.
+ */
 export function SelfieStep({ draft, errors }: StepProps) {
-  const [file, setFile] = useState<{ name: string; url: string } | null>(
-    draft.selfiePath ? { name: draft.selfiePath, url: "" } : null,
+  const [selfie, setSelfie] = useState<{ label: string; preview: string } | null>(
+    draft.selfiePath ? { label: "Selfie on file", preview: "" } : null,
   );
+  const [path, setPath] = useState<string | null>(draft.selfiePath ?? null);
+  const [uploading, setUploading] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0];
+    e.target.value = "";
+    if (!picked) return;
+
+    setSelfie({ label: picked.name, preview: URL.createObjectURL(picked) });
+    setPath(null);
+    setFailure(null);
+    setUploading(true);
+
+    void uploadImage("verification-selfies", picked)
+      .then(setPath)
+      .catch((cause: unknown) =>
+        setFailure(cause instanceof Error ? cause.message : "Upload failed."),
+      )
+      .finally(() => setUploading(false));
+  }
+
+  function retake() {
+    setSelfie(null);
+    setPath(null);
+    setFailure(null);
+  }
 
   return (
     <div className="space-y-6">
-      {file ? (
+      {selfie ? (
         <div className="flex items-center gap-4 border border-[var(--border)] p-4">
-          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-[var(--bg-secondary)]">
-            {file.url && (
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--bg-secondary)]">
+            {selfie.preview ? (
               // Local object URL; nothing for next/image to optimise.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={file.url} alt="" className="h-full w-full object-cover" />
+              <img
+                src={selfie.preview}
+                alt=""
+                className={uploading ? "h-full w-full object-cover opacity-50" : "h-full w-full object-cover"}
+              />
+            ) : (
+              <span aria-hidden="true" className="text-[22px] text-[var(--sage-text)]">
+                ✓
+              </span>
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px]">{file.name}</p>
+            <p className="truncate text-[15px]" aria-live="polite">
+              {uploading ? "Uploading…" : failure ? "Upload failed" : selfie.label}
+            </p>
             <button
               type="button"
-              onClick={() => setFile(null)}
+              onClick={retake}
               className="mt-1 text-[14px] text-[var(--accent-text)] underline underline-offset-4"
             >
               Retake
             </button>
           </div>
-          <input type="hidden" name="selfiePath" value={file.name} />
+          {path && <input type="hidden" name="selfiePath" value={path} />}
         </div>
       ) : (
         <label className="flex cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-[var(--border)] px-6 py-12 text-center transition-colors hover:border-[var(--accent)]">
@@ -426,14 +546,16 @@ export function SelfieStep({ draft, errors }: StepProps) {
             accept="image/*"
             capture="user"
             className="sr-only"
-            onChange={(e) => {
-              const picked = e.target.files?.[0];
-              if (picked) setFile({ name: picked.name, url: URL.createObjectURL(picked) });
-            }}
+            onChange={onPick}
           />
         </label>
       )}
 
+      {failure && (
+        <p role="alert" className="text-[14px] leading-snug text-[var(--error)]">
+          {failure}
+        </p>
+      )}
       <FieldError id="selfie-error">{errors.selfie}</FieldError>
 
       <p className="text-[14px] leading-relaxed text-[var(--text-dim)]">{CONSENT.selfie}</p>

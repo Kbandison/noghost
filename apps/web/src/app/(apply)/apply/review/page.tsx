@@ -7,6 +7,7 @@ import { getPublicSeasonStats } from "@noghost/db";
 import { isSubmittable } from "@noghost/logic";
 import { Ghost } from "@/components/ui/ghost";
 import { readDraft } from "@/lib/application-draft";
+import { supabaseServer } from "@/lib/supabase";
 
 export const metadata: Metadata = {
   title: "Application received",
@@ -23,13 +24,42 @@ export const dynamic = "force-dynamic";
  * the in-app screen isn't in §9. Written to match that email so the two don't
  * contradict each other. Flagged for sign-off.
  */
+/**
+ * The application actually on file, if there is one.
+ *
+ * Read through the member's own session, so RLS is what scopes it — this can
+ * only ever return the caller's row.
+ */
+async function filedApplication() {
+  if (usingSeedData()) return null;
+
+  const supabase = await supabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data } = await supabase
+    .from("applications")
+    .select("id,status,created_at,season_id")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data;
+}
+
 export default async function ReviewPage() {
   const draft = await readDraft();
-  const season = await getPublicSeasonStats();
+  const [season, application] = await Promise.all([getPublicSeasonStats(), filedApplication()]);
 
   // Landing here without a finished application means something went wrong or
   // someone typed the URL. Send them back to where they actually are.
-  if (!isSubmittable(draft, new Date().toISOString())) redirect("/apply/start");
+  //
+  // A filed application outranks the cookie: the draft is only the carrier,
+  // and someone returning on a cleared cookie should still see their status.
+  if (!application && !isSubmittable(draft, new Date().toISOString())) redirect("/apply/start");
 
   return (
     <div className="mx-auto grid w-full max-w-[var(--content-max)] grid-cols-1 gap-12 px-6 pb-24 pt-16 md:px-8 lg:grid-cols-12 lg:gap-16 lg:pt-24">

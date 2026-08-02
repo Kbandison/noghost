@@ -18,13 +18,20 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 |---|---|---|
 | 0 | Monorepo, season mechanics, database schema | ✅ Complete |
 | 1 | Marketing site | ✅ Complete |
-| 1 | Application funnel (phone OTP → profile → selfie) | ✅ Complete (runs on seed data) |
+| 1 | Application funnel (phone OTP → profile → selfie) | ✅ Complete · wired to Supabase |
+| 1 | Live database — schema, RLS, storage, write path | ✅ Verified against the real project |
 | 2 | Admissions + Stripe | ⬜ |
 | 3 | The Drop + Connect | ⬜ |
 | 4 | Chat + Fuse + Dates | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
 | 6 | Mobile (Expo) | ⬜ |
 | 7 | Ops hardening + launch | ⬜ |
+
+**One thing is not yet driveable end to end:** phone auth is disabled on the
+Supabase project, so the OTP step fails closed. Everything on either side of it
+— the OTP send, the storage uploads, the profile/verification/application
+writes and the `advance_application` chain to `under_review` — is verified
+against the live database by `pnpm db:verify:writes`.
 
 **Layouts (locked):** funnel — Asymmetric Editorial + stepped form. Member app
 — Focus Mode, Split Canvas for Inbox/Chats. Admin — Split Canvas + dense
@@ -54,6 +61,41 @@ pnpm typecheck
 pnpm build
 pnpm db:seed     # regenerate supabase/seed.sql from the generator
 ```
+
+---
+
+## Against a real Supabase project
+
+Apply `supabase/migrations/*.sql` in order, then:
+
+```bash
+pnpm db:seed:remote          # one season + 40 profiles, over the API
+pnpm db:seed:remote --purge  # remove exactly those rows again
+pnpm db:verify               # did the migrations apply, and does anon get denied?
+pnpm db:verify:writes        # sign in as a member; do the writes work, and do the boundaries hold?
+```
+
+`db:seed:remote` exists because `supabase/seed.sql` writes into `auth.users`,
+which only the SQL editor or a direct connection can reach. Both read the same
+generator, so they cannot drift.
+
+The two verify scripts answer different questions, and the second is the one
+that matters. `db:verify` proves the objects exist. `db:verify:writes` signs in
+as a real member and checks that each thing the funnel does succeeds **and**
+that its inverse fails — uploading into someone else's photo folder, reading
+back your own verification selfie, advancing your own application to
+`admitted`. A policy that permits everything passes a structural check
+perfectly.
+
+### Console settings the migrations cannot make
+
+- **Authentication → Phone** must be enabled, with an SMS provider. Until it
+  is, `/auth/v1/settings` reports `"phone": false` and the funnel's OTP step
+  fails closed with a plain-language message. Add a **test OTP number** to walk
+  the funnel end to end without sending real SMS.
+- `NEXT_PUBLIC_SUPABASE_URL` is the bare origin. A trailing `/rest/v1` makes
+  every request fail with `PGRST125`, which from the client is indistinguishable
+  from a working RLS policy — `pnpm db:verify` refuses to run against one.
 
 ---
 
