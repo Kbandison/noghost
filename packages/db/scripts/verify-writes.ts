@@ -95,6 +95,31 @@ function mustFail(label: string, error: { message: string } | null, produced?: u
   else bad(label, "the operation SUCCEEDED and must not have");
 }
 
+/**
+ * Asserts a table is reachable *and* returns nothing — RLS did the refusing.
+ *
+ * A missing GRANT also produces zero usable rows, but as a 42501, and a table
+ * the Data API cannot see at all comes back as PGRST205. Either would satisfy
+ * "the member saw no rows" while meaning the app itself is broken, so both are
+ * failures here rather than passes.
+ */
+function mustBeDeniedNotUnreachable(
+  label: string,
+  error: { code?: string | null; message: string } | null,
+  produced: unknown,
+) {
+  const unreachable = new Set(["42501", "PGRST205", "PGRST125", "PGRST002"]);
+  if (error && unreachable.has(error.code ?? "")) {
+    bad(label, `not reachable at all (${error.code}) — this proves nothing about RLS`);
+  } else if (error) {
+    ok(label, `refused — ${error.message.slice(0, 70)}`);
+  } else if (Array.isArray(produced) && produced.length === 0) {
+    ok(label, "reachable, 0 rows — the grant is present and is_admin() denied");
+  } else {
+    bad(label, "the member READ this table and must not have");
+  }
+}
+
 async function cleanup() {
   await service.storage.from("photos").remove([`${TEST_ID}/probe.png`]);
   await service.storage.from("verification-selfies").remove([`${TEST_ID}/probe.png`]);
@@ -270,9 +295,23 @@ async function main() {
     });
     mustFail("call advance_application directly", error);
   }
-  {
-    const { data, error } = await member.from("admin_users").select("*");
-    mustFail("read the admin allow-list", error, data);
+  /*
+   * The two admin tables are checked with `mustBeDeniedNotUnreachable`, not
+   * `mustFail`.
+   *
+   * `mustFail` counts any error as a pass, and here that hides the one failure
+   * worth catching. If SELECT is not granted to `authenticated`, PostgREST
+   * answers 42501 — an error, so `mustFail` reports a healthy boundary — while
+   * `adminGate()` reads its own `admin_users` row to decide who is an admin and
+   * would lock every admin out of the console. Same shape as the PGRST125 trap
+   * in verify-schema.ts: the reassuring result and the broken one look alike.
+   *
+   * What must happen is *reachable but empty*: the grant is in place and
+   * `is_admin()` returns no rows. Migration 0010 makes that grant explicit.
+   */
+  for (const table of ["admin_users", "admin_audit"] as const) {
+    const { data, error } = await member.from(table).select("*").limit(1);
+    mustBeDeniedNotUnreachable(`read ${table}`, error, data);
   }
 
   // ---- the status chain the funnel drives ---------------------------------

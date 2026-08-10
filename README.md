@@ -22,6 +22,7 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 | 1 | Live database — schema, RLS, storage, write path | ✅ Verified against the real project |
 | 2 | Admin console — auth + TOTP, admissions queue, ratio dashboard | ✅ Verified against the real project |
 | 2 | `claim-sweep` cron — expiry, waitlist promotion, reminders | ✅ Verified against the real project |
+| 2 | Audit trail view — §7.3's other half | ✅ Verified against the real project |
 | 2 | Stripe checkout + webhook | ⬜ Blocked on a Stripe account |
 | 3 | The Drop + Connect | ⬜ |
 | 4 | Chat + Fuse + Dates | ⬜ |
@@ -94,6 +95,14 @@ back your own verification selfie, advancing your own application to
 `admitted`. A policy that permits everything passes a structural check
 perfectly.
 
+For `admin_users` and `admin_audit` it goes one step further and insists on
+*reachable but empty*. "The member saw no rows" is also what a missing GRANT
+looks like (42501), and that distinction matters: `adminGate()` decides who is
+an admin by reading its own `admin_users` row, so losing the grant locks every
+admin out of the console while the console reports it as a permissions decision.
+`0010_admin_table_grants.sql` makes those two grants explicit rather than leaving
+them on Supabase's stock default privileges.
+
 ### The admin console
 
 `apps/admin` runs on port 3001. Sign-in is email + password + TOTP, and TOTP is
@@ -109,6 +118,38 @@ called as the service role there is no `auth.uid()`, and every decision lands in
 the trail credited to the zero uuid. Migration `0009_admin_rpc_attribution.sql`
 is what makes that possible; without it the console refuses decisions and says
 so.
+
+### The audit trail
+
+`/audit` reads `admin_audit` back. §7.3 asks for two things — every mutation
+audited, and the trail legible — and until this view only the first existed. A
+record nobody can read holds nobody accountable.
+
+Four decisions in it are load-bearing:
+
+- **Times render in the season's timezone, not the server's.** Server-rendered,
+  `toLocaleString` with no zone uses the host's — UTC on Vercel — so a decision
+  made at 2pm reads as 7pm to the person who made it. The zone is explicit and
+  labelled in the header.
+- **`advance_application` gets a label per outcome.** One RPC covers a
+  reviewer's decision *and* the applicant walking their own funnel
+  (`applied → phone_verified → …`). A single label would call a form submission
+  an admissions decision, and most rows are the funnel.
+- **Paging is keyset on `(created_at, id)`, not `created_at` alone.** `audit()`
+  stamps rows with `now()` — transaction start time — so any future function
+  auditing several rows in one transaction produces entries sharing a timestamp
+  to the microsecond, and a cursor on the timestamp alone silently skips or
+  repeats the rest of that group. No caller does that today; the guard costs one
+  `or` clause.
+- **A target that no longer exists is shown, unlinked, as `deleted`.** The trail
+  is append-only and outlives its rows — a member exercising deletion, or
+  `db:verify:writes` cleaning up after itself. The entry is still valid; there is
+  just nothing to open.
+
+The cursor is opaque and both halves are pattern-checked before use, because
+they are interpolated into a raw PostgREST `or=` expression. Verified against
+the live project: seven malformed and hostile query strings all fall back to
+page one, and a valid cursor still pages.
 
 ### Scheduled jobs
 

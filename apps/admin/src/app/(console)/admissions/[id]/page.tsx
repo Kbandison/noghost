@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GENDER_LABELS } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
@@ -60,7 +61,17 @@ export default async function ApplicationPage({
                 })}
               </p>
             </div>
-            <StatusPill status={application.status} />
+            <div className="flex items-center gap-3">
+              <StatusPill status={application.status} />
+              {/* The one question a reviewer asks about an already-decided
+                  application: who decided it, and when. */}
+              <Link
+                href={`/audit?target=${application.id}`}
+                className="text-[13px] text-[var(--text-secondary)] underline underline-offset-4 transition-colors hover:text-[var(--text-primary)]"
+              >
+                History
+              </Link>
+            </div>
           </header>
 
           {/*

@@ -36,6 +36,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
           <li>
             <NavLink href="/admissions">Admissions</NavLink>
           </li>
+          <li>
+            <NavLink href="/audit">Audit trail</NavLink>
+          </li>
         </ul>
 
         <div className="border-t border-[var(--border)] p-3">
