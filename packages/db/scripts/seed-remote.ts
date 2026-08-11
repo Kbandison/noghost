@@ -13,6 +13,9 @@
  * exactly those. Nothing here should ever run against production.
  *
  *   pnpm db:seed:remote
+ *   pnpm db:seed:remote --applications
+ *   pnpm db:seed:remote --members
+ *   pnpm db:seed:remote --live
  *   pnpm db:seed:remote --purge
  */
 
@@ -44,6 +47,35 @@ const purging = process.argv.includes("--purge");
 const withApplications = process.argv.includes("--applications");
 /** Enough to exercise the queue, few enough to seed in seconds. */
 const APPLICANT_COUNT = 12;
+
+/**
+ * Also give the seeded profiles a `season_members` row.
+ *
+ * Membership is normally written by the Stripe webhook, so until that account
+ * exists there is no way to get a single member into a season — and the drop
+ * algorithm, the fuse and everything downstream of them have nobody to run
+ * against. `stripe_payment_intent` is `not null unique`, so the fixture rows
+ * carry an obviously-fake `pi_deadbeef_…` value that could never collide with
+ * a real intent id.
+ */
+const withMembers = process.argv.includes("--members");
+
+/**
+ * Also move the seeded season into a state where drops actually run.
+ *
+ * `isSeasonServing` requires phase `live` and `now` inside starts_at..ends_at,
+ * which the shipped fixture deliberately is not — it is configured as the real
+ * upcoming season for the marketing site. This backdates day one so the season
+ * is mid-flight, which is the only way to exercise `generate-drops` before
+ * October. Implies `--members`; a live season with no members is not a season.
+ *
+ * It changes what the marketing hero says. `--purge` puts it back by removing
+ * the season entirely, and re-seeding without the flag restores the fixture.
+ */
+const goLive = process.argv.includes("--live");
+
+/** Day one, relative to the run, when `--live` is used. Mid-week-two. */
+const LIVE_STARTED_DAYS_AGO = 9;
 
 /** The seeded members' throwaway logins. Never used to sign in. */
 const emailFor = (id: string) => `seed-${id.slice(-4)}@noghost.test`;
@@ -175,6 +207,40 @@ async function seedApplications() {
   console.log(`  ✓ ${filed} applications sitting at under_review`);
 }
 
+/**
+ * Give every seeded profile a membership in the seeded season.
+ *
+ * Priced from the season's own early-bird rule rather than a constant, so the
+ * fixture stays honest if the price changes: the first `early_bird_cap` members
+ * paid the early price, everyone after them the standard one.
+ */
+async function seedMembers() {
+  const rows = PROFILES.map((profile, index) => ({
+    user_id: profile.id,
+    season_id: SEED_SEASON.id,
+    stripe_payment_intent: `pi_deadbeef_${profile.id.slice(-12)}`,
+    price_paid_cents:
+      index < SEED_SEASON.early_bird_cap
+        ? SEED_SEASON.price_early_cents
+        : SEED_SEASON.price_standard_cents,
+  }));
+
+  const { error } = await db
+    .from("season_members")
+    .upsert(rows, { onConflict: "user_id,season_id", ignoreDuplicates: true });
+
+  if (error) {
+    console.error(`  ✗ season members: ${error.message}`);
+    process.exit(1);
+  }
+
+  const { count } = await db
+    .from("season_members")
+    .select("id", { head: true, count: "exact" })
+    .eq("season_id", SEED_SEASON.id);
+  console.log(`  ✓ ${count} season members (fixture payment intents, prefixed pi_deadbeef_)`);
+}
+
 async function purge() {
   console.log(`\nPurging seed data from ${URL}\n`);
 
@@ -193,6 +259,22 @@ async function purge() {
     }
   }
   console.log(`  removed ${files} seeded storage object(s)`);
+
+  /*
+   * `season_members.user_id` and `.season_id` are plain references with no
+   * `on delete cascade` — deliberately, since a membership is a payment record
+   * and should not evaporate. That makes it the one table that blocks both
+   * halves of this purge, so it goes first.
+   */
+  {
+    const { count } = await db
+      .from("season_members")
+      .select("id", { head: true, count: "exact" })
+      .eq("season_id", SEED_SEASON.id);
+    const { error } = await db.from("season_members").delete().eq("season_id", SEED_SEASON.id);
+    if (error) console.error(`  ✗ season members: ${error.message}`);
+    else console.log(`  removed ${count ?? 0} season member row(s)`);
+  }
 
   // Profiles cascade from auth.users, so deleting the user removes both.
   let removed = 0;
@@ -217,12 +299,33 @@ async function seed() {
 
   // ---- season -------------------------------------------------------------
   {
-    const { error } = await db.from("seasons").upsert(SEED_SEASON, { onConflict: "id" });
+    const season = { ...SEED_SEASON };
+
+    if (goLive) {
+      const startsAt = new Date(Date.now() - LIVE_STARTED_DAYS_AGO * 86_400_000);
+      const endsAt = new Date(startsAt.getTime() + 56 * 86_400_000);
+      season.phase = "live";
+      season.starts_at = startsAt.toISOString();
+      season.ends_at = endsAt.toISOString();
+      // Applications must have opened before day one or the fixture is
+      // internally inconsistent, and `public_season_stats` reads this.
+      season.applications_open_at = new Date(
+        startsAt.getTime() - 60 * 86_400_000,
+      ).toISOString();
+    }
+
+    const { error } = await db.from("seasons").upsert(season, { onConflict: "id" });
     if (error) {
       console.error(`  ✗ season: ${error.message}`);
       process.exit(1);
     }
-    console.log(`  ✓ season "${SEED_SEASON.name}" (${SEED_SEASON.phase})`);
+    console.log(`  ✓ season "${season.name}" (${season.phase})`);
+    if (goLive) {
+      console.log(
+        `    ! --live backdated day one to ${season.starts_at.slice(0, 10)} — ` +
+          `the marketing hero now reads as a season in progress`,
+      );
+    }
   }
 
   // ---- auth users ---------------------------------------------------------
@@ -268,6 +371,7 @@ async function seed() {
     process.exit(1);
   }
 
+  if (withMembers || goLive) await seedMembers();
   if (withApplications) await seedApplications();
 
   console.log(`\nDone. Every seeded id begins "${seedId(0).slice(0, 8)}-".\n`);

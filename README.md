@@ -24,7 +24,8 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 | 2 | `claim-sweep` cron — expiry, waitlist promotion, reminders | ✅ Verified against the real project |
 | 2 | Audit trail view — §7.3's other half | ✅ Verified against the real project |
 | 2 | Stripe checkout + webhook | ⬜ Blocked on a Stripe account |
-| 3 | The Drop + Connect | ⬜ |
+| 3 | `generate-drops` / `release-drops` crons | ✅ Verified against the real project |
+| 3 | The Drop + Connect — member-facing | ⬜ |
 | 4 | Chat + Fuse + Dates | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
 | 6 | Mobile (Expo) | ⬜ |
@@ -74,6 +75,8 @@ Apply `supabase/migrations/*.sql` in order, then:
 ```bash
 pnpm db:seed:remote                 # one season + 40 profiles, over the API
 pnpm db:seed:remote --applications  # …plus 12 applications with media, sitting at under_review
+pnpm db:seed:remote --members       # …plus a season_members row each
+pnpm db:seed:remote --live          # …and backdate day one so the drop crons actually run
 pnpm db:seed:remote --purge         # remove exactly those rows and their storage objects
 pnpm db:verify                      # did the migrations apply, and does anon get denied?
 pnpm db:verify:writes               # sign in as a member; do the writes work, and do the boundaries hold?
@@ -86,6 +89,18 @@ pnpm admin:grant you@example.com --revoke      # deactivate, keeping their audit
 `db:seed:remote` exists because `supabase/seed.sql` writes into `auth.users`,
 which only the SQL editor or a direct connection can reach. Both read the same
 generator, so they cannot drift.
+
+`--members` exists because membership is normally written by the Stripe
+webhook, so until that account exists there is no way to get a single member
+into a season — and the drop algorithm, the fuse and everything downstream of
+them have nobody to run against. The fixture rows carry an obviously-fake
+`pi_deadbeef_…` payment intent.
+
+**`--live` changes what the marketing site says.** It backdates day one so the
+season is mid-flight, which is the only way to exercise `generate-drops` before
+October, and seeded members come off the public seat counter (300 → 260).
+Re-running `pnpm db:seed:remote` with no flags restores the shipped fixture;
+`--purge` removes the members too.
 
 The two verify scripts answer different questions, and the second is the one
 that matters. `db:verify` proves the objects exist. `db:verify:writes` signs in
@@ -159,6 +174,37 @@ in the same pass, so a seat is never idle for an hour — and texts anyone insid
 their last 12 hours **once**. That dedupe matters: the job runs hourly against a
 12-hour horizon, and `claim_reminder` is `required: true` in §8's matrix, so it
 is precisely the message a member cannot mute.
+
+`generate-drops` (23:30 UTC) and `release-drops` (00:00 **and** 01:00 UTC) are
+the two halves of §6.1. The first scores every active member against the pool
+and writes their cards with `released_at` null; the second flips them visible
+and queues the notifications. Splitting them means a slow build eats its own
+half-hour of slack instead of pushing 8:00 PM back for everybody.
+
+Three things in there are not obvious:
+
+- **`release-drops` is scheduled twice and refuses one of the firings.** A
+  Vercel cron is UTC with no zone, so `0 0 * * *` is 8:00 PM in New York in
+  July and 7:00 PM in December — and "profiles land at 8:00 PM" is the
+  product's one scheduling promise. Both candidate hours fire; `isReleaseDue`
+  compares against the season's own local clock and drops the early one.
+- **A member who already has tonight's drop is skipped, never rebuilt.** The
+  pool shifts through the evening, so a second run could hand someone a
+  different set of cards than the ones already on their screen. The unique
+  index on `(user_id, season_id, drop_date)` plus `ignoreDuplicates` makes two
+  overlapping runs safe: the loser inserts nothing and therefore writes no cards.
+- **A quiet night is released but not announced.** Serving fewer is correct as
+  the pool thins (§6.1) and the empty state is honest (§9.6), but pushing
+  "tonight's drop is live" to someone who will open it and find nothing turns
+  that honest screen into a broken promise.
+
+The pool is loaded once per season in bulk and indexed in memory —
+`buildDrop` needs five different histories per member, and fetching those per
+person would be 1,500 round trips a night. `drop_cards` is read in chunks of
+100 drop ids because the filter travels in the URL: a full cohort over eight
+weeks is ~16,800 drops, and one `.in()` listing them all is 600 KB of query
+string, which works on a fixture of forty and fails in week two of a real
+season.
 
 Every cron endpoint verifies `CRON_SECRET` with a constant-time compare and
 answers `404` — not `401` — so an unauthenticated caller learns nothing about

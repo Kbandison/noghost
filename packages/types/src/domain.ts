@@ -275,6 +275,13 @@ export interface NotificationPrefs {
   drop_sms: boolean;
   fuse_warnings: boolean;
   email_updates: boolean;
+  /**
+   * TCPA (spec §9.8): SMS needs an explicit, separately-recorded opt-in, so the
+   * toggle alone is not consent. Null means never opted in, whatever
+   * `drop_sms` says — check both before sending.
+   */
+  sms_opt_in_at: Timestamp | null;
+  created_at: Timestamp;
 }
 
 export interface AdminAuditEntry {
