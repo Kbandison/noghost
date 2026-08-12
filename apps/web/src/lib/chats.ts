@@ -1,5 +1,11 @@
 import { fuseUrgency, type FuseUrgency } from "@noghost/logic";
-import type { ChatState, DateStatus, MessageKind, ProfilePhoto } from "@noghost/types";
+import type {
+  ChatState,
+  CheckinAnswer,
+  DateStatus,
+  MessageKind,
+  ProfilePhoto,
+} from "@noghost/types";
 import { isChatClosed } from "@noghost/types";
 import { supabaseServer } from "./supabase";
 
@@ -58,6 +64,16 @@ export interface ChatDetail extends ChatSummary {
   messages: ChatMessage[];
   dates: ChatDate[];
   closureTemplateId: string | null;
+  /**
+   * The open check-in, if the chat is in one.
+   *
+   * `myAnswer` is *only* the caller's own row — `date_checkins` has the
+   * tightest policy in the schema (`auth.uid() = user_id`), and §5's own note
+   * on the table is that "a participant never sees the other side's raw
+   * answer". So there is deliberately no field here for theirs: not withheld
+   * by this code, unreadable by it.
+   */
+  checkin: { dateId: string; placeName: string; myAnswer: CheckinAnswer | null } | null;
 }
 
 const CHAT_COLUMNS =
@@ -206,7 +222,7 @@ export async function getChat(
 
   const partnerId = chat.user_a === memberId ? chat.user_b : chat.user_a;
 
-  const [{ data: partnerRow }, { data: messageRows }, { data: dateRows }, { data: note }] =
+  const [{ data: partnerRow }, { data: messageRows }, { data: dateRows }, { data: note }, { data: myCheckins }] =
     await Promise.all([
       supabase
         .from("visible_profiles")
@@ -234,6 +250,10 @@ export async function getChat(
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
+      // Unfiltered by user on purpose: RLS returns only the caller's own rows,
+      // so adding `.eq("user_id", memberId)` would restate the boundary in
+      // application code and invite someone to "fix" it by widening the policy.
+      supabase.from("date_checkins").select("date_id,answer").limit(50),
     ]);
 
   if (!partnerRow) return null;
@@ -281,6 +301,20 @@ export async function getChat(
       awaitingMe: date.status === "proposed" && date.proposed_by !== memberId,
     })),
     closureTemplateId: isChatClosed(chat.state) ? (note?.template_id ?? null) : null,
+    checkin: (() => {
+      if (chat.state !== "post_date_checkin") return null;
+      // The most recent confirmed date is the one being checked in on.
+      const date = [...(dateRows ?? [])]
+        .filter((row) => row.status === "confirmed")
+        .sort((a, b) => Date.parse(b.scheduled_for) - Date.parse(a.scheduled_for))[0];
+      if (!date) return null;
+      const own = (myCheckins ?? []).find((row) => row.date_id === date.id);
+      return {
+        dateId: date.id,
+        placeName: date.place_name,
+        myAnswer: (own?.answer as CheckinAnswer | undefined) ?? null,
+      };
+    })(),
   };
 }
 

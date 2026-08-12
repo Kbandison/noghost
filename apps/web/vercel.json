@@ -10,6 +10,10 @@
       "schedule": "17 * * * *"
     },
     {
+      "path": "/api/cron/checkin-sweep",
+      "schedule": "27 * * * *"
+    },
+    {
       "path": "/api/cron/generate-drops",
       "schedule": "30 23 * * *"
     },

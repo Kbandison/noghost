@@ -14,6 +14,7 @@ import { FuseRing } from "../fuse-ring";
 import { Composer } from "./composer";
 import { DateProposal, RespondToDate } from "./propose-date";
 import { CloseKindly } from "./close-kindly";
+import { Checkin } from "./checkin";
 
 export const metadata: Metadata = { title: "Chat" };
 export const dynamic = "force-dynamic";
@@ -48,6 +49,16 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
 
         <div className="flex-1 px-6 py-6 md:px-10">
           <div className="mx-auto max-w-[40rem] space-y-4">
+            {chat.checkin && (
+              <Checkin
+                chatId={chat.id}
+                dateId={chat.checkin.dateId}
+                placeName={chat.checkin.placeName}
+                name={chat.partner.firstName}
+                myAnswer={chat.checkin.myAnswer}
+              />
+            )}
+
             {chat.dates.map((date) => (
               <DateCard key={date.id} chatId={chat.id} date={date} />
             ))}

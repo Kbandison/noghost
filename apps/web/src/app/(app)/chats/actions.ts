@@ -154,6 +154,56 @@ export async function respondToDate(
   return {};
 }
 
+/**
+ * Answering the post-date check-in — spec §6.3.
+ *
+ * `answer_checkin` does all the deciding in one transaction: it upserts the
+ * caller's own row, reads the partner's, and then either closes the chat or
+ * restarts the fuse for a fresh seven days. Deliberately not split across the
+ * client: a member must never be able to observe the partner's answer by
+ * inspecting what this action returns, so the RPC's return value is discarded
+ * rather than surfaced.
+ */
+export async function answerCheckin(
+  _prev: ChatActionState,
+  formData: FormData,
+): Promise<ChatActionState> {
+  await requireMember();
+
+  const chatId = String(formData.get("chatId") ?? "");
+  const dateId = String(formData.get("dateId") ?? "");
+  const answer = String(formData.get("answer") ?? "");
+
+  if (!dateId) return { error: "That check-in isn't there any more." };
+  if (answer !== "continue" && answer !== "close") {
+    return { error: "That isn't an answer we can record." };
+  }
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase.rpc("answer_checkin", {
+    p_date_id: dateId,
+    p_answer: answer,
+  });
+
+  if (error) {
+    console.error(`[chat] answer_checkin ${dateId}: ${error.message}`);
+    if (/not found/i.test(error.message)) {
+      return { error: "That check-in isn't yours to answer." };
+    }
+    return { error: "That didn't save. Try again." };
+  }
+
+  revalidatePath(`/chats/${chatId}`);
+  revalidatePath("/chats");
+  /*
+   * Intentionally empty. `answer_checkin` returns "closed" | "continued" |
+   * "pending", and returning that here would tell the first person to answer
+   * exactly what the second one chose — the one thing §6.3 says neither of them
+   * may learn. The page re-reads the chat's own state instead.
+   */
+  return {};
+}
+
 type TemplateId = (typeof CLOSURE_TEMPLATES)[number]["id"];
 const TEMPLATE_IDS: readonly string[] = CLOSURE_TEMPLATES.map((template) => template.id);
 const isTemplateId = (value: string): value is TemplateId => TEMPLATE_IDS.includes(value);

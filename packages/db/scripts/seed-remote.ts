@@ -317,6 +317,12 @@ async function seedChats() {
     { label: "date scheduled (paused)", fuse: h(30), state: "date_scheduled", paused: h(-6), dateIn: 48, expect: "nothing" },
     { label: "check-in, fresh", fuse: h(30), state: "post_date_checkin", dateIn: -30, expect: "nothing" },
     { label: "check-in, stale", fuse: h(30), state: "post_date_checkin", dateIn: -100, expect: "close_fuse" },
+    // Two for checkin-sweep: a confirmed date more than 24h in the past, so the
+    // check-in is overdue and the sweep has something to open. Two of them
+    // because answering is one-way — the continue path and the close path each
+    // need their own chat.
+    { label: "date elapsed", fuse: h(30), state: "date_scheduled", paused: h(-40), dateIn: -30, expect: "open_checkin" },
+    { label: "date elapsed, second", fuse: h(30), state: "date_scheduled", paused: h(-40), dateIn: -30, expect: "open_checkin" },
   ] as const;
 
   // Clear only what this flag owns, by its own drop_date.

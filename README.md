@@ -29,7 +29,8 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 | 3 | Inbox — accept / decline a connect | ✅ Decline verified live · accept needs `0011` |
 | 4 | `fuse-sweep` cron — warnings, expiry, closure notes | ✅ Verified against the real project |
 | 4 | Chats — fuse rings, dates, closing kindly | ✅ Verified against the real project |
-| 4 | `checkin-sweep` + post-date check-in | ⬜ |
+| 4 | `checkin-sweep` + post-date check-in | ✅ Verified against the real project |
+| 4 | Found Someone (graduation) + voice notes | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
 | 6 | Mobile (Expo) | ⬜ |
 | 7 | Ops hardening + launch | ⬜ |
@@ -305,6 +306,41 @@ Three details are load-bearing:
 - **The rejected text is never stored.** §6.6: a boolean and a category, nothing
   else. `closure_notes.tone_check_passed` is `null` when the model half did not
   run — which is why the column is nullable rather than defaulting to `true`.
+
+### The post-date check-in
+
+`checkin-sweep` (§4.3) opens a check-in once a confirmed date's time plus 24
+hours has passed. That is its whole job — the 72-hour timeout on an *unanswered*
+check-in belongs to `fuse-sweep`, because that is a `tick` on an already-open
+one. The split follows the data: a check-in is opened from a `dates` row and
+closed from the chat's own clock, so merging them would mean one endpoint that
+has to load two different worlds before it can decide anything.
+
+It routes the transition through `fuseTransition`'s `date_elapsed` event rather
+than writing the state by hand, which keeps the season-end rule ahead of it: a
+date whose check-in comes due after `ends_at` closes the chat instead of opening
+one nobody can answer.
+
+**The privacy rule shapes every word on the card.** §5's note on
+`date_checkins` is that "a participant never sees the other side's raw answer",
+and the policy on that table is the tightest in the schema — `auth.uid() =
+user_id`, own row only. So:
+
+- `ChatDetail.checkin` has a field for *your* answer and deliberately none for
+  theirs. Not withheld by application code; unreadable by it.
+- The card never says "waiting on them" or "they said continue" — both leak the
+  answer by implication. It reflects your own answer back and states the two
+  possible outcomes.
+- `answerCheckin` discards the RPC's return value. `answer_checkin` returns
+  `closed` / `continued` / `pending`, and surfacing that would tell whoever
+  answered first exactly what the second person chose.
+- Either person choosing to close is enough, and that is said plainly rather
+  than hidden — somebody deciding not to continue should not have to wonder
+  whether their answer will be overruled, or whether the other person will be
+  told it was theirs.
+
+Both saying yes returns the chat to `active` with a fresh seven days, the pause
+cleared and the 48/24-hour warnings rearmed for the new window.
 
 ### The fuse
 
