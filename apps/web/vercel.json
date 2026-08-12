@@ -6,6 +6,10 @@
       "schedule": "7 * * * *"
     },
     {
+      "path": "/api/cron/fuse-sweep",
+      "schedule": "17 * * * *"
+    },
+    {
       "path": "/api/cron/generate-drops",
       "schedule": "30 23 * * *"
     },

@@ -16,6 +16,7 @@
  *   pnpm db:seed:remote --applications
  *   pnpm db:seed:remote --members
  *   pnpm db:seed:remote --live
+ *   pnpm db:seed:remote --chats
  *   pnpm db:seed:remote --purge
  */
 
@@ -72,10 +73,25 @@ const withMembers = process.argv.includes("--members");
  * It changes what the marketing hero says. `--purge` puts it back by removing
  * the season entirely, and re-seeding without the flag restores the fixture.
  */
-const goLive = process.argv.includes("--live");
+const goLive = process.argv.includes("--live") || process.argv.includes("--chats");
 
 /** Day one, relative to the run, when `--live` is used. Mid-week-two. */
 const LIVE_STARTED_DAYS_AGO = 9;
+
+/**
+ * Also seed chats sitting at every position on the fuse.
+ *
+ * `fuse-sweep` cannot be exercised without them, and they cannot be created the
+ * normal way yet: `respond_connect` is how a chat comes into existence, and it
+ * is broken until `0011_enum_assignment_casts.sql` is applied. Even once it is,
+ * a chat 20 hours from expiry is not something you can reach by clicking — you
+ * would wait six days. So these are written directly, with deadlines chosen to
+ * land one chat in each branch of the state machine.
+ *
+ * Implies `--live`. The rows live on their own `drop_date` (day one) so they can
+ * never collide with, or be cleaned up by, a real drop.
+ */
+const withChats = process.argv.includes("--chats");
 
 /** The seeded members' throwaway logins. Never used to sign in. */
 const emailFor = (id: string) => `seed-${id.slice(-4)}@noghost.test`;
@@ -269,6 +285,157 @@ async function seedMembers() {
   console.log(`  ✓ ${count} season members (fixture payment intents, prefixed pi_deadbeef_)`);
 }
 
+/**
+ * Chats at every position on the fuse, so `fuse-sweep` has each branch to hit.
+ *
+ * `connects.drop_card_id` is `not null`, so each pair gets a real one-card drop
+ * behind it — on day one's `drop_date`, which no live drop will ever use.
+ */
+async function seedChats() {
+  console.log(`\n  Seeding chats across the fuse…`);
+
+  const { data: season } = await db
+    .from("seasons").select("id,starts_at,fuse_days").eq("id", SEED_SEASON.id).single();
+  if (!season) {
+    console.error("  ✗ no season");
+    return;
+  }
+  const dropDate = season.starts_at.slice(0, 10);
+  const h = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+
+  /**
+   * One entry per branch of `tick`. `expect` is what the next sweep should do —
+   * printed so the fixture states its own intent, and the verifier can assert
+   * against it rather than against a number somebody typed twice.
+   */
+  const plan = [
+    { label: "calm", fuse: h(120), state: "active", expect: "nothing" },
+    { label: "48h window", fuse: h(40), state: "active", expect: "warn_48h" },
+    { label: "24h window", fuse: h(20), state: "active", expect: "warn_24h" },
+    { label: "already warned at 48h", fuse: h(40), state: "active", warned48: true, expect: "nothing" },
+    { label: "expired", fuse: h(-2), state: "active", expect: "close_fuse" },
+    { label: "date scheduled (paused)", fuse: h(30), state: "date_scheduled", paused: h(-6), dateIn: 48, expect: "nothing" },
+    { label: "check-in, fresh", fuse: h(30), state: "post_date_checkin", dateIn: -30, expect: "nothing" },
+    { label: "check-in, stale", fuse: h(30), state: "post_date_checkin", dateIn: -100, expect: "close_fuse" },
+  ] as const;
+
+  // Clear only what this flag owns, by its own drop_date.
+  {
+    const { data: old } = await db
+      .from("drops").select("id").eq("season_id", season.id).eq("drop_date", dropDate);
+    const ids = (old ?? []).map((d) => d.id);
+    if (ids.length > 0) {
+      const { data: cards } = await db.from("drop_cards").select("id").in("drop_id", ids);
+      const cardIds = (cards ?? []).map((c) => c.id);
+      if (cardIds.length > 0) {
+        // chats → connects → drops: each references the next, none cascades.
+        const { data: cons } = await db.from("connects").select("id").in("drop_card_id", cardIds);
+        const conIds = (cons ?? []).map((c) => c.id);
+        if (conIds.length > 0) {
+          await db.from("chats").delete().in("connect_id", conIds);
+          await db.from("connects").delete().in("id", conIds);
+        }
+      }
+      await db.from("drops").delete().in("id", ids);
+    }
+  }
+
+  let made = 0;
+  for (const [i, item] of plan.entries()) {
+    const sender = PROFILES[i * 2];
+    const recipient = PROFILES[i * 2 + 1];
+    if (!sender || !recipient) break;
+
+    const { data: drop, error: dropError } = await db
+      .from("drops")
+      .insert({ season_id: season.id, user_id: sender.id, drop_date: dropDate, released_at: h(-24) })
+      .select("id")
+      .single();
+    if (dropError) {
+      console.error(`  ✗ drop for ${sender.first_name}: ${dropError.message}`);
+      return;
+    }
+
+    const { data: card, error: cardError } = await db
+      .from("drop_cards")
+      .insert({ drop_id: drop.id, shown_profile_id: recipient.id, action: "connected", acted_at: h(-23) })
+      .select("id")
+      .single();
+    if (cardError) {
+      console.error(`  ✗ card: ${cardError.message}`);
+      return;
+    }
+
+    const { data: connect, error: connectError } = await db
+      .from("connects")
+      .insert({
+        season_id: season.id,
+        from_user: sender.id,
+        to_user: recipient.id,
+        drop_card_id: card.id,
+        prompt_ref: { type: "prompt", id: recipient.prompts?.[0]?.prompt_id ?? "prompt_01" },
+        reply_text: `Fixture connect for the "${item.label}" case.`,
+        status: "accepted",
+        responded_at: h(-22),
+      })
+      .select("id")
+      .single();
+    if (connectError) {
+      console.error(`  ✗ connect: ${connectError.message}`);
+      return;
+    }
+
+    const { data: chat, error: chatError } = await db
+      .from("chats")
+      .insert({
+        season_id: season.id,
+        connect_id: connect.id,
+        user_a: sender.id,
+        user_b: recipient.id,
+        state: item.state,
+        fuse_expires_at: item.fuse,
+        fuse_paused_at: "paused" in item ? item.paused : null,
+        warned_48h: "warned48" in item ? item.warned48 : false,
+        warned_24h: false,
+      })
+      .select("id")
+      .single();
+    if (chatError) {
+      console.error(`  ✗ chat (${item.label}): ${chatError.message}`);
+      return;
+    }
+
+    await db.from("messages").insert({
+      chat_id: chat.id,
+      sender_id: sender.id,
+      kind: "text",
+      body: `Fixture connect for the "${item.label}" case.`,
+    });
+
+    // A confirmed date is what pauses a fuse and what a check-in is measured
+    // from, so the two states that depend on one get a real row.
+    if ("dateIn" in item) {
+      const { error } = await db.from("dates").insert({
+        chat_id: chat.id,
+        proposed_by: sender.id,
+        status: "confirmed",
+        scheduled_for: h(item.dateIn),
+        place_name: "Fixture Coffee",
+        confirmed_at: h(-20),
+      });
+      if (error) console.error(`  ✗ date (${item.label}): ${error.message}`);
+    }
+
+    console.log(
+      `    ${item.label.padEnd(26)} ${sender.first_name} + ${recipient.first_name}` +
+        `  → expect ${item.expect}`,
+    );
+    made += 1;
+  }
+
+  console.log(`  ✓ ${made} chats on drop_date ${dropDate}`);
+}
+
 async function purge() {
   console.log(`\nPurging seed data from ${URL}\n`);
 
@@ -287,6 +454,40 @@ async function purge() {
     }
   }
   console.log(`  removed ${files} seeded storage object(s)`);
+
+  /*
+   * Chat-side rows go first, in dependency order.
+   *
+   * `chats.connect_id` → `connects.id` → `drop_cards.id` are all plain
+   * references with no cascade, so leaving them to the `on delete cascade` from
+   * `profiles` means Postgres has to unpick three non-cascading foreign keys in
+   * one statement. Deleting them deliberately, innermost last, is the difference
+   * between a clean purge and an opaque constraint error.
+   */
+  {
+    const { data: drops } = await db
+      .from("drops").select("id").eq("season_id", SEED_SEASON.id);
+    const dropIds = (drops ?? []).map((d) => d.id);
+    const { data: cards } = dropIds.length
+      ? await db.from("drop_cards").select("id").in("drop_id", dropIds)
+      : { data: [] as { id: string }[] };
+    const cardIds = (cards ?? []).map((c) => c.id);
+    const { data: connects } = cardIds.length
+      ? await db.from("connects").select("id").in("drop_card_id", cardIds)
+      : { data: [] as { id: string }[] };
+    const connectIds = (connects ?? []).map((c) => c.id);
+
+    if (connectIds.length) {
+      await db.from("chats").delete().in("connect_id", connectIds);
+      await db.from("connects").delete().in("id", connectIds);
+    }
+    await db.from("chats").delete().eq("season_id", SEED_SEASON.id);
+    await db.from("connects").delete().eq("season_id", SEED_SEASON.id);
+    if (dropIds.length) await db.from("drops").delete().in("id", dropIds);
+    console.log(
+      `  removed ${dropIds.length} drop(s), ${connectIds.length} connect(s) and their chats`,
+    );
+  }
 
   /*
    * `season_members.user_id` and `.season_id` are plain references with no
@@ -399,11 +600,12 @@ async function seed() {
     process.exit(1);
   }
 
-  if (withMembers || goLive) {
+  if (withMembers || goLive || withChats) {
     await seedMembers();
     await seedCohortPhotos();
   }
   if (withApplications) await seedApplications();
+  if (withChats) await seedChats();
 
   console.log(`\nDone. Every seeded id begins "${seedId(0).slice(0, 8)}-".\n`);
 }

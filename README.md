@@ -27,7 +27,8 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 | 3 | `generate-drops` / `release-drops` crons | ✅ Verified against the real project |
 | 3 | Tonight — the Drop, pass, connect composer | ✅ Verified against the real project |
 | 3 | Inbox — accept / decline a connect | ✅ Decline verified live · accept needs `0011` |
-| 4 | Chat + Fuse + Dates | ⬜ |
+| 4 | `fuse-sweep` cron — warnings, expiry, closure notes | ✅ Verified against the real project |
+| 4 | Chat UI + Dates + closing kindly | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
 | 6 | Mobile (Expo) | ⬜ |
 | 7 | Ops hardening + launch | ⬜ |
@@ -83,9 +84,11 @@ pnpm db:seed:remote                 # one season + 40 profiles, over the API
 pnpm db:seed:remote --applications  # …plus 12 applications with media, sitting at under_review
 pnpm db:seed:remote --members       # …plus a season_members row each
 pnpm db:seed:remote --live          # …and backdate day one so the drop crons actually run
+pnpm db:seed:remote --chats         # …plus one chat at each position on the fuse
 pnpm db:seed:remote --purge         # remove exactly those rows and their storage objects
 pnpm db:verify                      # did the migrations apply, and does anon get denied?
 pnpm db:verify:writes               # sign in as a member; do the writes work, and do the boundaries hold?
+pnpm db:verify:fuse                 # does fuse-sweep warn, close, and write the note? (needs --chats + a dev server)
 
 pnpm admin:grant you@example.com               # create or promote an admin (prints a password once)
 pnpm admin:grant you@example.com --reset-mfa   # lost authenticator — forces re-enrolment
@@ -257,6 +260,46 @@ any error that is not `PGRST202` — and a broken body produces an error too.
 class by executing it rather than by naming it.
 
 Until 0011 is applied the inbox says so by name, rather than "that didn't save".
+
+### The fuse
+
+`fuse-sweep` (§4.3) runs hourly and is the job that makes "nobody can be
+ghosted" mechanical rather than aspirational: warn at 48 hours, warn at 24, and
+the moment seven days are up close the chat and write the note. The state
+machine is `fuseTransition` in `packages/logic` — pure, 27 unit tests, plus a
+56-day simulation asserting no chat can reach a closed state without a note
+being delivered. The route is the thin wrapper §6.3 describes: load, tick,
+persist.
+
+A closure becomes **three** things, and all three matter:
+
+1. a row in `closure_notes` — §5 calls that table "the product promise"
+2. a `system` message *inside* the conversation
+3. the push to both people
+
+Miss the second and the notification points at an empty chat, which is a promise
+kept on paper only.
+
+It loads open chats first and then their seasons, not the other way round.
+Filtering by season phase would strand every chat the moment a season flipped to
+`closed` — they would never be swept, so they would never get the `season_end`
+note the state machine produces for exactly that case, and a chat left open
+forever is the one outcome this product cannot ship.
+
+Each state update is guarded by the state it was read in
+(`.eq("id", …).eq("state", …)`), so two overlapping sweeps cannot both close the
+same chat and nobody gets two notes about one ending.
+
+`pnpm db:verify:fuse` drives the real endpoint against the real database, one
+seeded chat per branch. It asserts the eight outcomes, that warnings go to both
+sides exactly once, that a second sweep changes nothing, and that a season
+ending closes even the chat with a date on the calendar. Each fixture chat
+carries its intended outcome in its opening message, so the assertions read from
+the fixture rather than from a number typed twice.
+
+`--chats` writes those chats directly rather than through `respond_connect`,
+for two reasons: that RPC is broken until 0011, and a chat 20 hours from expiry
+is not a state you can reach by clicking — you would wait six days.
 
 ### Scheduled jobs
 
