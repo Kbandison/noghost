@@ -28,7 +28,11 @@ export default async function ConnectPage({ params }: { params: Promise<{ id: st
       <Rail inbox={inbox} activeId={id} />
       <div className="min-w-0 flex-1">
         {incoming ? (
-          <Received connect={incoming} self={inbox.self} />
+          <Received
+            connect={incoming}
+            self={inbox.self}
+            graduated={member.status === "found_someone"}
+          />
         ) : (
           <Sent connect={outgoing!} />
         )}
@@ -41,9 +45,12 @@ export default async function ConnectPage({ params }: { params: Promise<{ id: st
 function Received({
   connect,
   self,
+  graduated,
 }: {
   connect: IncomingConnect;
   self: { prompts: ProfilePromptAnswer[]; photos: ProfilePhoto[] };
+  /** §6.5 took the yes away, not the answer. See `Answer`. */
+  graduated: boolean;
 }) {
   return (
     <div className="mx-auto max-w-[38rem] px-6 py-8 md:px-10 md:py-12">
@@ -76,7 +83,11 @@ function Received({
 
       <div className="mt-10 border-t border-[var(--border-subtle)] pt-8">
         {connect.status === "pending" ? (
-          <Answer connectId={connect.id} name={connect.from.firstName} />
+          <Answer
+            connectId={connect.id}
+            name={connect.from.firstName}
+            graduated={graduated}
+          />
         ) : (
           <Settled connect={connect} />
         )}

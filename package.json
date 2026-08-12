@@ -16,6 +16,7 @@
     "db:seed:remote": "tsx packages/db/scripts/seed-remote.ts",
     "db:verify:writes": "tsx packages/db/scripts/verify-writes.ts",
     "db:verify:fuse": "tsx packages/db/scripts/verify-fuse.ts",
+    "db:verify:graduation": "tsx packages/db/scripts/verify-graduation.ts",
     "admin:grant": "tsx packages/db/scripts/grant-admin.ts"
   },
   "devDependencies": {

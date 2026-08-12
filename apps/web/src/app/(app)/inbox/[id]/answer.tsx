@@ -18,8 +18,22 @@ const initial: RespondState = {};
  * rather than to warn. The thing people hesitate over is whether saying no
  * makes them the bad guy, so the sheet's job is to say what actually happens:
  * they get a real answer, written kindly, and no reply channel to argue in.
+ *
+ * `graduated` removes yes and keeps no. §6.5 ends the season, so a new
+ * seven-day chat is off the table (0014 refuses it in the database too) — but
+ * taking away their ability to answer at all would leave the sender with the
+ * silence this product is named after. The one thing they can still give is a
+ * real answer.
  */
-export function Answer({ connectId, name }: { connectId: string; name: string }) {
+export function Answer({
+  connectId,
+  name,
+  graduated,
+}: {
+  connectId: string;
+  name: string;
+  graduated: boolean;
+}) {
   const [state, action, pending] = useActionState(respond, initial);
   const [confirming, setConfirming] = useState(false);
 
@@ -66,8 +80,11 @@ export function Answer({ connectId, name }: { connectId: string; name: string })
   return (
     <div>
       <p className="text-[17px] leading-relaxed text-[var(--text-secondary)]">
-        Either answer is a real one. Yes opens a chat with seven days on it; no sends a kind note
-        and closes it.
+        {graduated
+          ? "Your season ended when you found someone, so this can't become a chat — but they " +
+            "asked, and an answer still reaches them."
+          : "Either answer is a real one. Yes opens a chat with seven days on it; no sends a kind " +
+            "note and closes it."}
       </p>
 
       {state.error && (
@@ -77,16 +94,22 @@ export function Answer({ connectId, name }: { connectId: string; name: string })
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <form action={action}>
-          <input type="hidden" name="connectId" value={connectId} />
-          <input type="hidden" name="decision" value="accept" />
-          <Button type="submit" disabled={pending}>
-            {pending ? "…" : `Yes, open a chat`}
-          </Button>
-        </form>
+        {!graduated && (
+          <form action={action}>
+            <input type="hidden" name="connectId" value={connectId} />
+            <input type="hidden" name="decision" value="accept" />
+            <Button type="submit" disabled={pending}>
+              {pending ? "…" : `Yes, open a chat`}
+            </Button>
+          </form>
+        )}
 
-        <Button type="button" variant="secondary" onClick={() => setConfirming(true)}>
-          No thanks
+        <Button
+          type="button"
+          variant={graduated ? "primary" : "secondary"}
+          onClick={() => setConfirming(true)}
+        >
+          {graduated ? `Send ${name} an answer` : "No thanks"}
         </Button>
       </div>
     </div>

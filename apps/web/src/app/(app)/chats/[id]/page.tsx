@@ -15,6 +15,7 @@ import { Composer } from "./composer";
 import { DateProposal, RespondToDate } from "./propose-date";
 import { CloseKindly } from "./close-kindly";
 import { Checkin } from "./checkin";
+import { AnswerGraduation, GraduationAsked, ProposeGraduation } from "./graduation";
 
 export const metadata: Metadata = { title: "Chat" };
 export const dynamic = "force-dynamic";
@@ -49,6 +50,20 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
 
         <div className="flex-1 px-6 py-6 md:px-10">
           <div className="mx-auto max-w-[40rem] space-y-4">
+            {/*
+              Answering comes first when both are true — somebody who asked and
+              was asked should be looking at the question, not at their own.
+            */}
+            {chat.graduation?.answer ? (
+              <AnswerGraduation
+                chatId={chat.id}
+                graduationId={chat.graduation.answer.id}
+                name={chat.partner.firstName}
+              />
+            ) : chat.graduation?.iAsked ? (
+              <GraduationAsked name={chat.partner.firstName} />
+            ) : null}
+
             {chat.checkin && (
               <Checkin
                 chatId={chat.id}
@@ -80,8 +95,28 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
         */}
         {!closed && (
           <div className="px-6 pb-2 md:px-10">
-            <div className="mx-auto max-w-[40rem]">
-              <CloseKindly chatId={chat.id} name={chat.partner.firstName} />
+            {/*
+              Two triggers, one per line, each in its own block wrapper.
+              Collapsed they are bare `<button>`s — inline, so `space-y-3` alone
+              put them side by side and rendered "Close this kindlyFound
+              someone?". A flex row is not the fix either: both expand into tall
+              forms that need the full width.
+            */}
+            <div className="mx-auto max-w-[40rem] space-y-3">
+              <div>
+                <CloseKindly chatId={chat.id} name={chat.partner.firstName} />
+              </div>
+              {/*
+                Gone for good once asked, and gone while their question is open.
+                One ask per person is §6.5's whole mechanic, and a button that
+                came back after a decline would be how the proposer found out —
+                see `graduation` in `lib/chats.ts`.
+              */}
+              {!chat.graduation && (
+                <div>
+                  <ProposeGraduation chatId={chat.id} name={chat.partner.firstName} />
+                </div>
+              )}
             </div>
           </div>
         )}

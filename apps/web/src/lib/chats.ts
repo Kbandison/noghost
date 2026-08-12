@@ -74,6 +74,28 @@ export interface ChatDetail extends ChatSummary {
    * by this code, unreadable by it.
    */
   checkin: { dateId: string; placeName: string; myAnswer: CheckinAnswer | null } | null;
+  /**
+   * Where the one graduation question stands, from this member's side.
+   *
+   * §6.5: "Declining a graduation proposal is allowed and private; chat simply
+   * continues." RLS cannot enforce that half — `participants read graduations`
+   * lets the proposer read their own row after it is declined — so this read
+   * layer is the guard. It takes two shapes to do it:
+   *
+   *   answer   a proposal from *them*, still open, waiting on me
+   *   iAsked   I have asked, at any point, whatever came of it
+   *
+   * `iAsked` is deliberately status-blind, and that is the whole privacy
+   * mechanic. Filtering declines out of the proposer's view is not enough on its
+   * own: if the "Found someone?" button vanished on asking and came back on
+   * being declined, its reappearance *is* the notification. So an ask is spent
+   * permanently — one question per chat per person, and the screen looks
+   * identical whether the answer was no or hasn't come yet.
+   *
+   * A confirmation announces itself by other means: both accounts become
+   * `found_someone` and `/tonight` redirects to the graduation screen.
+   */
+  graduation: { answer: { id: string } | null; iAsked: boolean } | null;
 }
 
 const CHAT_COLUMNS =
@@ -222,39 +244,57 @@ export async function getChat(
 
   const partnerId = chat.user_a === memberId ? chat.user_b : chat.user_a;
 
-  const [{ data: partnerRow }, { data: messageRows }, { data: dateRows }, { data: note }, { data: myCheckins }] =
-    await Promise.all([
-      supabase
-        .from("visible_profiles")
-        .select("id,first_name,age,photos")
-        .eq("id", partnerId)
-        .maybeSingle(),
-      supabase
-        .from("messages")
-        .select("id,kind,body,voice_path,sender_id,created_at")
-        .eq("chat_id", chatId)
-        // Oldest first — a conversation reads downward. `(created_at, id)`
-        // because `respond_connect` seeds message #1 in the same transaction
-        // that creates the chat, so timestamps can tie.
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true }),
-      supabase
-        .from("dates")
-        .select("id,status,scheduled_for,place_name,place_note,proposed_by")
-        .eq("chat_id", chatId)
-        .order("scheduled_for", { ascending: true }),
-      supabase
-        .from("closure_notes")
-        .select("template_id")
-        .eq("chat_id", chatId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      // Unfiltered by user on purpose: RLS returns only the caller's own rows,
-      // so adding `.eq("user_id", memberId)` would restate the boundary in
-      // application code and invite someone to "fix" it by widening the policy.
-      supabase.from("date_checkins").select("date_id,answer").limit(50),
-    ]);
+  const [
+    { data: partnerRow },
+    { data: messageRows },
+    { data: dateRows },
+    { data: note },
+    { data: myCheckins },
+    { data: graduationRows },
+  ] = await Promise.all([
+    supabase
+      .from("visible_profiles")
+      .select("id,first_name,age,photos")
+      .eq("id", partnerId)
+      .maybeSingle(),
+    supabase
+      .from("messages")
+      .select("id,kind,body,voice_path,sender_id,created_at")
+      .eq("chat_id", chatId)
+      // Oldest first — a conversation reads downward. `(created_at, id)`
+      // because `respond_connect` seeds message #1 in the same transaction
+      // that creates the chat, so timestamps can tie.
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
+    supabase
+      .from("dates")
+      .select("id,status,scheduled_for,place_name,place_note,proposed_by")
+      .eq("chat_id", chatId)
+      .order("scheduled_for", { ascending: true }),
+    supabase
+      .from("closure_notes")
+      .select("template_id")
+      .eq("chat_id", chatId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // Unfiltered by user on purpose: RLS returns only the caller's own rows,
+    // so adding `.eq("user_id", memberId)` would restate the boundary in
+    // application code and invite someone to "fix" it by widening the policy.
+    supabase.from("date_checkins").select("date_id,answer").limit(50),
+    /*
+     * Every row, not just the open one — `iAsked` has to survive a decline.
+     * Not `.maybeSingle()` either: `propose_graduation` inserts, so two people
+     * asking at the same moment is two rows, and a single-row read would throw
+     * on the one chat where both of them were sure.
+     */
+    supabase
+      .from("graduations")
+      .select("id,proposed_by,status")
+      .eq("chat_id", chatId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
 
   if (!partnerRow) return null;
 
@@ -301,6 +341,15 @@ export async function getChat(
       awaitingMe: date.status === "proposed" && date.proposed_by !== memberId,
     })),
     closureTemplateId: isChatClosed(chat.state) ? (note?.template_id ?? null) : null,
+    graduation: (() => {
+      const rows = graduationRows ?? [];
+      if (rows.length === 0) return null;
+      const answer = rows.find((row) => row.status === "proposed" && row.proposed_by !== memberId);
+      return {
+        answer: answer ? { id: answer.id } : null,
+        iAsked: rows.some((row) => row.proposed_by === memberId),
+      };
+    })(),
     checkin: (() => {
       if (chat.state !== "post_date_checkin") return null;
       // The most recent confirmed date is the one being checked in on.

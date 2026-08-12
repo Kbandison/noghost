@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
  * the bottom wave doesn't repeat. That irregularity is the project's human
  * touch (LUXWEB anti-slop #42 — flawless is now a slop tell).
  *
- * Appears in exactly two places on the marketing site: the hero and the footer.
+ * Sparingly used: the marketing hero and footer, then the member app's own
+ * dead ends — a paused account, a season that hasn't started, and the
+ * goodbye wave at graduation (§6.5).
  */
 export function Ghost({
   className,

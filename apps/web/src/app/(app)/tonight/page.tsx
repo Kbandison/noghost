@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { DROP_COPY, EMPTY_STATES } from "@noghost/config/copy";
 import { Ghost } from "@/components/ui/ghost";
 import { requireMember } from "@/lib/member";
@@ -26,7 +27,12 @@ export const dynamic = "force-dynamic";
 export default async function TonightPage() {
   const member = await requireMember();
   const now = new Date().toISOString();
-  const drop = await tonightsDrop(member.id, now);
+
+  /*
+   * Both status screens come before the drop query — neither of them reads it,
+   * and a graduated member leaves here entirely.
+   */
+  if (member.status === "found_someone") redirect("/found-someone");
 
   if (member.status === "paused") {
     return (
@@ -43,19 +49,7 @@ export default async function TonightPage() {
     );
   }
 
-  if (member.status === "found_someone") {
-    return (
-      <Shell>
-        <Ghost className="mb-6 h-16 w-16" />
-        <h1 className="font-[family-name:var(--font-display)] text-[30px] font-extrabold leading-[1.15] tracking-[-0.03em]">
-          You found someone.
-        </h1>
-        <p className="mt-4 text-[17px] leading-relaxed text-[var(--text-secondary)]">
-          That&rsquo;s the whole point of this, so the drops have stopped. Go be with them.
-        </p>
-      </Shell>
-    );
-  }
+  const drop = await tonightsDrop(member.id, now);
 
   if (drop.kind === "no-season") {
     return (

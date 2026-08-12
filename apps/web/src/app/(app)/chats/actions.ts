@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { CLOSURE_TEMPLATES } from "@noghost/config/copy";
 import { validateDateProposal } from "@noghost/logic";
 import { requireMember } from "@/lib/member";
@@ -200,6 +201,107 @@ export async function answerCheckin(
    * "pending", and returning that here would tell the first person to answer
    * exactly what the second one chose — the one thing §6.3 says neither of them
    * may learn. The page re-reads the chat's own state instead.
+   */
+  return {};
+}
+
+/**
+ * Found Someone — spec §6.5.
+ *
+ * Proposing is cheap and reversible; confirming ends the season for both of
+ * them. So the two halves are separate actions, and `respond_graduation` is the
+ * one that does everything: it closes this chat, closes every *other* open chat
+ * either of them has with the "met someone" note (§9.2 closure_03), flips both
+ * accounts to `found_someone`, and opens an exit survey each.
+ */
+export async function proposeGraduation(
+  _prev: ChatActionState,
+  formData: FormData,
+): Promise<ChatActionState> {
+  await requireMember();
+
+  const chatId = String(formData.get("chatId") ?? "");
+  if (!chatId) return { error: "That chat isn't there any more." };
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase.rpc("propose_graduation", { p_chat_id: chatId });
+
+  if (error) {
+    console.error(`[chat] propose_graduation ${chatId}: ${error.message}`);
+    if (/not your chat/i.test(error.message)) return { error: "That chat isn't yours." };
+    /*
+     * 0013 refuses a second ask. Only a replayed POST can reach this — the
+     * button is gone once asked — and the honest answer is the one the UI
+     * already gives: your ask is in. Reporting a failure here would also be a
+     * distinguishable outcome, which is what §6.5 spends this whole mechanic
+     * avoiding.
+     */
+    if (/already asked/i.test(error.message)) {
+      revalidatePath(`/chats/${chatId}`);
+      return {};
+    }
+    return { error: "That didn't send. Try again." };
+  }
+
+  revalidatePath(`/chats/${chatId}`);
+  return {};
+}
+
+export async function respondGraduation(
+  _prev: ChatActionState,
+  formData: FormData,
+): Promise<ChatActionState> {
+  await requireMember();
+
+  const chatId = String(formData.get("chatId") ?? "");
+  const graduationId = String(formData.get("graduationId") ?? "");
+  const confirm = String(formData.get("confirm") ?? "") === "yes";
+
+  if (!graduationId) return { error: "That question isn't there any more." };
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase.rpc("respond_graduation", {
+    p_graduation_id: graduationId,
+    p_confirm: confirm,
+  });
+
+  if (error) {
+    console.error(`[chat] respond_graduation ${graduationId}: ${error.message}`);
+    if (/other person confirms/i.test(error.message)) {
+      return { error: "You asked — it's theirs to answer." };
+    }
+    /*
+     * Named precisely, like the 0009 and 0011 cases. Without
+     * 0012_status_writes_by_rpc.sql the profiles trigger reverts the
+     * `found_someone` write in the same statement, so the graduation half-lands:
+     * chats close but neither account graduates.
+     */
+    if (/status is changed by|is of type member_status/i.test(error.message)) {
+      return {
+        error:
+          "This database hasn't had 0012_status_writes_by_rpc.sql applied, so graduating " +
+          "can't set both accounts. Apply it and try again.",
+      };
+    }
+    return { error: "That didn't save. Try again." };
+  }
+
+  revalidatePath(`/chats/${chatId}`);
+  revalidatePath("/chats");
+  revalidatePath("/tonight");
+
+  /*
+   * A confirm ends the season, so it leaves the chat for the screen that says so
+   * and carries the exit survey. Only the person who just said yes is moved —
+   * the proposer finds out on their next page load, because their account is now
+   * `found_someone` and `/tonight` sends them to the same place.
+   */
+  if (confirm) redirect("/found-someone");
+
+  /*
+   * A decline deliberately returns nothing. §6.5 makes declining private, so the
+   * response must not let the proposer distinguish "declined" from "not answered
+   * yet" — and the read layer drops the declined row for the same reason.
    */
   return {};
 }

@@ -62,6 +62,19 @@ export async function respond(
      * column is `message_kind` — so the insert fails and the whole accept rolls
      * back. "That didn't save" would send someone looking at their connection.
      */
+    /*
+     * 0014's guard. Reachable by a member who graduated with a note still
+     * waiting: the page removes the accept button, but this is a POST endpoint
+     * and the season really is over.
+     */
+    if (/season ended when you found someone/i.test(error.message)) {
+      return {
+        error:
+          "Your season ended when you found someone, so this can't become a new chat. " +
+          "You can still send them an answer.",
+      };
+    }
+
     if (/is of type message_kind|expression is of type text/i.test(error.message)) {
       return {
         error:
