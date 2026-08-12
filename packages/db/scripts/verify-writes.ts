@@ -164,11 +164,31 @@ async function main() {
     ok("signed in", `auth.uid() = ${data.user?.id.slice(0, 13)}…`);
   }
 
-  // Make sure the season the funnel looks for is actually there.
+  /*
+   * Make sure the season the funnel looks for is there — and leave it alone if
+   * it is.
+   *
+   * `ignoreDuplicates` matters: this used to be a plain upsert, which rewrote
+   * the row to the shipped fixture on every run and silently reverted a season
+   * put into `live` by `db:seed:remote --live`. Running the verifier would undo
+   * the setup for whatever you were about to test, which is a memorable half
+   * hour. The check only needs the season to exist.
+   */
   {
-    const { error } = await service.from("seasons").upsert(SEED_SEASON, { onConflict: "id" });
-    if (error) bad("season present", error.message);
-    else ok("season present", SEED_SEASON.name);
+    const { error } = await service
+      .from("seasons")
+      .upsert(SEED_SEASON, { onConflict: "id", ignoreDuplicates: true });
+    if (error) {
+      bad("season present", error.message);
+    } else {
+      const { data } = await service
+        .from("seasons")
+        .select("name,phase")
+        .eq("id", SEED_SEASON.id)
+        .maybeSingle();
+      if (data) ok("season present", `${data.name} (${data.phase})`);
+      else bad("season present", "not there, and the insert reported no error");
+    }
   }
 
   // ---- storage ------------------------------------------------------------
@@ -312,6 +332,41 @@ async function main() {
   for (const table of ["admin_users", "admin_audit"] as const) {
     const { data, error } = await member.from(table).select("*").limit(1);
     mustBeDeniedNotUnreachable(`read ${table}`, error, data);
+  }
+
+  /*
+   * ---- an RPC that actually runs ------------------------------------------
+   *
+   * `db:verify` proves the privileged functions *exist*, by calling each with
+   * deliberate junk and accepting any error that is not PGRST202. That cannot
+   * distinguish a healthy guard from a body that fails on every input — and it
+   * did not: `respond_connect` and `set_account_paused` both shipped with a
+   * CASE of two string literals assigned to an enum column, so accepting a
+   * connect and pausing an account were impossible from the day they landed.
+   * `0011_enum_assignment_casts.sql` fixes both.
+   *
+   * `set_account_paused` is the cheapest member-callable RPC with a real
+   * effect, so it stands in for the class: if this round trip works, an enum
+   * assignment inside a definer function works.
+   */
+  section("RPCs — do they execute, not just exist?");
+  {
+    const paused = await member.rpc("set_account_paused", { p_paused: true });
+    if (paused.error) {
+      bad("pause own account", `${paused.error.message.slice(0, 90)}`);
+    } else {
+      const { data } = await service
+        .from("profiles")
+        .select("status")
+        .eq("id", TEST_ID)
+        .maybeSingle();
+      if (data?.status === "paused") ok("pause own account", "status = paused");
+      else bad("pause own account", `no error, but status is ${data?.status}`);
+    }
+
+    const resumed = await member.rpc("set_account_paused", { p_paused: false });
+    if (resumed.error) bad("unpause own account", resumed.error.message.slice(0, 90));
+    else ok("unpause own account");
   }
 
   // ---- the status chain the funnel drives ---------------------------------

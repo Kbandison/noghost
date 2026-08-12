@@ -6,7 +6,7 @@ import { CARD_ACTIONS, DROP_COPY, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { PromptRef } from "@noghost/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { publicPhotoUrl } from "@/lib/upload";
+import { publicPhotoUrl } from "@/lib/photos";
 import type { DropCardView } from "@/lib/drop";
 import { passCard, sendConnect, type CardActionState } from "./actions";
 import { Countdown } from "./countdown";

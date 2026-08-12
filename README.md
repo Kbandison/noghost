@@ -26,11 +26,16 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 | 2 | Stripe checkout + webhook | ⬜ Blocked on a Stripe account |
 | 3 | `generate-drops` / `release-drops` crons | ✅ Verified against the real project |
 | 3 | Tonight — the Drop, pass, connect composer | ✅ Verified against the real project |
-| 3 | Inbox — accept / decline a connect | ⬜ |
+| 3 | Inbox — accept / decline a connect | ✅ Decline verified live · accept needs `0011` |
 | 4 | Chat + Fuse + Dates | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
 | 6 | Mobile (Expo) | ⬜ |
 | 7 | Ops hardening + launch | ⬜ |
+
+**Two migrations are waiting to be applied by hand.** `0010_admin_table_grants.sql`
+is insurance — nothing breaks until Supabase drops its default table privileges.
+`0011_enum_assignment_casts.sql` is not: without it, **accepting a connect
+fails**, and so does pausing an account. See "A bug two RPCs shipped with" below.
 
 **One thing is not yet driveable end to end:** phone auth is disabled on the
 Supabase project, so the OTP step fails closed. Everything on either side of it
@@ -61,7 +66,7 @@ Flipping `NEXT_PUBLIC_USE_SEED_DATA` to `false` is the only change needed to
 point it at the real database.
 
 ```bash
-pnpm test        # 135 tests, all in packages/logic
+pnpm test        # 171 tests, all in packages/logic
 pnpm typecheck
 pnpm build
 pnpm db:seed     # regenerate supabase/seed.sql from the generator
@@ -206,6 +211,52 @@ layout it would redirect to itself forever. It uses `shouldCreateUser: false`
 and answers identically whether or not the number belongs to a member: a page
 that said "no account for that number" would be a membership lookup for a dating
 product that anyone could run.
+
+### The inbox
+
+`/inbox` is Split Canvas — list beside detail on desktop, list-only on mobile.
+Two halves, and the second one is not decoration: incoming notes are what §7.2
+describes, but a *declined* connect writes `connect_declined` as an `inapp`
+notification that §8 marks `required: true`. An inbox showing only arrivals
+would leave the one message the product exists to deliver with nowhere to land.
+"Nobody gets ghosted" includes you, so "Your notes" is where the answer to
+something you sent appears, printed verbatim from §9.2's `decline_auto`.
+
+Accept goes straight through; decline gets the confirm sheet §7.2 specifies, and
+that sheet reassures rather than warns. What people hesitate over is whether
+saying no makes them the villain, so it says what actually happens: a real
+answer, written kindly, and no reply channel to argue in. Backing out of it
+writes nothing — verified.
+
+`prompt_ref` always names something on the profile that appeared *on the card*,
+which is the recipient's. So on a note you received it refers to something of
+*yours*, and the first version looked it up in the sender's profile — printing
+the question with no answer underneath, which is the one thing that screen is
+for. Each side now reads from the right profile.
+
+### A bug two RPCs shipped with
+
+`case when … then 'voice' else 'text' end` has type `text`, not `message_kind`.
+A bare `'voice'` literal in the same position works, because Postgres resolves an
+unknown-type literal to the target column's type — but as branches of a CASE the
+result resolves to `text` first, and there is no cast from text to an enum.
+
+Two functions carried it, both load-bearing:
+
+- **`respond_connect`** — accepting a connect creates the chat, then seeds
+  message #1 from the sender's reply. That insert failed, so the whole
+  transaction rolled back. **Nobody could ever accept a connect.**
+- **`set_account_paused`** — same shape, on `profiles.status`. Pausing your own
+  account never worked either.
+
+`0011_enum_assignment_casts.sql` fixes both. Neither was reachable from a UI
+until the inbox existed, and `pnpm db:verify` could not have caught them: it
+proves each function *exists* by calling it with deliberate junk and accepting
+any error that is not `PGRST202` — and a broken body produces an error too.
+`pnpm db:verify:writes` now pauses and unpauses a real member, which catches the
+class by executing it rather than by naming it.
+
+Until 0011 is applied the inbox says so by name, rather than "that didn't save".
 
 ### Scheduled jobs
 

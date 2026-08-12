@@ -80,15 +80,9 @@ export async function uploadImage(bucket: Bucket, file: File): Promise<string> {
 }
 
 /**
- * The CDN URL for an already-uploaded photo, so stepping Back shows real
- * thumbnails instead of filenames.
+ * Re-exported so the funnel's Back step keeps showing real thumbnails.
  *
- * Only `photos` is public. `verification-selfies` has no member read policy at
- * all — spec §9.8, "review-team eyes only" — so there is deliberately no
- * equivalent for it, and the selfie step shows a confirmation instead of an
- * image when it restores.
+ * The implementation moved to `lib/photos.ts`, which carries no `"use client"`
+ * — the inbox renders on the server and could not call it from here.
  */
-export function publicPhotoUrl(path: string): string {
-  if (SEED) return "";
-  return createClient().storage.from("photos").getPublicUrl(path).data.publicUrl;
-}
+export { publicPhotoUrl } from "./photos";
