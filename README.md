@@ -25,7 +25,8 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 | 2 | Audit trail view — §7.3's other half | ✅ Verified against the real project |
 | 2 | Stripe checkout + webhook | ⬜ Blocked on a Stripe account |
 | 3 | `generate-drops` / `release-drops` crons | ✅ Verified against the real project |
-| 3 | The Drop + Connect — member-facing | ⬜ |
+| 3 | Tonight — the Drop, pass, connect composer | ✅ Verified against the real project |
+| 3 | Inbox — accept / decline a connect | ⬜ |
 | 4 | Chat + Fuse + Dates | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
 | 6 | Mobile (Expo) | ⬜ |
@@ -94,7 +95,10 @@ generator, so they cannot drift.
 webhook, so until that account exists there is no way to get a single member
 into a season — and the drop algorithm, the fuse and everything downstream of
 them have nobody to run against. The fixture rows carry an obviously-fake
-`pi_deadbeef_…` payment intent.
+`pi_deadbeef_…` payment intent. It also uploads three photos per profile: the
+drop is a photo-forward surface, and a cohort with empty `photos` arrays renders
+every card as "no photos on this profile" — a real state, but not the one worth
+testing.
 
 **`--live` changes what the marketing site says.** It backdates day one so the
 season is mid-flight, which is the only way to exercise `generate-drops` before
@@ -165,6 +169,43 @@ The cursor is opaque and both halves are pattern-checked before use, because
 they are interpolated into a raw PostgREST `or=` expression. Verified against
 the live project: seven malformed and hostile query strings all fall back to
 page one, and a valid cursor still pages.
+
+### Tonight — the member-facing Drop
+
+`/tonight` in the `(app)` group, behind `requireMember()`. Four screens, and none
+of them is an error: no season, built-but-not-landed, quiet night, and the drop
+itself.
+
+**Focus Mode**: one profile fills the view, lead photo → their prompts → the
+remaining photos two-up. Three full-bleed photos in a row was the first attempt
+and it pushed the writing 2,400px down the page — you scrolled a photo feed to
+reach the words, which is the swiping mindset the layout decision exists to
+avoid, rebuilt vertically.
+
+**The card in focus is tracked by id, not by index.** `generate-drops` writes a
+member's three cards in one batch, so they share a `created_at` to the
+microsecond, and ordering on that column alone is not stable — Postgres returns
+any order, and it *changes* once a row is updated, because an UPDATE rewrites the
+tuple and moves it in the heap. The symptom was ugly and real: pass on someone,
+and a different person slid into the slot you were reading. `lib/drop.ts` now
+sorts on `(created_at, id)`; tracking by id means an ordering change can never
+swap who is on screen again. Same lesson as the audit trail's keyset cursor.
+
+The card's ranking is *not* preserved — the score lives in `buildDrop`'s return
+value, not in a column. §6.1 specifies which three people are served, not the
+order they are read in, so a stable order is the requirement; strongest-first
+would need a `rank` column.
+
+A pass is a direct UPDATE, allowed by exactly one RLS policy pinning the
+transition to `pending → passed` on a released drop you own. It is the only
+column a client may write. A connect goes through `send_connect()` instead,
+because the connect row and the card flip have to land in one transaction.
+
+Member sign-in is at `/sign-in`, in its own `(auth)` group — under the member
+layout it would redirect to itself forever. It uses `shouldCreateUser: false`
+and answers identically whether or not the number belongs to a member: a page
+that said "no account for that number" would be a membership lookup for a dating
+product that anyone could run.
 
 ### Scheduled jobs
 

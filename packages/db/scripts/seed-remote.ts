@@ -110,6 +110,55 @@ async function tile(seed: string, initial: string, variant: number): Promise<Buf
   return sharp(Buffer.from(svg)).webp({ quality: 80 }).toBuffer();
 }
 
+/**
+ * Three photos for one profile, at the paths the funnel writes.
+ *
+ * Extracted because the drop is a photo-forward surface and a cohort with empty
+ * `photos` arrays cannot exercise it — every card renders "no photos on this
+ * profile", which is a real state but not the one worth testing. Applications
+ * needed the same three uploads, so this is shared rather than duplicated.
+ */
+async function seedPhotos(profile: (typeof PROFILES)[number]): Promise<string[] | null> {
+  const initial = profile.first_name.charAt(0).toUpperCase();
+  const paths: string[] = [];
+
+  for (let i = 0; i < 3; i += 1) {
+    const path = `${profile.id}/seed-${i}.webp`;
+    const { error } = await db.storage
+      .from("photos")
+      .upload(path, await tile(profile.id, initial, i), {
+        contentType: "image/webp",
+        upsert: true,
+      });
+    if (error) {
+      console.error(`  ✗ photo ${path}: ${error.message}`);
+      return null;
+    }
+    paths.push(path);
+  }
+
+  const { error } = await db
+    .from("profiles")
+    .update({ photos: paths.map((path, order) => ({ path, order, approved: false })) })
+    .eq("id", profile.id);
+  if (error) {
+    console.error(`  ✗ photos on ${profile.first_name}: ${error.message}`);
+    return null;
+  }
+
+  return paths;
+}
+
+/** Photos for the whole cohort, so drop cards have something to read. */
+async function seedCohortPhotos() {
+  console.log(`\n  Uploading photos for ${PROFILES.length} profiles…`);
+  let done = 0;
+  for (const profile of PROFILES) {
+    if (await seedPhotos(profile)) done += 1;
+  }
+  console.log(`  ✓ ${done} profiles with 3 photos each`);
+}
+
 async function seedApplications() {
   console.log(`\n  Filing ${APPLICANT_COUNT} applications with media…`);
 
@@ -119,22 +168,8 @@ async function seedApplications() {
   for (const profile of PROFILES.slice(0, APPLICANT_COUNT)) {
     const initial = profile.first_name.charAt(0).toUpperCase();
 
-    // Three photos and a selfie, uploaded to the same paths the funnel writes.
-    const photoPaths: string[] = [];
-    for (let i = 0; i < 3; i += 1) {
-      const path = `${profile.id}/seed-${i}.webp`;
-      const { error } = await db.storage
-        .from("photos")
-        .upload(path, await tile(profile.id, initial, i), {
-          contentType: "image/webp",
-          upsert: true,
-        });
-      if (error) {
-        console.error(`  ✗ photo ${path}: ${error.message}`);
-        return;
-      }
-      photoPaths.push(path);
-    }
+    const photoPaths = await seedPhotos(profile);
+    if (!photoPaths) return;
 
     const selfiePath = `${profile.id}/seed-selfie.webp`;
     // `upsert: true` works here only because this runs as the service role,
@@ -150,13 +185,6 @@ async function seedApplications() {
       console.error(`  ✗ selfie: ${selfieError.message}`);
       return;
     }
-
-    await db
-      .from("profiles")
-      .update({
-        photos: photoPaths.map((path, order) => ({ path, order, approved: false })),
-      })
-      .eq("id", profile.id);
 
     await db
       .from("verifications")
@@ -371,7 +399,10 @@ async function seed() {
     process.exit(1);
   }
 
-  if (withMembers || goLive) await seedMembers();
+  if (withMembers || goLive) {
+    await seedMembers();
+    await seedCohortPhotos();
+  }
   if (withApplications) await seedApplications();
 
   console.log(`\nDone. Every seeded id begins "${seedId(0).slice(0, 8)}-".\n`);
