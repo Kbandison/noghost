@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BRAND } from "@noghost/config";
 import { requireMember } from "@/lib/member";
 import { unansweredCount } from "@/lib/inbox";
+import { openChatCount } from "@/lib/chats";
 import { signOut } from "./actions";
 import { AppNav } from "./app-nav";
 
@@ -12,12 +13,15 @@ import { AppNav } from "./app-nav";
  * docs/design-decisions.md) — and chrome that competes with the person you are
  * reading is chrome working against the product.
  *
- * Two of §7.2's four tabs exist, so two are shown. Chats and Profile arrive
- * with their phases; a tab that leads nowhere is worse than a missing one.
+ * Three of §7.2's four tabs exist, so three are shown. Profile arrives with
+ * its phase; a tab that leads nowhere is worse than a missing one.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const member = await requireMember();
-  const waiting = await unansweredCount(member.id);
+  const [waiting, chats] = await Promise.all([
+    unansweredCount(member.id),
+    openChatCount(member.id),
+  ]);
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -30,7 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             {BRAND.APP_NAME}
           </Link>
 
-          <AppNav waiting={waiting} />
+          <AppNav waiting={waiting} chats={chats} />
 
           <div className="flex items-center gap-5">
             <span className="hidden text-[15px] text-[var(--text-secondary)] sm:inline">

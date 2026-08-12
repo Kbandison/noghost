@@ -28,7 +28,8 @@ Design direction from [`luxweb-master/`](./luxweb-master).
 | 3 | Tonight — the Drop, pass, connect composer | ✅ Verified against the real project |
 | 3 | Inbox — accept / decline a connect | ✅ Decline verified live · accept needs `0011` |
 | 4 | `fuse-sweep` cron — warnings, expiry, closure notes | ✅ Verified against the real project |
-| 4 | Chat UI + Dates + closing kindly | ⬜ |
+| 4 | Chats — fuse rings, dates, closing kindly | ✅ Verified against the real project |
+| 4 | `checkin-sweep` + post-date check-in | ⬜ |
 | 5 | Notifications + PWA | ⬜ |
 | 6 | Mobile (Expo) | ⬜ |
 | 7 | Ops hardening + launch | ⬜ |
@@ -260,6 +261,50 @@ any error that is not `PGRST202` — and a broken body produces an error too.
 class by executing it rather than by naming it.
 
 Until 0011 is applied the inbox says so by name, rather than "that didn't save".
+
+### Chats
+
+`/chats` is Split Canvas, **sorted by fuse urgency rather than recency**. A
+conversation with nineteen hours left needs attention more than one somebody
+messaged five minutes ago; sorting by recency would make the app reward whoever
+typed last, which is the opposite of what the fuse is for.
+
+The **fuse ring** draws hours, not seconds. It does not tick, pulse, or animate —
+§3.3 bans manufactured urgency, and a real deadline needs no theatre. A
+`date_scheduled` chat shows a calendar chip instead: the fuse is paused, so a
+ring showing time left would be a lie. The ring carries an `aria-label` in
+hours, because a shrinking arc says nothing to a screen reader.
+
+**"Propose a date" lives in the header and stays visible** while the chat is
+open — §7.2 calls it the conversation's entire purpose. §6.3's window (at least
+2 hours out, at most 14 days) is the anti-loophole rule, and it is checked three
+times: the picker's `min`/`max`, `validateDateProposal`, and `propose_date` in
+SQL. Only the person who did *not* propose can confirm — self-confirming would
+let one member pause a fuse unilaterally, and the RPC refuses it.
+
+**Closing kindly** sits at the end of the thread, not in the sticky footer. Six
+templates, verbatim from §9.2, so nobody has to compose an ending from nothing
+at 1am. A personal line is optional and goes through the tone check.
+
+### The tone check
+
+§6.6's rubric, at temperature 0, and it **offers** rather than refuses: a failed
+line comes back as a kinder rewrite with the original still in the box and a
+"send it as I wrote it" button beside it. The product's opinion about kindness is
+a suggestion; the member's own words win. On an outage, a missing API key, or an
+unparseable reply, the line passes — an ending must never be stuck behind an API.
+
+Three details are load-bearing:
+
+- **`temperature: 0` and `claude-sonnet-4-6` are only valid together.**
+  `temperature` is rejected with a 400 on Opus 4.7 and later and on Sonnet 5, so
+  changing the model means deleting the temperature line in the same commit.
+- **Forced tool use, not `output_config.format`.** Structured outputs start at
+  the Opus 4.8 / Sonnet 5 tier, so the schema rides as a tool's `input_schema`
+  and the tool is forced. `parseToneCheckResponse` still validates the reply.
+- **The rejected text is never stored.** §6.6: a boolean and a category, nothing
+  else. `closure_notes.tone_check_passed` is `null` when the model half did not
+  run — which is why the column is nullable rather than defaulting to `true`.
 
 ### The fuse
 

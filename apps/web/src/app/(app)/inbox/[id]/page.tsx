@@ -51,7 +51,8 @@ function Received({
 
       <section className="mt-8 border-t border-[var(--border-subtle)] pt-8">
         <h2 className="text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
-          {connect.from.firstName} replied to
+          {connect.from.firstName}{" "}
+          replied to
         </h2>
         {/*
           Looked up in *your* profile, not theirs. `prompt_ref` names something
@@ -204,7 +205,8 @@ function Sent({ connect }: { connect: OutgoingConnect }) {
       <div className="mt-10 border-t border-[var(--border-subtle)] pt-8">
         {connect.status === "pending" && (
           <p className="text-[17px] leading-relaxed text-[var(--text-secondary)]">
-            {connect.to.firstName} hasn&rsquo;t answered yet. They will &mdash; that&rsquo;s the
+            {connect.to.firstName}{" "}
+            hasn&rsquo;t answered yet. They will &mdash; that&rsquo;s the
             deal here, and nothing about your note is being nudged in the meantime.
           </p>
         )}
@@ -212,7 +214,8 @@ function Sent({ connect }: { connect: OutgoingConnect }) {
         {connect.status === "accepted" && (
           <>
             <p className="text-[18px] leading-relaxed">
-              {connect.to.firstName} said yes.
+              {connect.to.firstName}{" "}
+              said yes.
             </p>
             {connect.chat && (
               <p className="mt-3 text-[16px] leading-relaxed text-[var(--text-secondary)]">

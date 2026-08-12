@@ -136,8 +136,10 @@ export default async function ApplicationPage({
                   <p className="text-[13px] text-[var(--error)]">No photos on this profile.</p>
                 )}
                 <p className="mt-2 text-[12px] text-[var(--text-dim)]">
-                  {application.photoPaths.length} photo
-                  {application.photoPaths.length === 1 ? "" : "s"} · first one leads their card
+                  {application.photoPaths.length === 1
+                    ? "1 photo"
+                    : `${application.photoPaths.length} photos`}{" "}
+                  · first one leads their card
                 </p>
               </div>
             </div>

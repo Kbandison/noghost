@@ -1,0 +1,296 @@
+import { fuseUrgency, type FuseUrgency } from "@noghost/logic";
+import type { ChatState, DateStatus, MessageKind, ProfilePhoto } from "@noghost/types";
+import { isChatClosed } from "@noghost/types";
+import { supabaseServer } from "./supabase";
+
+/**
+ * Reading chats — spec §7.2.
+ *
+ * Every read runs under the member's own session. `participants read their
+ * chats` and `participants read messages` are the policies that grant it, and
+ * `date_checkins` has the tightest policy in the schema (own row only), so a
+ * bug in this file cannot show one person the other's raw check-in answer.
+ */
+
+export interface ChatPartner {
+  id: string;
+  firstName: string;
+  age: number;
+  photos: ProfilePhoto[];
+}
+
+export interface ChatMessage {
+  id: string;
+  kind: MessageKind;
+  body: string | null;
+  voicePath: string | null;
+  /** Null for a system message — the app is speaking, not a person. */
+  senderId: string | null;
+  createdAt: string;
+  mine: boolean;
+}
+
+export interface ChatDate {
+  id: string;
+  status: DateStatus;
+  scheduledFor: string;
+  placeName: string;
+  placeNote: string | null;
+  proposedBy: string;
+  /** Only the other person can confirm — §6.3's anti-loophole rule. */
+  awaitingMe: boolean;
+}
+
+export interface ChatSummary {
+  id: string;
+  state: ChatState;
+  fuseExpiresAt: string;
+  urgency: FuseUrgency;
+  hoursLeft: number;
+  partner: ChatPartner;
+  lastMessage: { body: string | null; kind: MessageKind; mine: boolean } | null;
+  lastAt: string;
+  /** The calendar chip §7.2 shows instead of a ring. */
+  scheduledFor: string | null;
+}
+
+export interface ChatDetail extends ChatSummary {
+  messages: ChatMessage[];
+  dates: ChatDate[];
+  closureTemplateId: string | null;
+}
+
+const CHAT_COLUMNS =
+  "id,state,user_a,user_b,fuse_expires_at,fuse_paused_at,warned_48h,warned_24h,closed_at,created_at";
+
+type ChatRow = {
+  id: string;
+  state: ChatState;
+  user_a: string;
+  user_b: string;
+  fuse_expires_at: string;
+  fuse_paused_at: string | null;
+  warned_48h: boolean;
+  warned_24h: boolean;
+  closed_at: string | null;
+  created_at: string;
+};
+
+/** Whole hours left, floored at zero. Never a second-by-second countdown (§3.3). */
+function hoursLeft(chat: ChatRow, now: string): number {
+  const ms = Date.parse(chat.fuse_expires_at) - Date.parse(now);
+  return Math.max(Math.floor(ms / 3_600_000), 0);
+}
+
+function toFuseChat(row: ChatRow) {
+  return {
+    id: row.id,
+    state: row.state,
+    userA: row.user_a,
+    userB: row.user_b,
+    fuseExpiresAt: row.fuse_expires_at,
+    fusePausedAt: row.fuse_paused_at,
+    warned48h: row.warned_48h,
+    warned24h: row.warned_24h,
+    closedAt: row.closed_at,
+  };
+}
+
+/**
+ * The chat list, sorted by fuse urgency — §7.2.
+ *
+ * Not by recency. A conversation with nineteen hours left needs attention more
+ * than one somebody messaged five minutes ago, and the whole point of the fuse
+ * is that time is the thing you cannot ignore.
+ */
+export async function listChats(memberId: string, now: string): Promise<ChatSummary[]> {
+  const supabase = await supabaseServer();
+
+  const { data: rows } = await supabase
+    .from("chats")
+    .select(CHAT_COLUMNS)
+    .order("fuse_expires_at", { ascending: true })
+    .limit(200);
+
+  const chats = (rows ?? []) as ChatRow[];
+  if (chats.length === 0) return [];
+
+  const partnerIds = [...new Set(chats.map((c) => (c.user_a === memberId ? c.user_b : c.user_a)))];
+  const chatIds = chats.map((c) => c.id);
+
+  const [{ data: people }, { data: messages }, { data: dates }] = await Promise.all([
+    supabase.from("visible_profiles").select("id,first_name,age,photos").in("id", partnerIds),
+    /*
+     * One query for every chat's messages, newest first, then the first hit per
+     * chat wins. A per-chat "latest message" query would be one round trip per
+     * row — and PostgREST has no DISTINCT ON to do it in a single statement.
+     */
+    supabase
+      .from("messages")
+      .select("id,chat_id,kind,body,sender_id,created_at")
+      .in("chat_id", chatIds)
+      .order("created_at", { ascending: false })
+      .limit(2000),
+    supabase
+      .from("dates")
+      .select("id,chat_id,scheduled_for,status")
+      .in("chat_id", chatIds)
+      .eq("status", "confirmed")
+      .order("scheduled_for", { ascending: false }),
+  ]);
+
+  const byId = new Map(
+    (people ?? []).map((row) => [
+      row.id,
+      {
+        id: row.id,
+        firstName: row.first_name,
+        age: row.age,
+        photos: Array.isArray(row.photos) ? (row.photos as ProfilePhoto[]) : [],
+      },
+    ]),
+  );
+
+  const latest = new Map<string, NonNullable<typeof messages>[number]>();
+  for (const message of messages ?? []) {
+    if (!latest.has(message.chat_id)) latest.set(message.chat_id, message);
+  }
+
+  const nextDate = new Map<string, string>();
+  for (const date of dates ?? []) {
+    if (!nextDate.has(date.chat_id)) nextDate.set(date.chat_id, date.scheduled_for);
+  }
+
+  return chats.flatMap((row): ChatSummary[] => {
+    const partnerId = row.user_a === memberId ? row.user_b : row.user_a;
+    const partner = byId.get(partnerId);
+    // Unreadable partner means a report now sits between them. Drop the row
+    // rather than render a nameless chat — same rule as the drop and the inbox.
+    if (!partner) return [];
+
+    const last = latest.get(row.id);
+
+    return [
+      {
+        id: row.id,
+        state: row.state,
+        fuseExpiresAt: row.fuse_expires_at,
+        urgency: fuseUrgency(toFuseChat(row), now),
+        hoursLeft: hoursLeft(row, now),
+        partner,
+        lastMessage: last
+          ? { body: last.body, kind: last.kind, mine: last.sender_id === memberId }
+          : null,
+        lastAt: last?.created_at ?? row.created_at,
+        scheduledFor: nextDate.get(row.id) ?? null,
+      },
+    ];
+  });
+}
+
+export async function getChat(
+  chatId: string,
+  memberId: string,
+  now: string,
+): Promise<ChatDetail | null> {
+  const supabase = await supabaseServer();
+
+  const { data: row } = await supabase
+    .from("chats")
+    .select(CHAT_COLUMNS)
+    .eq("id", chatId)
+    .maybeSingle();
+
+  if (!row) return null;
+  const chat = row as ChatRow;
+
+  const partnerId = chat.user_a === memberId ? chat.user_b : chat.user_a;
+
+  const [{ data: partnerRow }, { data: messageRows }, { data: dateRows }, { data: note }] =
+    await Promise.all([
+      supabase
+        .from("visible_profiles")
+        .select("id,first_name,age,photos")
+        .eq("id", partnerId)
+        .maybeSingle(),
+      supabase
+        .from("messages")
+        .select("id,kind,body,voice_path,sender_id,created_at")
+        .eq("chat_id", chatId)
+        // Oldest first — a conversation reads downward. `(created_at, id)`
+        // because `respond_connect` seeds message #1 in the same transaction
+        // that creates the chat, so timestamps can tie.
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true }),
+      supabase
+        .from("dates")
+        .select("id,status,scheduled_for,place_name,place_note,proposed_by")
+        .eq("chat_id", chatId)
+        .order("scheduled_for", { ascending: true }),
+      supabase
+        .from("closure_notes")
+        .select("template_id")
+        .eq("chat_id", chatId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+  if (!partnerRow) return null;
+
+  const partner: ChatPartner = {
+    id: partnerRow.id,
+    firstName: partnerRow.first_name,
+    age: partnerRow.age,
+    photos: Array.isArray(partnerRow.photos) ? (partnerRow.photos as ProfilePhoto[]) : [],
+  };
+
+  const messages: ChatMessage[] = (messageRows ?? []).map((message) => ({
+    id: message.id,
+    kind: message.kind,
+    body: message.body,
+    voicePath: message.voice_path,
+    senderId: message.sender_id,
+    createdAt: message.created_at,
+    mine: message.sender_id === memberId,
+  }));
+
+  const last = messages[messages.length - 1];
+
+  return {
+    id: chat.id,
+    state: chat.state,
+    fuseExpiresAt: chat.fuse_expires_at,
+    urgency: fuseUrgency(toFuseChat(chat), now),
+    hoursLeft: hoursLeft(chat, now),
+    partner,
+    lastMessage: last ? { body: last.body, kind: last.kind, mine: last.mine } : null,
+    lastAt: last?.createdAt ?? chat.created_at,
+    scheduledFor:
+      (dateRows ?? []).find((date) => date.status === "confirmed")?.scheduled_for ?? null,
+    messages,
+    dates: (dateRows ?? []).map((date) => ({
+      id: date.id,
+      status: date.status,
+      scheduledFor: date.scheduled_for,
+      placeName: date.place_name,
+      placeNote: date.place_note,
+      proposedBy: date.proposed_by,
+      // §6.3: only the person who did *not* propose can confirm. Self-confirming
+      // would let one member pause a fuse on their own, which is the loophole.
+      awaitingMe: date.status === "proposed" && date.proposed_by !== memberId,
+    })),
+    closureTemplateId: isChatClosed(chat.state) ? (note?.template_id ?? null) : null,
+  };
+}
+
+/** Open chats, for the nav tab. */
+export async function openChatCount(memberId: string): Promise<number> {
+  const supabase = await supabaseServer();
+  const { count } = await supabase
+    .from("chats")
+    .select("id", { head: true, count: "exact" })
+    .in("state", ["active", "date_scheduled", "post_date_checkin"])
+    .or(`user_a.eq.${memberId},user_b.eq.${memberId}`);
+  return count ?? 0;
+}
