@@ -24,7 +24,29 @@ export interface ChatPartner {
   firstName: string;
   age: number;
   photos: ProfilePhoto[];
+  /**
+   * True when the profile behind this chat can no longer be read — which in
+   * practice means a report now sits between the two people. The name and age
+   * are placeholders; there is nothing real to show and nothing that should be.
+   */
+  withheld?: boolean;
 }
+
+/**
+ * What a chat looks like once its partner is unreadable.
+ *
+ * §10's rule is that nothing ends in silence, and a report makes both profiles
+ * invisible in both directions — so a closed chat whose partner has gone dark
+ * still has to render, or the closure note written by `report_member` is
+ * delivered to a screen nobody can open. Anonymous, not absent.
+ */
+const WITHHELD_PARTNER = (id: string): ChatPartner => ({
+  id,
+  firstName: "This conversation",
+  age: 0,
+  photos: [],
+  withheld: true,
+});
 
 export interface ChatMessage {
   id: string;
@@ -212,9 +234,15 @@ export async function listChats(memberId: string, now: string): Promise<ChatSumm
 
   return chats.flatMap((row): ChatSummary[] => {
     const partnerId = row.user_a === memberId ? row.user_b : row.user_a;
-    const partner = byId.get(partnerId);
-    // Unreadable partner means a report now sits between them. Drop the row
-    // rather than render a nameless chat — same rule as the drop and the inbox.
+    /*
+     * An unreadable partner means a report sits between them. A *closed* chat
+     * still renders, anonymously, because it holds the note explaining that it
+     * ended — dropping the row would turn the one ending this product refuses
+     * to allow into exactly that. An open one is dropped as before; after 0016
+     * there should not be one, and a nameless live conversation would be worse
+     * than its absence.
+     */
+    const partner = byId.get(partnerId) ?? (isChatClosed(row.state) ? WITHHELD_PARTNER(partnerId) : null);
     if (!partner) return [];
 
     const last = latest.get(row.id);
@@ -307,14 +335,17 @@ export async function getChat(
       .limit(10),
   ]);
 
-  if (!partnerRow) return null;
+  // Same rule as the list: readable, or closed and anonymous, or nothing.
+  if (!partnerRow && !isChatClosed(chat.state)) return null;
 
-  const partner: ChatPartner = {
-    id: partnerRow.id,
-    firstName: partnerRow.first_name,
-    age: partnerRow.age,
-    photos: Array.isArray(partnerRow.photos) ? (partnerRow.photos as ProfilePhoto[]) : [],
-  };
+  const partner: ChatPartner = partnerRow
+    ? {
+        id: partnerRow.id,
+        firstName: partnerRow.first_name,
+        age: partnerRow.age,
+        photos: Array.isArray(partnerRow.photos) ? (partnerRow.photos as ProfilePhoto[]) : [],
+      }
+    : WITHHELD_PARTNER(partnerId);
 
   /*
    * One signing call for the thread, after the reads rather than inside them:

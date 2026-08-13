@@ -9,6 +9,7 @@ import { publicPhotoUrl } from "@/lib/photos";
 import { requireMember } from "@/lib/member";
 import { loadInbox, type IncomingConnect, type InboxPerson, type OutgoingConnect } from "@/lib/inbox";
 import { Rail } from "../rail";
+import { ReportSheet } from "@/components/report/report-sheet";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { Answer } from "./answer";
 
@@ -92,6 +93,12 @@ function Received({
         ) : (
           <Settled connect={connect} />
         )}
+      </div>
+
+      {/* A note you can't answer is still a note somebody sent you, so this sits
+          below both branches rather than only the pending one. */}
+      <div className="mt-8 border-t border-[var(--border-subtle)] pt-6">
+        <ReportSheet reportedId={connect.from.id} name={connect.from.firstName} />
       </div>
     </div>
   );

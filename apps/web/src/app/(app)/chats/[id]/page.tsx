@@ -12,6 +12,7 @@ import { listChats } from "@/lib/chats";
 import { Rail } from "../rail";
 import { FuseRing } from "../fuse-ring";
 import { VoicePlayer } from "@/components/ui/voice-player";
+import { ReportSheet } from "@/components/report/report-sheet";
 import { Composer } from "./composer";
 import { DateProposal, RespondToDate } from "./propose-date";
 import { CloseKindly } from "./close-kindly";
@@ -118,6 +119,17 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
                   <ProposeGraduation chatId={chat.id} name={chat.partner.firstName} />
                 </div>
               )}
+              {/* Last and quietest of the three, but always present: the
+                  Community Standards page promises reporting "from any profile
+                  or chat", and a promise that depends on finding a menu is not
+                  one. */}
+              <div className="pt-1">
+                <ReportSheet
+                  reportedId={chat.partner.id}
+                  name={chat.partner.firstName}
+                  chatId={chat.id}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -148,11 +160,19 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
             separates the name from the age, so the accessible name would read as
             one word. */}
         <h1
-          aria-label={`${chat.partner.firstName}, ${chat.partner.age}`}
+          aria-label={
+            chat.partner.withheld
+              ? "A closed conversation"
+              : `${chat.partner.firstName}, ${chat.partner.age}`
+          }
           className="truncate font-[family-name:var(--font-display)] text-[22px] font-bold tracking-[-0.02em]"
         >
           {chat.partner.firstName}
-          <span className="ml-2 font-normal text-[var(--text-dim)]">{chat.partner.age}</span>
+          {/* No age on a withheld partner — there is no profile left to read,
+              and `age: 0` is a placeholder, not a fact. */}
+          {!chat.partner.withheld && (
+            <span className="ml-2 font-normal text-[var(--text-dim)]">{chat.partner.age}</span>
+          )}
         </h1>
         <p className="text-[13px] text-[var(--text-dim)]">
           {closed
@@ -280,7 +300,17 @@ function ClosedNote({ chat }: { chat: ChatDetail }) {
       <p className="text-[16px] leading-relaxed text-[var(--text-secondary)]">
         This chat is closed
         {chat.state === "closed_fuse" && " — the seven days ran out"}
-        {chat.state === "closed_by_user" && " — one of you ended it, with words"}
+        {chat.state === "closed_by_user" &&
+          /*
+           * `closed_by_user` covers three endings now, and only two of them
+           * were ended by a person. A report closes the chat as well, and
+           * telling the reported member "one of you ended it" would be both
+           * untrue and a hint — it points at the only other person in the room.
+           * The note itself already says who closed it; this line agrees.
+           */
+          (chat.closureTemplateId === "removal"
+            ? " — NoGhost closed it"
+            : " — one of you ended it, with words")}
         {chat.state === "closed_graduated" && " — somebody found someone"}
         {chat.state === "closed_season_end" && " — the season ended"}. Nothing more can be sent,
         and that&rsquo;s the point: it ended with an answer rather than silence.

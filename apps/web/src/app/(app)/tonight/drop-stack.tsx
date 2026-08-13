@@ -5,6 +5,7 @@ import Image from "next/image";
 import { CARD_ACTIONS, DROP_COPY, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { PromptRef } from "@noghost/types";
 import { Button } from "@/components/ui/button";
+import { ReportSheet } from "@/components/report/report-sheet";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
 import { cn } from "@/lib/utils";
@@ -329,10 +330,20 @@ function CardActions({ card }: { card: DropCardView }) {
       {composing ? (
         <Composer card={card} onCancel={() => setComposing(false)} />
       ) : (
-        <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => setComposing(true)}>{CARD_ACTIONS.connect}</Button>
-          <PassButton card={card} />
-        </div>
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={() => setComposing(true)}>{CARD_ACTIONS.connect}</Button>
+            <PassButton card={card} />
+          </div>
+          {/*
+            On its own line and quiet, below the two real choices. Passing is
+            the answer to "not for me"; this is for the much rarer case, and
+            sitting it beside Pass would invite it to be used as a louder one.
+          */}
+          <div className="mt-5 border-t border-[var(--border-subtle)] pt-4">
+            <ReportSheet reportedId={card.profile.id} name={card.profile.firstName} />
+          </div>
+        </>
       )}
     </footer>
   );

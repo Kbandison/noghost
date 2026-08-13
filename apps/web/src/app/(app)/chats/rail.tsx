@@ -87,7 +87,9 @@ function Row({ chat, active }: { chat: ChatSummary; active: boolean }) {
             <Image src={url} alt="" fill sizes="48px" className="object-cover" />
           ) : (
             <span className="flex h-full items-center justify-center font-[family-name:var(--font-display)] text-[18px] text-[var(--text-dim)]">
-              {chat.partner.firstName.charAt(0)}
+              {/* A withheld partner has no initial to show — "T" for "This
+                  conversation" would look like somebody's name. */}
+              {chat.partner.withheld ? "—" : chat.partner.firstName.charAt(0)}
             </span>
           )}
         </span>
