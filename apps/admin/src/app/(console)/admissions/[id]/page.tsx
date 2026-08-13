@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { PhotoReview } from "./photo-review";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GENDER_LABELS } from "@noghost/config";
@@ -7,7 +7,7 @@ import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationStatus } from "@noghost/types";
 import { Panel, StatusPill } from "@/components/ui";
 import { getApplication } from "@/lib/admissions";
-import { publicPhotoUrl, signedSelfieUrl } from "@/lib/storage";
+import { signedSelfieUrl } from "@/lib/storage";
 import { Queue } from "../queue";
 import { DecisionBar } from "./decision-bar";
 
@@ -115,33 +115,7 @@ export default async function ApplicationPage({
                 </figcaption>
               </figure>
 
-              <div>
-                <div className="grid grid-cols-3 gap-2">
-                  {application.photoPaths.map((path, i) => (
-                    <div
-                      key={path}
-                      className="relative aspect-[4/5] overflow-hidden rounded-[3px] border border-[var(--border)] bg-[var(--bg-secondary)]"
-                    >
-                      <Image
-                        src={publicPhotoUrl(path)}
-                        alt={`Profile photo ${i + 1}`}
-                        fill
-                        sizes="(max-width: 768px) 30vw, 150px"
-                        className="object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-                {application.photoPaths.length === 0 && (
-                  <p className="text-[13px] text-[var(--error)]">No photos on this profile.</p>
-                )}
-                <p className="mt-2 text-[12px] text-[var(--text-dim)]">
-                  {application.photoPaths.length === 1
-                    ? "1 photo"
-                    : `${application.photoPaths.length} photos`}{" "}
-                  · first one leads their card
-                </p>
-              </div>
+              <PhotoReview userId={application.userId} photos={application.photos} />
             </div>
           </Panel>
 

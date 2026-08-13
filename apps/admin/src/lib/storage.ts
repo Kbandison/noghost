@@ -30,12 +30,7 @@ export async function signedSelfieUrl(path: string | null): Promise<string | nul
   return data?.signedUrl ?? null;
 }
 
-/**
- * Applicant photos are in the public bucket, so this is plain string
- * construction — no round trip, and it goes through the CDN rather than
- * Supabase's egress meter (BACKEND.md layer 2).
- */
-export function publicPhotoUrl(path: string): string {
-  const base = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return `${base}/storage/v1/object/public/photos/${path}`;
-}
+// `publicPhotoUrl` lives in `photo-url.ts`. Not re-exported from here on
+// purpose: this module imports `next/headers` through `supabase.ts`, so a
+// client component reaching it through this file would pull the server client
+// into the browser bundle — which is exactly how it got there before.

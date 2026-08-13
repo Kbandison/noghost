@@ -3,7 +3,7 @@ import Image from "next/image";
 import type { ApplicationStatus } from "@noghost/types";
 import { cn, Empty, StatusPill } from "@/components/ui";
 import { listQueue, statusCounts } from "@/lib/admissions";
-import { publicPhotoUrl } from "@/lib/storage";
+import { publicPhotoUrl } from "@/lib/photo-url";
 
 /**
  * The left half of the Split Canvas.

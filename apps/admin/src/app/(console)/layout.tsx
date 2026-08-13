@@ -40,6 +40,9 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
             <NavLink href="/reports">Reports</NavLink>
           </li>
           <li>
+            <NavLink href="/photos">Photos</NavLink>
+          </li>
+          <li>
             <NavLink href="/audit">Audit trail</NavLink>
           </li>
         </ul>

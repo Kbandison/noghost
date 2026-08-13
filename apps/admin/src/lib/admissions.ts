@@ -1,5 +1,6 @@
 import { ageOn } from "@noghost/logic";
 import type { ApplicationStatus, Gender } from "@noghost/types";
+import { photoList, type ReviewPhoto } from "./photo-list";
 import { supabaseServer } from "./supabase";
 
 /**
@@ -42,6 +43,8 @@ export interface ApplicationDetail extends QueueRow {
   phone: string | null;
   birthdate: string;
   photoPaths: string[];
+  /** With the approval flag, for the review grid. */
+  photos: ReviewPhoto[];
   prompts: { prompt_id: string; answer: string }[];
   selfiePath: string | null;
   livenessScore: number | null;
@@ -68,10 +71,7 @@ interface ProfileRow {
 
 /** `photos` is jsonb; narrow it rather than trusting the column's shape. */
 function photoPaths(photos: unknown): string[] {
-  if (!Array.isArray(photos)) return [];
-  return photos
-    .map((p) => (typeof p === "object" && p !== null && "path" in p ? String(p.path) : null))
-    .filter((p): p is string => Boolean(p));
+  return photoList(photos).map((photo) => photo.path);
 }
 
 function promptList(prompts: unknown): { prompt_id: string; answer: string }[] {
@@ -185,6 +185,7 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
     heightCm: p.height_cm,
     phone: p.phone,
     photoPaths: photoPaths(p.photos),
+    photos: photoList(p.photos),
     prompts: promptList(p.prompts),
     photoPath: photoPaths(p.photos)[0] ?? null,
     hasSelfie: Boolean(verification?.selfie_path),

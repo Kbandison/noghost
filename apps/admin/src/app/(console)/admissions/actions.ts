@@ -86,3 +86,56 @@ export async function decide(
   const next = remaining.find((row) => row.id !== id);
   redirect(next ? `/admissions/${next.id}` : "/admissions");
 }
+
+export interface PhotoState {
+  error?: string;
+}
+
+/**
+ * Approving or hiding one photo — spec §7.3's "photo re-review".
+ *
+ * One at a time, by path. `set_photo_approval` rewrites a single element of the
+ * jsonb array rather than the whole thing, so a reviewer approving a photo and
+ * a member reordering theirs in the same moment do not overwrite each other.
+ *
+ * The flag is not cosmetic: 0020 makes `visible_profiles` filter on it, so this
+ * action is the only thing that puts a photo in front of another member.
+ */
+export async function setPhotoApproval(
+  _prev: PhotoState,
+  formData: FormData,
+): Promise<PhotoState> {
+  await requireAdmin();
+
+  const userId = String(formData.get("userId") ?? "");
+  const path = String(formData.get("path") ?? "");
+  const approved = String(formData.get("approved") ?? "") === "yes";
+
+  if (!userId || !path) return { error: "That photo isn't there any more." };
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase.rpc("set_photo_approval", {
+    p_user_id: userId,
+    p_path: path,
+    p_approved: approved,
+  });
+
+  if (error) {
+    console.error(`[admin] set_photo_approval ${path} → ${approved}: ${error.message}`);
+    if (/could not find the function|PGRST202/i.test(error.message)) {
+      return {
+        error:
+          "This database hasn't had 0020_photo_approval.sql applied, so photos can't be " +
+          "approved — and nothing is filtering on the flag either, so every photo is live.",
+      };
+    }
+    if (/not on this profile/i.test(error.message)) {
+      return { error: "That photo has moved. Reload the page." };
+    }
+    return { error: "That didn't save. Try again." };
+  }
+
+  revalidatePath(`/admissions/${userId}`);
+  revalidatePath("/photos");
+  return {};
+}

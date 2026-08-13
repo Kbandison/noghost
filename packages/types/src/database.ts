@@ -180,6 +180,14 @@ export interface Database {
       prune_rate_limits: { Args: Record<string, never>; Returns: number };
       /** Erases the caller in place; the chats they were in survive with an ending. */
       delete_own_account: { Args: Record<string, never>; Returns: undefined };
+      /**
+       * Admin-only (§7.3 photo re-review). The flag `visible_profiles` filters
+       * on, so this is what puts a photo in front of another member.
+       */
+      set_photo_approval: {
+        Args: { p_user_id: string; p_path: string; p_approved: boolean };
+        Returns: undefined;
+      };
       /** Admin-only (§7.3). `p_note` is the reviewer's reasoning, not the reporter's. */
       resolve_report: {
         Args: {

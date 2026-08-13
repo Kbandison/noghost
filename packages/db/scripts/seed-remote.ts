@@ -153,9 +153,17 @@ async function seedPhotos(profile: (typeof PROFILES)[number]): Promise<string[] 
     paths.push(path);
   }
 
+  /*
+   * Approved, unlike the funnel's uploads.
+   *
+   * 0020 makes `visible_profiles` filter unapproved photos, so a fixture full
+   * of `approved: false` renders as forty people with no faces — which is
+   * correct behaviour and a useless local environment. A seeded photo stands in
+   * for one a reviewer already looked at, so it says so.
+   */
   const { error } = await db
     .from("profiles")
-    .update({ photos: paths.map((path, order) => ({ path, order, approved: false })) })
+    .update({ photos: paths.map((path, order) => ({ path, order, approved: true })) })
     .eq("id", profile.id);
   if (error) {
     console.error(`  ✗ photos on ${profile.first_name}: ${error.message}`);
