@@ -169,6 +169,15 @@ export interface Database {
         };
         Returns: string;
       };
+      /**
+       * Server-side only — EXECUTE is revoked from `authenticated`, because a
+       * client that can call this can burn somebody else's allowance.
+       */
+      hit_rate_limit: {
+        Args: { p_bucket: string; p_key: string; p_limit: number; p_window_seconds: number };
+        Returns: boolean;
+      };
+      prune_rate_limits: { Args: Record<string, never>; Returns: number };
       /** Erases the caller in place; the chats they were in survive with an ending. */
       delete_own_account: { Args: Record<string, never>; Returns: undefined };
       /** Admin-only (§7.3). `p_note` is the reviewer's reasoning, not the reporter's. */

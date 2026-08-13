@@ -17,6 +17,7 @@
     "@noghost/logic": "workspace:*",
     "@noghost/types": "workspace:*",
     "@noghost/ui-tokens": "workspace:*",
+    "botid": "^1.5.11",
     "clsx": "^2.1.1",
     "gsap": "^3.13.0",
     "lenis": "^1.3.11",

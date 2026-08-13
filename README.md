@@ -515,7 +515,14 @@ Everything user-facing is verbatim from spec §9, with four exceptions where
 
 - Provision the dedicated Supabase project (locked decision #17 — it must not
   share a project with anything else).
-- Rate-limit and BotID the waitlist action and every auth endpoint.
+- Rate-limit and BotID **every auth endpoint**. The waitlist is done (0019 +
+  `botid`); phone OTP is not, and it is the other write reachable by
+  somebody without an account. `allowRequest()` is the primitive — but read
+  its note on failing open before reusing it there, because an OTP wants the
+  opposite default.
+- Turn BotID on for the project in the Vercel dashboard. The code is wired
+  and the check runs, but off the platform `checkBotId()` reports everyone
+  human — which is a silent pass, not an error.
 - Source photography (LuxWeb workflow Phase 4); the profile-photo pipeline is
   wired but there are no assets yet.
 - Set Supabase usage alerts at ~70% and decide the spend-cap posture

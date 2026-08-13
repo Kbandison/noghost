@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withBotId } from "botid/next/config";
 
 const nextConfig: NextConfig = {
   // Workspace packages ship raw TypeScript from `src/`, so Next compiles them
@@ -30,4 +31,9 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
 };
 
-export default nextConfig;
+/*
+ * `withBotId` adds the rewrites BotID's client script needs. It is a wrapper
+ * rather than a config key, so an edit that returns `nextConfig` directly would
+ * disable bot protection while leaving every call site looking correct.
+ */
+export default withBotId(nextConfig);
