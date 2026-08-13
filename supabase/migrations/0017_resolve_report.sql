@@ -23,11 +23,18 @@
 --              uncomfortable", and un-hiding somebody who was reported would
 --              be the app overruling that.
 --
---   warned     records the decision, and nothing else yet. Delivering a warning
---              needs member-facing copy, and §9 does not specify any — spec §13
---              is explicit that missing copy is a question, not a thing to
---              improvise. The decision and its audit row are real; the message
---              is a gap, and a visible one.
+--   warned     records the decision and queues the warning itself, as an
+--              `inapp` notification carrying the reported category. §9 had no
+--              copy for this; it was asked for and written, and lives in
+--              `MEMBER_WARNING` flagged `signedOff: false` beside the drafted
+--              lifecycle bodies. The payload carries the *category*, never the
+--              reporter — the member app renders one and cannot render the
+--              other because it is not there.
+--
+--              `inapp` rather than push or email, and not because those are
+--              easier to skip: it is the only channel that exists today with a
+--              surface to arrive on, and a warning delivered into a queue
+--              nobody drains would be the same nothing it replaced.
 --
 --   removed    the whole mechanic. Status → `removed`, which drops them out of
 --              every future drop (the eligibility pass in `packages/logic`
@@ -80,6 +87,18 @@ begin
      set resolution = p_resolution, resolved_by = v_uid, resolved_at = now()
    where id = p_report_id;
 
+  if p_resolution = 'warned' then
+    /*
+     * The reason, not the detail. `reports.detail` is the reporter's account in
+     * their own words, and handing it back would identify them in a sentence —
+     * the category is what the member needs to know they crossed.
+     */
+    perform enqueue_notification(
+      v_report.reported_id, 'inapp', 'member_warned',
+      jsonb_build_object('report_id', p_report_id, 'reason', v_report.reason)
+    );
+  end if;
+
   if p_resolution = 'removed' then
     update profiles set status = 'removed' where id = v_report.reported_id;
 
@@ -123,6 +142,7 @@ revoke execute on function resolve_report(uuid, text, text) from public, anon;
 grant execute on function resolve_report(uuid, text, text) to authenticated;
 
 comment on function resolve_report(uuid, text, text) is
-  'Admin-only. Records the decision, and for `removed` also sets the member''s '
+  'Admin-only. Records the decision; `warned` queues an in-app warning carrying '
+  'the reported category and never the reporter; `removed` sets the member''s '
   'status and closes every open chat they have with §9.2''s neutral note — '
   'spec §7.3, "even removal doesn''t ghost anyone".';

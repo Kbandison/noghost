@@ -16,7 +16,8 @@ const initial: ResolveState = {};
  *
  * What each one does is written next to it rather than assumed. A moderator
  * should not have to remember that dismissing leaves the two of them invisible
- * to each other — that surprises people, and it is deliberate.
+ * to each other, or that warning is a screen the member cannot skip rather than
+ * a note in a log — both surprise people, and both are deliberate.
  */
 export function Resolve({ id, name }: { id: string; name: string }) {
   const [state, action, pending] = useActionState(resolve, initial);
@@ -104,9 +105,9 @@ export function Resolve({ id, name }: { id: string; name: string }) {
 
         <Option
           title="Warn"
-          detail="Records the decision. It does not message them yet — §9 has no copy for a warning, and this product does not improvise member-facing text."
+          detail="Sends them a warning the next time they open the app — it replaces the whole app until they acknowledge it. They're told the category, never who reported them, and never anything from the report itself."
         >
-          <Submit id={id} resolution="warned" label="Record a warning" pending={pending} action={action} />
+          <Submit id={id} resolution="warned" label="Send a warning" pending={pending} action={action} />
         </Option>
 
         <Option

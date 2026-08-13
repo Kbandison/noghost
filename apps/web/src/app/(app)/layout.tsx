@@ -3,6 +3,8 @@ import { BRAND } from "@noghost/config";
 import { requireMember } from "@/lib/member";
 import { unansweredCount } from "@/lib/inbox";
 import { openChatCount } from "@/lib/chats";
+import { pendingWarning } from "@/lib/warnings";
+import { WarningScreen } from "@/components/warning/warning-screen";
 import { signOut } from "./actions";
 import { AppNav } from "./app-nav";
 
@@ -18,9 +20,10 @@ import { AppNav } from "./app-nav";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const member = await requireMember();
-  const [waiting, chats] = await Promise.all([
+  const [waiting, chats, warning] = await Promise.all([
     unansweredCount(member.id),
     openChatCount(member.id),
+    pendingWarning(),
   ]);
 
   return (
@@ -53,7 +56,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
 
       <main id="main" className="flex-1">
-        {children}
+        {/*
+          In the layout so it cannot be routed around. A warning shown on one
+          screen is a warning avoided by opening a different one, and the nav
+          above stays — signing out or reading the standards should not require
+          acknowledging anything first.
+        */}
+        {warning ? (
+          <WarningScreen id={warning.id} category={warning.category} />
+        ) : (
+          children
+        )}
       </main>
     </div>
   );

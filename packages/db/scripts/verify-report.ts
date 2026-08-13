@@ -459,11 +459,69 @@ async function main() {
         );
       }
 
+      section("A warning is delivered, not just recorded");
+      {
+        const { data: third, error: fileError } = await clientA.rpc("report_member", {
+          p_reported_id: b!.id,
+          p_reason: "explicit",
+          p_chat_id: null,
+          p_detail: null,
+        });
+        check(!fileError, "a third report is filed", fileError?.message ?? "");
+
+        const { error } = await clientM.rpc("resolve_report", {
+          p_report_id: third as string,
+          p_resolution: "warned",
+          p_note: null,
+        });
+        check(!error, "M warns B", error?.message ?? "");
+
+        const { data: queued } = await service
+          .from("notifications")
+          .select("channel,template,payload,read_at")
+          .eq("user_id", b!.id)
+          .eq("template", "member_warned");
+        check(queued?.length === 1, "a warning is queued for B", `${queued?.length ?? 0}`);
+        check(queued?.[0]?.channel === "inapp", "on the one channel with a surface", queued?.[0]?.channel);
+        check(
+          queued?.[0]?.payload?.reason === "explicit",
+          "carrying the category they crossed",
+          JSON.stringify(queued?.[0]?.payload ?? {}),
+        );
+        /*
+         * The assertion that matters most on this table. The payload is read by
+         * the member's own app, so anything identifying in it is identifying to
+         * them — and the standards page promises it never will be.
+         */
+        const blob = JSON.stringify(queued?.[0]?.payload ?? {});
+        check(
+          !blob.includes(a!.id) && !blob.toLowerCase().includes("report a"),
+          "and nothing at all about who reported them",
+          blob,
+        );
+        check(queued?.[0]?.read_at === null, "unread — it has not been acknowledged yet");
+
+        // B can read their own warning, and A cannot read B's.
+        const { data: mine } = await clientB
+          .from("notifications").select("id,template").eq("template", "member_warned");
+        check(mine?.length === 1, "B can read it");
+        const { data: theirs } = await clientA
+          .from("notifications").select("id").eq("user_id", b!.id);
+        check(theirs?.length === 0, "and A cannot", `${theirs?.length ?? 0} row(s)`);
+
+        const { data: acked } = await clientB
+          .from("notifications")
+          .update({ read_at: new Date().toISOString() })
+          .eq("id", mine![0]!.id)
+          .select("id");
+        check(acked?.length === 1, "and acknowledge it themselves");
+      }
+
       section("Removal reaches every partner, not just the reporter");
       {
         const { data: second } = await service
           .from("reports").select("id").eq("reporter_id", a!.id)
-          .is("resolution", null).limit(1).single();
+          .is("resolution", null).order("created_at", { ascending: true }).limit(1).single();
 
         const { error } = await clientM.rpc("resolve_report", {
           p_report_id: second!.id,

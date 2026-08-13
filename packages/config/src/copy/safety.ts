@@ -115,3 +115,38 @@ export const REPORT_COPY = {
     "If you reported from a conversation, it's closed. They were told it was closed by {{APP_NAME}} — nothing about you, and nothing about why.",
   doneBack: "Back to tonight",
 } as const;
+
+/**
+ * The warning a moderator sends — spec §7.3's "warn member".
+ *
+ * ⚠️ DRAFTED, not transcribed. §9 specifies no copy for this, and §13 says
+ * missing copy is a question rather than something to improvise — so it was
+ * asked and answered before this was written. It carries `signedOff: false`
+ * like the drafted `lifecycle.ts` bodies, and wants a read before the first
+ * real send.
+ *
+ * The hard part is §3.2: "never shame users", written for passing and closing —
+ * and this is the one message in the product whose entire job is to tell
+ * somebody they did something wrong. The way out is to be specific instead of
+ * disappointed: what was reported, what happens if it continues, and what to do
+ * if we have it wrong. No adjectives about them.
+ *
+ * Two things it must never say, and does not: who reported them, and anything
+ * about the conversation it came from. Both would hand back the identity the
+ * standards page promises to keep.
+ */
+export const MEMBER_WARNING = {
+  signedOff: false,
+  title: "A warning from the review team",
+  lead: "Someone reported something you said or did on {{APP_NAME}}. A real person read it, looked at the context, and agreed with them.",
+  category: "What was reported: {{CATEGORY}}.",
+  privacy:
+    "We won't tell you who reported you — that's a promise we make to everyone here, and it would still hold if you were the one reporting.",
+  consequence:
+    "If it happens again we'll remove you from the season. Removal closes every conversation you're having, each with a note to the other person; we don't make people disappear without a word, and that includes you.",
+  standards: "The Community Standards are the whole rulebook, and they take two minutes to read.",
+  appeal:
+    "If you think we've got this wrong, email {{SUPPORT_EMAIL}}. A person reads it, and says so either way.",
+  /** Deliberately not "I agree" — acknowledging is not the same as agreeing. */
+  acknowledge: "I've read this",
+} as const;
