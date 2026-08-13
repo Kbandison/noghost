@@ -7,6 +7,7 @@ import {
 } from "@noghost/logic";
 import type { CardAction, ProfilePhoto, ProfilePromptAnswer } from "@noghost/types";
 import { supabaseServer } from "./supabase";
+import { signedVoiceUrls } from "./voice-urls";
 
 /**
  * Tonight's drop, as the member's own session can see it.
@@ -35,6 +36,8 @@ export interface DropCardView {
     prompts: ProfilePromptAnswer[];
     interests: string[];
     voiceIntroPath: string | null;
+    /** Signed from `voice-intros`, or null — see `signedVoiceUrls`. */
+    voiceIntroUrl: string | null;
   };
 }
 
@@ -174,6 +177,12 @@ export async function tonightsDrop(memberId: string, now: string): Promise<DropS
     if (existing === undefined || week < existing) passedWeek.set(pass.shown_profile_id, week);
   }
 
+  // At most three cards a night, so one batched signing call covers the drop.
+  const introUrls = await signedVoiceUrls(
+    (profiles ?? []).map((profile) => profile.voice_intro_path),
+    "voice-intros",
+  );
+
   const views = cards.flatMap((card): DropCardView[] => {
     const profile = byId.get(card.shown_profile_id);
     /*
@@ -201,6 +210,9 @@ export async function tonightsDrop(memberId: string, now: string): Promise<DropS
           prompts: promptList(profile.prompts),
           interests: profile.interests ?? [],
           voiceIntroPath: profile.voice_intro_path,
+          voiceIntroUrl: profile.voice_intro_path
+            ? (introUrls.get(profile.voice_intro_path) ?? null)
+            : null,
         },
       },
     ];

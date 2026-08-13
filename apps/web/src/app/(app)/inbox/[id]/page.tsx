@@ -9,6 +9,7 @@ import { publicPhotoUrl } from "@/lib/photos";
 import { requireMember } from "@/lib/member";
 import { loadInbox, type IncomingConnect, type InboxPerson, type OutgoingConnect } from "@/lib/inbox";
 import { Rail } from "../rail";
+import { VoicePlayer } from "@/components/ui/voice-player";
 import { Answer } from "./answer";
 
 export const metadata: Metadata = { title: "Inbox" };
@@ -75,18 +76,9 @@ function Received({
           </blockquote>
         )}
         {!connect.replyText && connect.replyVoicePath && (
-          /*
-            Not a player, and not an oversight. Voice notes work in chat, where
-            §5's bucket policy scopes a folder to a chat id and answers "may
-            this person write here" with `is_chat_participant`. A connect reply
-            has no chat yet — it is the thing that might create one — so
-            `connects.reply_voice_path` has no folder it could legally live in.
-            The column is real, the surface for filling it is not, and inventing
-            a path here would mean inventing a policy to match.
-          */
-          <p className="mt-5 text-[16px] text-[var(--text-secondary)]">
-            They left a voice note. Accept, and it opens the chat.
-          </p>
+          <div className="mt-5">
+            <VoicePlayer src={connect.replyVoiceUrl} durationMs={null} className="max-w-full" />
+          </div>
         )}
       </section>
 
@@ -291,7 +283,14 @@ function Person({ person }: { person: InboxPerson }) {
         {url && <Image src={url} alt={person.firstName} fill sizes="80px" className="object-cover" />}
       </div>
       <div className="min-w-0">
-        <h1 className="font-[family-name:var(--font-display)] text-[30px] font-bold leading-none tracking-[-0.025em]">
+        <h1
+          aria-label={`${person.firstName}, ${person.age}`}
+          className="font-[family-name:var(--font-display)] text-[30px] font-bold leading-none tracking-[-0.025em]"
+        >
+          {/* `aria-label` because the name and the age are separated only by a
+              CSS margin: with no whitespace between them the accessible name
+              came out "Bennett38". Labelling the heading keeps the layout and
+              gives assistive tech a pause instead of a run-on. */}
           {person.firstName}
           <span className="ml-3 text-[var(--text-dim)]">{person.age}</span>
         </h1>

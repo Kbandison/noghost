@@ -320,11 +320,7 @@ export async function getChat(
    * One signing call for the thread, after the reads rather than inside them:
    * the paths are not known until the messages come back.
    */
-  const voiceUrls = await signedVoiceUrls(
-    (messageRows ?? []).map((message) => message.voice_path).filter((path): path is string =>
-      Boolean(path),
-    ),
-  );
+  const voiceUrls = await signedVoiceUrls((messageRows ?? []).map((message) => message.voice_path));
 
   const messages: ChatMessage[] = (messageRows ?? []).map((message) => ({
     id: message.id,

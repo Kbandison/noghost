@@ -1,9 +1,13 @@
 import { supabaseServer } from "./supabase";
 
 /**
- * Signed URLs for a batch of voice notes, keyed by storage path.
+ * Signed URLs for a batch of audio objects in one of the three private buckets,
+ * keyed by storage path.
  *
- * One round trip for the whole thread rather than one per message. Paths that
+ * One round trip per batch rather than one per message. The bucket is a
+ * parameter because the same 24h rule and the same partial-failure handling
+ * apply to a chat note, a connect reply and a profile intro — three buckets
+ * only because their *policies* differ, not their handling. Paths that
  * cannot be signed — a deleted object, or a path the caller has no policy for —
  * are simply absent from the map, and every caller renders that as "this note
  * can't be played" rather than as an error page.
@@ -15,17 +19,22 @@ import { supabaseServer } from "./supabase";
  * devtools, or sitting in a tab left open overnight. The latter is the reason
  * it is not five minutes.
  */
-export async function signedVoiceUrls(paths: string[]): Promise<Map<string, string>> {
-  const wanted = [...new Set(paths.filter(Boolean))];
+export type VoiceBucket = "voice-notes" | "connect-replies" | "voice-intros";
+
+export async function signedVoiceUrls(
+  paths: (string | null | undefined)[],
+  bucket: VoiceBucket = "voice-notes",
+): Promise<Map<string, string>> {
+  const wanted = [...new Set(paths.filter((path): path is string => Boolean(path)))];
   if (wanted.length === 0) return new Map();
 
   const supabase = await supabaseServer();
   const { data, error } = await supabase.storage
-    .from("voice-notes")
+    .from(bucket)
     .createSignedUrls(wanted, 60 * 60 * 24);
 
   if (error) {
-    console.error(`[voice] signing ${wanted.length} path(s): ${error.message}`);
+    console.error(`[voice] signing ${wanted.length} ${bucket} path(s): ${error.message}`);
     return new Map();
   }
 

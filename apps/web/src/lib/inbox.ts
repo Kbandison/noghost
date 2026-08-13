@@ -1,5 +1,6 @@
 import type { ConnectStatus, ProfilePhoto, ProfilePromptAnswer, PromptRef } from "@noghost/types";
 import { supabaseServer } from "./supabase";
+import { signedVoiceUrls } from "./voice-urls";
 
 /**
  * The inbox — spec §7.2, and the promise in §6.2.
@@ -35,6 +36,8 @@ export interface IncomingConnect {
   promptRef: PromptRef | null;
   replyText: string | null;
   replyVoicePath: string | null;
+  /** Signed for this render, from `connect-replies`. Null if it can't be signed. */
+  replyVoiceUrl: string | null;
   from: InboxPerson;
   /** Present once accepted — the chat the acceptance opened. */
   chat: { id: string; fuseExpiresAt: string } | null;
@@ -178,6 +181,17 @@ export async function loadInbox(memberId: string): Promise<Inbox> {
   ]);
 
   const byId = new Map((peopleRows ?? []).map((row) => [row.id, person(row as PersonRow)]));
+
+  /*
+   * Only the received side. A sent connect's audio is signable by the sender —
+   * they own the folder — but there is nothing on the sent screen that plays
+   * it: it says what you wrote, and re-listening to your own note while you
+   * wait for an answer is not a thing this product should encourage.
+   */
+  const replyUrls = await signedVoiceUrls(
+    (incoming ?? []).map((row) => row.reply_voice_path),
+    "connect-replies",
+  );
   const chatFor = new Map(
     (chatRows ?? []).map((row) => [
       row.connect_id,
@@ -205,6 +219,9 @@ export async function loadInbox(memberId: string): Promise<Inbox> {
           promptRef: promptRef(row.prompt_ref),
           replyText: row.reply_text,
           replyVoicePath: row.reply_voice_path,
+          replyVoiceUrl: row.reply_voice_path
+            ? (replyUrls.get(row.reply_voice_path) ?? null)
+            : null,
           from,
           chat: chatFor.get(row.id) ?? null,
         },

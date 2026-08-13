@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { PromptRef } from "@noghost/types";
 import { requireMember } from "@/lib/member";
 import { supabaseServer } from "@/lib/supabase";
+import { ACCEPTED_AUDIO, MAX_BYTES, baseMimeType, extensionFor } from "@/lib/voice";
 
 /**
  * The two things you can do with a card — spec §6.2.
@@ -65,12 +66,14 @@ export async function sendConnect(
   _prev: CardActionState,
   formData: FormData,
 ): Promise<CardActionState> {
-  await requireMember();
+  const member = await requireMember();
 
   const cardId = String(formData.get("cardId") ?? "");
   const refType = String(formData.get("refType") ?? "");
   const refId = String(formData.get("refId") ?? "");
   const reply = String(formData.get("reply") ?? "").trim();
+  const audio = formData.get("audio");
+  const spoken = audio instanceof File && audio.size > 0;
 
   if (!cardId) return { error: "That card isn't there any more." };
 
@@ -82,7 +85,10 @@ export async function sendConnect(
   if (!refId) {
     return { error: "Pick the prompt or photo you're replying to.", cardId };
   }
-  if (reply.length < 2) {
+  // A reply is words or a recording. `connects` has the same rule as a check
+  // constraint and `send_connect` raises on it, so this is the sentence rather
+  // than the boundary.
+  if (!spoken && reply.length < 2) {
     return { error: "Reply to something specific. It's the only way to say hello here.", cardId };
   }
   if (reply.length > 1000) {
@@ -92,13 +98,63 @@ export async function sendConnect(
   const promptRef: PromptRef = { type: refType, id: refId };
   const supabase = await supabaseServer();
 
+  /*
+   * A spoken reply lands in `connect-replies`, not `voice-notes`.
+   *
+   * The chat bucket authorises by chat id, and this reply exists precisely
+   * because there is no chat yet — it is the thing that might create one. 0015
+   * gives it a bucket whose folder is the *sender's* id, so the same rule holds
+   * as everywhere else: the server builds the path, and the policy rather than
+   * this code decides whether the write is allowed.
+   */
+  let voicePath: string | null = null;
+  if (spoken) {
+    if (audio.size > MAX_BYTES) return { error: "That recording is too large to send.", cardId };
+    const mime = baseMimeType(audio.type);
+    const extension = extensionFor(mime);
+    if (!extension || !ACCEPTED_AUDIO.includes(mime as (typeof ACCEPTED_AUDIO)[number])) {
+      return { error: "That audio format isn't one we can store.", cardId };
+    }
+
+    voicePath = `${member.id}/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage
+      .from("connect-replies")
+      .upload(voicePath, audio, { contentType: mime, upsert: false });
+
+    if (uploadError) {
+      console.error(`[tonight] reply upload ${cardId}: ${uploadError.message}`);
+      if (/bucket not found/i.test(uploadError.message)) {
+        return {
+          error:
+            "This database hasn't had 0015_voice_homes.sql applied, so a spoken reply has " +
+            "nowhere to go. Write instead, or apply it and try again.",
+          cardId,
+        };
+      }
+      return { error: "That didn't send. Try again.", cardId };
+    }
+  }
+
   const { error } = await supabase.rpc("send_connect", {
     p_card_id: cardId,
     p_prompt_ref: promptRef,
-    p_reply_text: reply,
+    p_reply_text: reply || null,
+    p_reply_voice_path: voicePath,
   });
 
   if (error) {
+    /*
+     * The upload happened first, so a refused send leaves audio behind. 0015's
+     * delete policy matches only while nothing references the object, which is
+     * exactly now — once `send_connect` succeeds it stops matching and the
+     * recording is as immutable as the connect that carries it.
+     */
+    if (voicePath) {
+      const { error: cleanupError } = await supabase.storage
+        .from("connect-replies")
+        .remove([voicePath]);
+      if (cleanupError) console.error(`[tonight] orphan ${voicePath}: ${cleanupError.message}`);
+    }
     console.error(`[tonight] send_connect ${cardId}: ${error.message}`);
 
     /*

@@ -20,8 +20,8 @@ const BARS = 48;
  * are flat until then, and the scrub works the whole time regardless: it is
  * driven by `currentTime`, not by the drawing.
  *
- * `preload="none"` for the same reason. A private note is fetched when somebody
- * decides to hear it.
+ * The audio itself is `preload="none"` wherever a recorded duration exists, for
+ * the same reason: a private note is fetched when somebody decides to hear it.
  */
 export function VoicePlayer({
   src,
@@ -118,7 +118,14 @@ export function VoicePlayer({
       <audio
         ref={audioRef}
         src={src}
-        preload="none"
+        /*
+         * `none` when the database already knows how long the note is, so a
+         * private recording is only fetched once somebody chooses to hear it.
+         * `metadata` when it does not — a connect reply has no duration column —
+         * because otherwise the label reads 0:00 until the moment it plays,
+         * which tells the reader the recording is empty.
+         */
+        preload={durationMs ? "none" : "metadata"}
         onLoadedMetadata={(event) => {
           const value = event.currentTarget.duration;
           // A webm from MediaRecorder often reports `Infinity` until it has been

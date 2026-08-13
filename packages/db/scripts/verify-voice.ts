@@ -46,6 +46,29 @@ function check(ok: boolean, label: string, detail = "") {
 }
 const section = (t: string) => console.log(`\n${t}`);
 
+/*
+ * A skip, not a failure — and never a silent pass.
+ *
+ * Before 0015 the new buckets do not exist, and Storage answers every request
+ * against them with "Bucket not found". That makes each *negative* assertion
+ * succeed for entirely the wrong reason: "C cannot write into A's folder" is
+ * true of a bucket nobody can write into at all. Reporting that as a pass is
+ * the exact failure this file exists to catch, so the sections announce
+ * themselves as unrun instead.
+ */
+const skip = (why: string) => console.log(`  ${D}– skipped: ${why}${X}`);
+
+/*
+ * `getBucket`, not `list`. Listing a bucket that does not exist returns
+ * `{ data: [], error: null }` — an empty folder is indistinguishable from a
+ * missing bucket, and using it here made the skip never fire. Fitting: this
+ * file's whole subject is checks that pass because nothing was there.
+ */
+async function bucketExists(id: string): Promise<boolean> {
+  const { error } = await service.storage.getBucket(id);
+  return !error;
+}
+
 /** A and B share a chat. C is in neither, and is the whole point. */
 const PEOPLE = [
   { key: "A", id: "deadbeef-0000-4000-8000-00000000fa01", name: "Voice A" },
@@ -79,6 +102,15 @@ async function teardown() {
   const { data: objects } = await service.storage.from("voice-notes").list(CHAT);
   if (objects?.length) {
     await service.storage.from("voice-notes").remove(objects.map((o) => `${CHAT}/${o.name}`));
+  }
+  for (const [bucket, folder] of [
+    ["connect-replies", PEOPLE[0].id],
+    ["voice-intros", PEOPLE[0].id],
+  ] as const) {
+    const { data: extra } = await service.storage.from(bucket).list(folder);
+    if (extra?.length) {
+      await service.storage.from(bucket).remove(extra.map((o) => `${folder}/${o.name}`));
+    }
   }
   await service.from("messages").delete().eq("chat_id", CHAT);
   await service.from("chats").delete().eq("id", CHAT);
@@ -240,23 +272,111 @@ async function main() {
       check(signed.ok, "the signed one is", `HTTP ${signed.status}`);
     }
 
-    section("Immutable, per §5");
+    section("Orphans — 0015");
     {
-      const { error } = await clientA.storage
+      const orphan = `${CHAT}/never-sent.webm`;
+      const { error: upload } = await clientA.storage
         .from("voice-notes")
-        .update(path, PAYLOAD, { contentType: "audio/webm" });
+        .upload(orphan, PAYLOAD, { contentType: "audio/webm" });
+      check(!upload, "A uploads a note that will never become a message", upload?.message ?? "");
+
+      await clientA.storage.from("voice-notes").remove([orphan]);
+      const { data: listed } = await service.storage.from("voice-notes").list(CHAT);
       check(
-        Boolean(error),
-        "even the sender cannot swap the audio after sending it",
-        error?.message ?? "NO ERROR — a note could be replaced after being heard",
+        !listed?.some((object) => object.name === "never-sent.webm"),
+        "and can remove it — a failed send must not strand audio in a private bucket",
+        "apply 0015_voice_homes.sql; without its delete policy the removal is a silent no-op",
       );
-      const { error: deleteError } = await clientA.storage.from("voice-notes").remove([path]);
-      const { data: still } = await service.storage.from("voice-notes").list(CHAT);
+    }
+
+    section("Connect replies — their own bucket, 0015");
+    if (!(await bucketExists("connect-replies"))) {
+      skip("needs 0015_voice_homes.sql — the bucket does not exist yet");
+    } else {
+      const path = `${a!.id}/reply.webm`;
+      const { error } = await clientA.storage
+        .from("connect-replies")
+        .upload(path, PAYLOAD, { contentType: "audio/webm" });
+      check(!error, "A records a reply into their own folder", error?.message ?? "");
+
+      const { error: intruder } = await clientC.storage
+        .from("connect-replies")
+        .upload(`${a!.id}/intruder.webm`, PAYLOAD, { contentType: "audio/webm" });
       check(
-        still?.some((object) => object.name === "probe.webm") === true,
-        "or delete it",
-        deleteError?.message ?? "the object is still there",
+        Boolean(intruder),
+        "C cannot write into A's folder",
+        intruder?.message ?? "NO ERROR — anyone could plant a reply as A",
       );
+
+      const { data: mine } = await clientA.storage.from("connect-replies").createSignedUrl(path, 60);
+      check(Boolean(mine?.signedUrl), "A can hear their own before it is sent");
+
+      const { data: theirs } = await clientB.storage
+        .from("connect-replies")
+        .createSignedUrl(path, 60);
+      check(
+        !theirs?.signedUrl,
+        "B cannot — no connect points at it yet",
+        theirs?.signedUrl ? "READABLE — a stranger could hear an unsent reply" : "refused",
+      );
+
+      // Point a connect at it, and the recipient gains exactly that object.
+      await service.from("connects").update({ reply_voice_path: path }).eq("id", CONNECT);
+      const { data: nowTheirs } = await clientB.storage
+        .from("connect-replies")
+        .createSignedUrl(path, 60);
+      check(Boolean(nowTheirs?.signedUrl), "once the connect carries it, B can");
+
+      const { data: notC } = await clientC.storage
+        .from("connect-replies")
+        .createSignedUrl(path, 60);
+      check(!notC?.signedUrl, "and C still cannot — they are in neither half of it");
+
+      const { error: deleteSent } = await clientA.storage.from("connect-replies").remove([path]);
+      const { data: still } = await service.storage.from("connect-replies").list(a!.id);
+      check(
+        still?.some((object) => object.name === "reply.webm") === true,
+        "a sent reply can no longer be deleted, even by its sender",
+        deleteSent?.message ?? "still there",
+      );
+      await service.from("connects").update({ reply_voice_path: null }).eq("id", CONNECT);
+    }
+
+    section("Voice intros — visible to whoever may read the profile, 0015");
+    if (!(await bucketExists("voice-intros"))) {
+      skip("needs 0015_voice_homes.sql — the bucket does not exist yet");
+    } else {
+      const path = `${a!.id}/intro.webm`;
+      const { error } = await clientA.storage
+        .from("voice-intros")
+        .upload(path, PAYLOAD, { contentType: "audio/webm" });
+      check(!error, "A records their own intro", error?.message ?? "");
+
+      const { data: own } = await clientA.storage.from("voice-intros").createSignedUrl(path, 60);
+      check(Boolean(own?.signedUrl), "A can hear it back");
+
+      // B is in a chat with A, so `can_view_profile` is true for them.
+      const { data: chatPartner } = await clientB.storage
+        .from("voice-intros")
+        .createSignedUrl(path, 60);
+      check(
+        Boolean(chatPartner?.signedUrl),
+        "B can — they share a chat, so they can read the profile it belongs to",
+      );
+
+      const { data: stranger } = await clientC.storage
+        .from("voice-intros")
+        .createSignedUrl(path, 60);
+      check(
+        !stranger?.signedUrl,
+        "C cannot — the intro is exactly as visible as the profile",
+        stranger?.signedUrl ? "READABLE by someone who never saw them" : "refused",
+      );
+
+      const { error: replace } = await clientA.storage
+        .from("voice-intros")
+        .upload(path, PAYLOAD, { contentType: "audio/webm", upsert: true });
+      check(!replace, "and unlike a message, an intro can be replaced", replace?.message ?? "");
     }
 
     section("The message row");
@@ -304,6 +424,32 @@ async function main() {
       const { data } = await clientC.from("messages").select("id").eq("chat_id", CHAT);
       check(data?.length === 0, "C cannot read the message either", `${data?.length ?? 0} row(s)`);
     }
+
+    section("Immutable once it is a message, per §5");
+    {
+      const { error } = await clientA.storage
+        .from("voice-notes")
+        .update(path, PAYLOAD, { contentType: "audio/webm" });
+      check(
+        Boolean(error),
+        "even the sender cannot swap the audio after sending it",
+        error?.message ?? "NO ERROR — a note could be replaced after being heard",
+      );
+      /*
+       * Checked *after* the message row exists, which is the whole point. 0015
+       * makes an unreferenced object deletable so a failed send can clean up
+       * after itself; the rule that survives is narrower and more useful — once
+       * a note is in a conversation, it stays.
+       */
+      const { error: deleteError } = await clientA.storage.from("voice-notes").remove([path]);
+      const { data: still } = await service.storage.from("voice-notes").list(CHAT);
+      check(
+        still?.some((object) => object.name === "probe.webm") === true,
+        "or delete it, once a message points at it",
+        deleteError?.message ?? "the object is still there",
+      );
+    }
+
   } finally {
     section("Teardown");
     await teardown();

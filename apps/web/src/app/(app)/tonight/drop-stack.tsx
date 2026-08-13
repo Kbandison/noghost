@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 import Image from "next/image";
 import { CARD_ACTIONS, DROP_COPY, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { PromptRef } from "@noghost/types";
 import { Button } from "@/components/ui/button";
+import { VoicePlayer } from "@/components/ui/voice-player";
+import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
 import { cn } from "@/lib/utils";
 import { publicPhotoUrl } from "@/lib/photos";
 import type { DropCardView } from "@/lib/drop";
@@ -146,12 +148,33 @@ function Card({ card }: { card: DropCardView }) {
       {card.isEncore && <EncoreBanner name={profile.firstName} week={card.encoreWeek} />}
 
       <div className="p-6 md:p-8">
-        <h2 className="font-[family-name:var(--font-display)] text-[30px] font-bold leading-none tracking-[-0.025em]">
+        <h2
+          aria-label={`${profile.firstName}, ${profile.age}`}
+          className="font-[family-name:var(--font-display)] text-[30px] font-bold leading-none tracking-[-0.025em]"
+        >
+          {/* `aria-label` because the name and the age are separated only by a
+              CSS margin: with no whitespace between them the accessible name
+              came out "Bennett38". Labelling the heading keeps the layout and
+              gives assistive tech a pause instead of a run-on. */}
           {profile.firstName}
           <span className="ml-3 text-[var(--text-dim)]">{profile.age}</span>
         </h2>
         {facts.length > 0 && (
           <p className="mt-2 text-[15px] text-[var(--text-secondary)]">{facts.join(" · ")}</p>
+        )}
+
+        {/*
+          §7.2 puts the intro player on the card, and here is where it belongs:
+          next to the name, before the photos, so hearing someone is an
+          alternative to looking at them rather than a reward for scrolling past
+          them. Absent for most people — the intro is optional and the funnel
+          has no step for recording one yet — and a card without one simply
+          doesn't show it.
+        */}
+        {profile.voiceIntroUrl && (
+          <div className="mt-5">
+            <VoicePlayer src={profile.voiceIntroUrl} durationMs={null} className="max-w-full" />
+          </div>
         )}
       </div>
 
@@ -345,6 +368,29 @@ function PassButton({ card }: { card: DropCardView }) {
 function Composer({ card, onCancel }: { card: DropCardView; onCancel: () => void }) {
   const [state, action, pending] = useActionState(sendConnect, initial);
   const [target, setTarget] = useState<PromptRef | null>(null);
+  const [recording, setRecording] = useState<Recording | null>(null);
+
+  useEffect(() => {
+    if (!recording) return;
+    return () => URL.revokeObjectURL(recording.url);
+  }, [recording]);
+
+  /*
+   * A spoken reply cannot ride in the form — there is no file input holding it —
+   * so it builds its own FormData and dispatches. Same shape as the chat
+   * composer, and for the same reason.
+   */
+  const sendSpoken = () => {
+    if (!target || !recording) return;
+    const data = new FormData();
+    data.set("cardId", card.cardId);
+    data.set("refType", target.type);
+    data.set("refId", target.id);
+    // No duration: `connects` has no column for one, unlike `messages`. The
+    // player measures it from the file on the receiving side instead.
+    data.set("audio", new File([recording.blob], "reply", { type: recording.blob.type }));
+    startTransition(() => action(data));
+  };
 
   const targets: { ref: PromptRef; label: string; detail: string }[] = [
     ...card.profile.prompts.map((answer) => ({
@@ -407,19 +453,49 @@ function Composer({ card, onCancel }: { card: DropCardView; onCancel: () => void
         <p className="mt-1 text-[15px] text-[var(--text-secondary)]">
           {DROP_COPY.composerHelper}
         </p>
-        <textarea
-          id={`reply-${card.cardId}`}
-          name="reply"
-          maxLength={1000}
-          required
-          rows={4}
-          placeholder={
-            target
-              ? "Say the thing you actually thought."
-              : "Pick something above first, then write."
-          }
-          className="mt-3 w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-[16px] leading-relaxed text-[var(--text-primary)] placeholder:text-[var(--n-400)] focus:border-[var(--accent)] focus:outline-none"
-        />
+
+        {recording ? (
+          /*
+             The written reply is replaced rather than sat beside: §6.2 asks for
+             one reply, and a form offering both invites somebody to write
+             something, record something else, and find out later which one was
+             actually sent.
+          */
+          <div className="mt-3 space-y-3">
+            <VoicePlayer
+              src={recording.url}
+              durationMs={recording.durationMs}
+              mine
+              className="max-w-full"
+            />
+            <button
+              type="button"
+              onClick={() => setRecording(null)}
+              className="text-[15px] text-[var(--text-secondary)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--text-primary)]"
+            >
+              Discard and write instead
+            </button>
+          </div>
+        ) : (
+          <>
+            <textarea
+              id={`reply-${card.cardId}`}
+              name="reply"
+              maxLength={1000}
+              required
+              rows={4}
+              placeholder={
+                target
+                  ? "Say the thing you actually thought."
+                  : "Pick something above first, then write."
+              }
+              className="mt-3 w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-[16px] leading-relaxed text-[var(--text-primary)] placeholder:text-[var(--n-400)] focus:border-[var(--accent)] focus:outline-none"
+            />
+            <div className="mt-3">
+              <VoiceRecorder onRecorded={setRecording} disabled={pending} />
+            </div>
+          </>
+        )}
       </div>
 
       {state.error && (
@@ -429,9 +505,15 @@ function Composer({ card, onCancel }: { card: DropCardView; onCancel: () => void
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={pending || !target}>
-          {pending ? "Sending…" : `Send to ${card.profile.firstName}`}
-        </Button>
+        {recording ? (
+          <Button type="button" onClick={sendSpoken} disabled={pending || !target}>
+            {pending ? "Sending…" : `Send to ${card.profile.firstName}`}
+          </Button>
+        ) : (
+          <Button type="submit" disabled={pending || !target}>
+            {pending ? "Sending…" : `Send to ${card.profile.firstName}`}
+          </Button>
+        )}
         <button
           type="button"
           onClick={onCancel}

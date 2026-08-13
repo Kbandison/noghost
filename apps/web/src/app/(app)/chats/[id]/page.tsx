@@ -144,7 +144,13 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
       </span>
 
       <div className="min-w-0 flex-1">
-        <h1 className="truncate font-[family-name:var(--font-display)] text-[22px] font-bold tracking-[-0.02em]">
+        {/* Labelled for the same reason as the drop card's heading: only a margin
+            separates the name from the age, so the accessible name would read as
+            one word. */}
+        <h1
+          aria-label={`${chat.partner.firstName}, ${chat.partner.age}`}
+          className="truncate font-[family-name:var(--font-display)] text-[22px] font-bold tracking-[-0.02em]"
+        >
           {chat.partner.firstName}
           <span className="ml-2 font-normal text-[var(--text-dim)]">{chat.partner.age}</span>
         </h1>
