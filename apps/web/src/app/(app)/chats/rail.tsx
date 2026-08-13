@@ -69,7 +69,7 @@ function Row({ chat, active }: { chat: ChatSummary; active: boolean }) {
       : chat.lastMessage.kind === "system"
         ? "A closing note"
         : chat.lastMessage.kind === "voice"
-          ? "Voice note"
+          ? `${chat.lastMessage.mine ? "You: " : ""}Voice note`
           : `${chat.lastMessage.mine ? "You: " : ""}${chat.lastMessage.body ?? ""}`;
 
   return (

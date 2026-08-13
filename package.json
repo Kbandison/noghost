@@ -17,6 +17,7 @@
     "db:verify:writes": "tsx packages/db/scripts/verify-writes.ts",
     "db:verify:fuse": "tsx packages/db/scripts/verify-fuse.ts",
     "db:verify:graduation": "tsx packages/db/scripts/verify-graduation.ts",
+    "db:verify:voice": "tsx packages/db/scripts/verify-voice.ts",
     "admin:grant": "tsx packages/db/scripts/grant-admin.ts"
   },
   "devDependencies": {

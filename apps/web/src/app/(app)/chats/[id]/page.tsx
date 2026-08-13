@@ -11,6 +11,7 @@ import { getChat, type ChatDate, type ChatDetail, type ChatMessage } from "@/lib
 import { listChats } from "@/lib/chats";
 import { Rail } from "../rail";
 import { FuseRing } from "../fuse-ring";
+import { VoicePlayer } from "@/components/ui/voice-player";
 import { Composer } from "./composer";
 import { DateProposal, RespondToDate } from "./propose-date";
 import { CloseKindly } from "./close-kindly";
@@ -190,16 +191,11 @@ function Bubble({ message, partner }: { message: ChatMessage; partner: string })
 
   if (message.kind === "voice") {
     return (
-      <p
-        className={cn(
-          "max-w-[80%] rounded-lg px-4 py-3 text-[15px] italic text-[var(--text-dim)]",
-          message.mine
-            ? "ml-auto bg-[var(--bg-tertiary)]"
-            : "border border-[var(--border-subtle)]",
-        )}
-      >
-        Voice note — the player arrives with voice support.
-      </p>
+      <VoicePlayer
+        src={message.voiceUrl}
+        durationMs={message.voiceDurationMs}
+        mine={message.mine}
+      />
     );
   }
 

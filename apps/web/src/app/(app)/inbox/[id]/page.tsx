@@ -75,8 +75,17 @@ function Received({
           </blockquote>
         )}
         {!connect.replyText && connect.replyVoicePath && (
+          /*
+            Not a player, and not an oversight. Voice notes work in chat, where
+            §5's bucket policy scopes a folder to a chat id and answers "may
+            this person write here" with `is_chat_participant`. A connect reply
+            has no chat yet — it is the thing that might create one — so
+            `connects.reply_voice_path` has no folder it could legally live in.
+            The column is real, the surface for filling it is not, and inventing
+            a path here would mean inventing a policy to match.
+          */
           <p className="mt-5 text-[16px] text-[var(--text-secondary)]">
-            They left a voice note. The player arrives with chat.
+            They left a voice note. Accept, and it opens the chat.
           </p>
         )}
       </section>

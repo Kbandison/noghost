@@ -8,6 +8,7 @@ import type {
 } from "@noghost/types";
 import { isChatClosed } from "@noghost/types";
 import { supabaseServer } from "./supabase";
+import { signedVoiceUrls } from "./voice-urls";
 
 /**
  * Reading chats — spec §7.2.
@@ -30,6 +31,16 @@ export interface ChatMessage {
   kind: MessageKind;
   body: string | null;
   voicePath: string | null;
+  /**
+   * A signed URL for `voicePath`, valid for a day, minted on this render.
+   *
+   * Resolved here rather than in the component because the bucket is private
+   * and signing is a server capability — and because one batched call covers
+   * the whole thread. Null when the object could not be signed, which the
+   * player renders as a note it cannot play rather than as an error.
+   */
+  voiceUrl: string | null;
+  voiceDurationMs: number | null;
   /** Null for a system message — the app is speaking, not a person. */
   senderId: string | null;
   createdAt: string;
@@ -259,7 +270,7 @@ export async function getChat(
       .maybeSingle(),
     supabase
       .from("messages")
-      .select("id,kind,body,voice_path,sender_id,created_at")
+      .select("id,kind,body,voice_path,voice_duration_ms,sender_id,created_at")
       .eq("chat_id", chatId)
       // Oldest first — a conversation reads downward. `(created_at, id)`
       // because `respond_connect` seeds message #1 in the same transaction
@@ -305,11 +316,23 @@ export async function getChat(
     photos: Array.isArray(partnerRow.photos) ? (partnerRow.photos as ProfilePhoto[]) : [],
   };
 
+  /*
+   * One signing call for the thread, after the reads rather than inside them:
+   * the paths are not known until the messages come back.
+   */
+  const voiceUrls = await signedVoiceUrls(
+    (messageRows ?? []).map((message) => message.voice_path).filter((path): path is string =>
+      Boolean(path),
+    ),
+  );
+
   const messages: ChatMessage[] = (messageRows ?? []).map((message) => ({
     id: message.id,
     kind: message.kind,
     body: message.body,
     voicePath: message.voice_path,
+    voiceUrl: message.voice_path ? (voiceUrls.get(message.voice_path) ?? null) : null,
+    voiceDurationMs: message.voice_duration_ms,
     senderId: message.sender_id,
     createdAt: message.created_at,
     mine: message.sender_id === memberId,
