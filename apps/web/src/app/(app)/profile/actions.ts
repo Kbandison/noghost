@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { createServiceClient } from "@noghost/db/service";
 import { requireMember } from "@/lib/member";
 import { supabaseServer } from "@/lib/supabase";
 
@@ -135,4 +137,94 @@ export async function setPaused(
   revalidatePath("/profile");
   revalidatePath("/tonight");
   return { saved: true };
+}
+
+/**
+ * Deleting your account — the privacy page's promise, §7.2's "delete account".
+ *
+ * Read the paths, erase the rows, then erase the files — in that order, and
+ * the order took two goes to get right.
+ *
+ * Storage lives outside the transaction, so the paths have to be read while the
+ * rows still name them. Deleting the files at that point, before the database
+ * work, looked equivalent and is not: if the erasure then fails — an
+ * unapplied migration, a dropped connection — the member's photos and selfie
+ * are gone and their account is still standing. That is not recoverable by
+ * trying again. Doing the rows first means a failure leaves everything exactly
+ * as it was, and the only thing that can go wrong afterwards is an unreferenced
+ * file in a private bucket that nothing points at.
+ *
+ * The service role is used for exactly this and nothing else here. Storage
+ * policies deliberately have no member-facing delete for verification selfies
+ * or for sent voice notes: a note that reached somebody is not the sender's to
+ * retract. Erasure is the one case where they must go anyway, and it is the
+ * server, not the member, that decides that.
+ */
+export async function deleteAccount(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const member = await requireMember();
+
+  /*
+   * Typed, not clicked. Everything else on this page is a button because
+   * everything else is reversible; this is the one action that is not, and the
+   * confirmation has to be something a mis-tap cannot produce.
+   */
+  if (String(formData.get("confirm") ?? "").trim().toLowerCase() !== "delete") {
+    return { error: 'Type "delete" to confirm.' };
+  }
+
+  const supabase = await supabaseServer();
+  const service = createServiceClient();
+
+  // Paths are read before anything is erased, because the rows are what name
+  // the objects.
+  const [{ data: profile }, { data: verification }, { data: voice }] = await Promise.all([
+    supabase.from("profiles").select("photos,voice_intro_path").eq("id", member.id).maybeSingle(),
+    service.from("verifications").select("selfie_path").eq("user_id", member.id).maybeSingle(),
+    service.from("messages").select("voice_path").eq("sender_id", member.id).not("voice_path", "is", null),
+  ]);
+
+  const photos = Array.isArray(profile?.photos)
+    ? (profile.photos as { path?: string }[]).map((photo) => photo.path).filter(Boolean)
+    : [];
+  const voiceNotes = (voice ?? []).map((row) => row.voice_path).filter(Boolean) as string[];
+
+  const removals: [string, string[]][] = [
+    ["photos", photos as string[]],
+    ["voice-notes", voiceNotes],
+    ["voice-intros", profile?.voice_intro_path ? [profile.voice_intro_path] : []],
+    ["verification-selfies", verification?.selfie_path ? [verification.selfie_path] : []],
+  ];
+
+  const { error } = await supabase.rpc("delete_own_account");
+  if (error) {
+    console.error(`[settings] delete ${member.id}: ${error.message}`);
+    if (/could not find the function|PGRST202/i.test(error.message)) {
+      return {
+        error:
+          "This database hasn't had 0018_delete_own_account.sql applied, so this can't finish. " +
+          "Apply it and try again — nothing about your account has changed.",
+      };
+    }
+    return { error: "That didn't finish. Try again, or email us." };
+  }
+
+  for (const [bucket, paths] of removals) {
+    if (paths.length === 0) continue;
+    const { error: removeError } = await service.storage.from(bucket).remove(paths);
+    /*
+     * Logged, not fatal, and by now genuinely recoverable: the rows are already
+     * erased, so a file left behind is unreferenced and unreachable rather than
+     * a photo still attached to a live account. A bucket that does not exist
+     * yet (0015) lands here too.
+     */
+    if (removeError) {
+      console.error(`[settings] erase ${bucket} for ${member.id}: ${removeError.message}`);
+    }
+  }
+
+  await supabase.auth.signOut();
+  redirect("/");
 }

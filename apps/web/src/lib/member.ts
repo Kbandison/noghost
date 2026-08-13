@@ -30,7 +30,7 @@ export interface Member {
 
 type Gate =
   | { ok: true; member: Member }
-  | { ok: false; reason: "signed-out" | "no-profile" | "not-a-member" };
+  | { ok: false; reason: "signed-out" | "no-profile" | "not-a-member" | "closed" };
 
 export async function memberGate(): Promise<Gate> {
   const supabase = await supabaseServer();
@@ -64,6 +64,17 @@ export async function memberGate(): Promise<Gate> {
 
   if (!membership) return { ok: false, reason: "not-a-member" };
 
+  /*
+   * `removed` is the one status that *is* a gate condition, unlike `paused` and
+   * `found_someone` below. It means the account is closed — either the member
+   * erased it themselves or moderation removed them — and there is nothing
+   * behind this door for them. Their phone number was cleared on erasure, so a
+   * self-deleted account cannot sign in again to reach this at all; the check
+   * is here for the moderated case and for a session still open at the moment
+   * the account closed.
+   */
+  if (profile.status === "removed") return { ok: false, reason: "closed" };
+
   return {
     ok: true,
     member: {
@@ -94,5 +105,10 @@ export async function requireMember(): Promise<Member> {
       // Under review, waitlisted, admitted-but-unclaimed, or rejected. The
       // review screen already reads their application and says which.
       redirect("/apply/review");
+    case "closed":
+      // Deliberately the marketing site rather than sign-in: there is nothing
+      // to sign in to, and bouncing somebody between a login and a gate that
+      // refuses them is the worst version of this.
+      redirect("/");
   }
 }

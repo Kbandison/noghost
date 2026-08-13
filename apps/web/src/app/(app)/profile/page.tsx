@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { BRAND } from "@noghost/config";
 import { requireMember } from "@/lib/member";
 import { readSettings } from "@/lib/settings";
-import { NotificationForm, PauseForm } from "./settings-forms";
+import { DeleteForm, NotificationForm, PauseForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Profile" };
 export const dynamic = "force-dynamic";
@@ -23,6 +23,10 @@ export const dynamic = "force-dynamic";
  *
  * What is here is what has nowhere else to be: who the season thinks you are,
  * what it is allowed to send you, and how to stop.
+ *
+ * Deleting is last and quietest, which is where it belongs: it is the one thing
+ * on this page that cannot be undone, and it should be findable without being
+ * offered.
  *
  * Editing photos, prompts and the voice intro is not here yet — §7.3 sends
  * changed photos back through review ("photo re-review"), which is an
@@ -80,6 +84,10 @@ export default async function ProfilePage() {
 
       <Section title={identity.status === "paused" ? "Paused" : "Taking a break"}>
         <PauseForm paused={identity.status === "paused"} />
+      </Section>
+
+      <Section title="Leaving">
+        <DeleteForm />
       </Section>
     </div>
   );

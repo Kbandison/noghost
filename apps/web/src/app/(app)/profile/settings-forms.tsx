@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { NotificationPrefs } from "@/lib/settings";
-import { saveNotificationPrefs, setPaused, type SettingsState } from "./actions";
+import { deleteAccount, saveNotificationPrefs, setPaused, type SettingsState } from "./actions";
 
 const initial: SettingsState = {};
 
@@ -185,6 +185,101 @@ export function PauseForm({ paused }: { paused: boolean }) {
       <Button type="submit" variant="secondary" disabled={pending}>
         {pending ? "…" : paused ? "Unpause my account" : "Pause my account"}
       </Button>
+    </form>
+  );
+}
+
+/**
+ * Deleting an account.
+ *
+ * Behind a disclosure and then behind a typed word. Everything else on this page
+ * is one button because everything else is reversible; this is the only thing
+ * here that cannot be undone, and the confirmation has to be something a
+ * mis-tap cannot produce.
+ *
+ * What happens is listed before the field, in the order it happens, and it says
+ * what *stays* as well as what goes. Somebody deciding this is entitled to know
+ * that the person they were mid-conversation with will get an ending rather
+ * than a disappearance — that is the promise the whole product is built on, and
+ * it does not stop applying to the person leaving.
+ */
+export function DeleteForm() {
+  const [state, action, pending] = useActionState(deleteAccount, initial);
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-[15px] text-[var(--text-dim)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--error)]"
+      >
+        Delete my account
+      </button>
+    );
+  }
+
+  return (
+    <form action={action} className="space-y-5">
+      <p className="text-[16px] leading-relaxed text-[var(--text-secondary)]">
+        This can&rsquo;t be undone, and it happens straight away.
+      </p>
+
+      <ul className="space-y-2 text-[16px] leading-relaxed text-[var(--text-secondary)]">
+        <li>
+          Every conversation you have open <strong className="font-semibold">closes with a
+          note</strong> to the other person &mdash; the same neutral one the app sends when it
+          closes a chat itself. They&rsquo;re told it ended, not why, and not that it was you.
+        </li>
+        <li>Your name, photos, prompts, voice, phone number and verification selfie are erased.</li>
+        <li>
+          What you wrote in those chats is replaced. The other person keeps their own words and
+          the ending; they don&rsquo;t keep yours.
+        </li>
+        <li>
+          Your payment record stays, with nothing personal attached to it. It&rsquo;s what a
+          refund would be worked out from.
+        </li>
+      </ul>
+
+      <div>
+        <label
+          htmlFor="confirm-delete"
+          className="text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]"
+        >
+          Type <strong className="font-semibold normal-case tracking-normal">delete</strong> to
+          confirm
+        </label>
+        <input
+          id="confirm-delete"
+          name="confirm"
+          autoComplete="off"
+          className="mt-2 w-full max-w-[16rem] rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-[16px] focus:border-[var(--error)] focus:outline-none"
+        />
+      </div>
+
+      {state.error && (
+        <p role="alert" className="text-[15px] leading-snug text-[var(--error)]">
+          {state.error}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-md bg-[var(--error)] px-5 py-2.5 text-[15px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+        >
+          {pending ? "Deleting…" : "Delete my account"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-[15px] text-[var(--text-secondary)] underline decoration-[1.5px] underline-offset-4"
+        >
+          Keep my account
+        </button>
+      </div>
     </form>
   );
 }

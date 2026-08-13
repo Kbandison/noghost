@@ -43,7 +43,9 @@ export default function PrivacyPage() {
         {
           heading: "Deleting your account",
           body: [
-            `Delete your account in Settings and everything cascades: profile, photos, messages, verification selfie, and season history. Open chats close with a system note, because your partners deserve an ending rather than a disappearance.`,
+            `Delete your account in Settings. Your open chats close first, each with a neutral system note to the other person, because your partners deserve an ending rather than a disappearance — that promise does not stop applying to the person leaving.`,
+            `Then everything that is you is erased: your name, photos, prompts, voice, phone number, verification selfie, and what you wrote in those chats. The other person keeps their own words and the ending; they do not keep yours. Nothing is left that identifies you.`,
+            `Your payment record stays, with nothing personal attached to it. It is how a refund or a billing question would be answered, and it is the one thing we keep.`,
             `Questions go to ${BRAND.SUPPORT_EMAIL} and reach a person.`,
           ],
         },

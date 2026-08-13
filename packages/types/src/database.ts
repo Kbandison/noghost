@@ -169,6 +169,8 @@ export interface Database {
         };
         Returns: string;
       };
+      /** Erases the caller in place; the chats they were in survive with an ending. */
+      delete_own_account: { Args: Record<string, never>; Returns: undefined };
       /** Admin-only (§7.3). `p_note` is the reviewer's reasoning, not the reporter's. */
       resolve_report: {
         Args: {

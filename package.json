@@ -19,6 +19,7 @@
     "db:verify:graduation": "tsx packages/db/scripts/verify-graduation.ts",
     "db:verify:voice": "tsx packages/db/scripts/verify-voice.ts",
     "db:verify:report": "tsx packages/db/scripts/verify-report.ts",
+    "db:verify:delete": "tsx packages/db/scripts/verify-delete.ts",
     "admin:grant": "tsx packages/db/scripts/grant-admin.ts"
   },
   "devDependencies": {
