@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * The three tabs that exist.
+ * §7.2's four tabs.
  *
  * The Inbox count is the number of notes waiting on *you*, not a total. §3.3
  * bans engagement bait, so this is never "3 people like you" — it is a count of
@@ -21,6 +21,8 @@ export function AppNav({ waiting, chats }: { waiting: number; chats: number }) {
     // No count: an open chat is not a task you owe someone, and a badge would
     // turn the fuse into a nag. The ring inside the list carries the urgency.
     { href: "/chats" as const, label: "Chats", count: 0, muted: chats === 0 },
+    // Last, and never counted. Nothing in settings is ever waiting on you.
+    { href: "/profile" as const, label: "Profile" },
   ];
 
   return (

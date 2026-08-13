@@ -15,8 +15,9 @@ import { AppNav } from "./app-nav";
  * docs/design-decisions.md) — and chrome that competes with the person you are
  * reading is chrome working against the product.
  *
- * Three of §7.2's four tabs exist, so three are shown. Profile arrives with
- * its phase; a tab that leads nowhere is worse than a missing one.
+ * All four of §7.2's tabs exist now. Profile is last and carries no count —
+ * nothing in settings is ever waiting on you, and a badge there would be the
+ * engagement bait §3.3 bans.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const member = await requireMember();
