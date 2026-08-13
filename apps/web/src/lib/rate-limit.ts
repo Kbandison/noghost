@@ -51,28 +51,45 @@ export interface RateLimit {
   /** How many attempts inside the window. */
   limit: number;
   windowSeconds: number;
+  /**
+   * What an infrastructure error means.
+   *
+   * `allow` (the default) suits a waitlist: a limiter that fails closed turns a
+   * degraded database into a total outage of the thing it guards, and a handful
+   * of unbounded signups during an incident is the cheaper end of the trade.
+   *
+   * `deny` suits anything where the guarded action is the attack — guessing a
+   * six-digit code, or spending somebody's money on SMS. There the inverse
+   * holds: an outage is recoverable and an unbounded attempt window is not.
+   */
+  onError?: "allow" | "deny";
 }
 
 /**
  * Returns true when the caller may proceed.
  *
- * Fails **open** on an infrastructure error, deliberately, and it is worth
- * being explicit about the trade: if the database is unreachable, a limiter
- * that fails closed turns a degraded backend into a total outage of the thing
- * it guards. For a waitlist signup the cost of the other choice — a handful of
- * unbounded writes during an incident — is much smaller. Anything where the
- * inverse holds (an OTP, a payment) should not reuse this default.
+ * `identity` is what the limit is counted against — a phone number, a user id.
+ * Omit it and the caller's address is used. Either way it is hashed before it
+ * leaves this file.
+ *
+ * See `onError` for what an infrastructure failure means; the default is open,
+ * and auth endpoints deliberately pass `deny`.
  */
 export async function allowRequest(
   bucket: string,
-  { limit, windowSeconds }: RateLimit,
+  { limit, windowSeconds, onError = "allow" }: RateLimit,
   identity?: string,
 ): Promise<boolean> {
   const value = identity ?? (await clientAddress());
   if (!value) {
-    // No address and no explicit identity: nothing to count against. Logged so
-    // an environment that never forwards one is visible rather than silently
-    // unprotected.
+    /*
+     * No address and no explicit identity: nothing to count against. Allowed
+     * even under `deny`, because the alternative is refusing every request in
+     * an environment that does not forward an address — which is most local
+     * setups, and would make this impossible to develop against.
+     *
+     * Logged rather than silent so that environment is visible.
+     */
     console.warn(`[rate-limit] ${bucket}: no client address to key on`);
     return true;
   }
@@ -86,8 +103,25 @@ export async function allowRequest(
   });
 
   if (error) {
+    /*
+     * A missing function is not a failure mode, it is an unapplied migration —
+     * and it is always allowed through, whatever `onError` says.
+     *
+     * Denying here would mean 0019 going unapplied takes sign-in down
+     * completely, which is a far worse outcome than an unlimited one, and a
+     * confusing one to diagnose: every endpoint would refuse everybody with no
+     * indication why. Loud, specific, and open.
+     */
+    if (error.code === "PGRST202" || /could not find the function/i.test(error.message)) {
+      console.error(
+        `[rate-limit] ${bucket}: hit_rate_limit() does not exist — apply ` +
+          `0019_rate_limits.sql. This endpoint is UNLIMITED until you do.`,
+      );
+      return true;
+    }
+
     console.error(`[rate-limit] ${bucket}: ${error.message}`);
-    return true;
+    return onError === "allow";
   }
   return data !== false;
 }

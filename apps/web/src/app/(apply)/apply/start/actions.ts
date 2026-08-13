@@ -2,6 +2,13 @@
 
 import { usingSeedData } from "@noghost/config/env";
 import { createServiceClient } from "@noghost/db/service";
+import { allowRequest } from "@/lib/rate-limit";
+import {
+  OTP_SEND_PER_ADDRESS,
+  OTP_SEND_PER_PHONE,
+  OTP_SLOW_DOWN,
+  OTP_VERIFY_PER_PHONE,
+} from "@/lib/auth-limits";
 import {
   normalizePhone,
   validateStep,
@@ -130,6 +137,19 @@ async function runEffect(
   if (step === "phone") {
     if (!draft.phone) return { draft };
 
+    /*
+     * The same two limits sign-in uses, and the same reasoning. This endpoint
+     * differs only in `shouldCreateUser: true`, which makes it the *more*
+     * attractive one to abuse: every unbounded attempt here is both a text
+     * somebody did not ask for and a fresh auth row.
+     */
+    if (
+      !(await allowRequest("otp-send-ip", OTP_SEND_PER_ADDRESS)) ||
+      !(await allowRequest("otp-send-phone", OTP_SEND_PER_PHONE, draft.phone))
+    ) {
+      return { draft, errors: { phone: OTP_SLOW_DOWN } };
+    }
+
     const { error } = await supabase.auth.signInWithOtp({
       phone: draft.phone,
       options: { shouldCreateUser: true },
@@ -146,6 +166,13 @@ async function runEffect(
     const code = str(fd, "code");
     if (!draft.phone || !/^\d{6}$/.test(code)) {
       return { draft: { ...draft, phoneVerifiedAt: undefined } };
+    }
+
+    if (!(await allowRequest("otp-verify", OTP_VERIFY_PER_PHONE, draft.phone))) {
+      return {
+        draft: { ...draft, phoneVerifiedAt: undefined },
+        errors: { code: OTP_SLOW_DOWN },
+      };
     }
 
     // Redeeming the code is what creates the auth user and the session. Every

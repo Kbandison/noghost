@@ -164,6 +164,62 @@ async function main() {
       );
     }
 
+    section("The auth numbers, as configured");
+    {
+      /*
+       * The buckets the sign-in and funnel actions actually pass, exercised at
+       * their real limits. The numbers live in `apps/web/src/lib/auth-limits.ts`
+       * and are repeated here on purpose: this asserts the shape a caller would
+       * meet, so changing a limit without thinking shows up as a failing count
+       * rather than as nothing at all.
+       */
+      const cases = [
+        { bucket: "otp-verify", limit: 5, window: 900, what: "guessing a code" },
+        { bucket: "otp-send-phone", limit: 3, window: 900, what: "texting one number" },
+        { bucket: "otp-send-ip", limit: 10, window: 3600, what: "texting from one host" },
+      ] as const;
+
+      for (const c of cases) {
+        const key = `${BUCKET}-${c.bucket}`;
+        let allowed = 0;
+        for (let i = 0; i < c.limit + 2; i += 1) {
+          const { data } = await service.rpc("hit_rate_limit", {
+            p_bucket: BUCKET,
+            p_key: key,
+            p_limit: c.limit,
+            p_window_seconds: c.window,
+          });
+          if (data) allowed += 1;
+        }
+        check(
+          allowed === c.limit,
+          `${c.what}: exactly ${c.limit} get through`,
+          `${allowed} allowed of ${c.limit + 2}`,
+        );
+      }
+    }
+
+    section("Nothing personal is stored");
+    {
+      /*
+       * The limiter is keyed on phone numbers and IP addresses, and neither
+       * should be readable from this table. `lib/rate-limit.ts` hashes before
+       * it sends; this is the assertion that would fail if somebody removed
+       * that step, which is easy to do and impossible to notice.
+       */
+      const { data: rows } = await service.from("rate_limits").select("key");
+      const keys = (rows ?? []).map((r) => r.key as string);
+      check(
+        keys.every((k) => !/^\+?\d{7,}$/.test(k)),
+        "no key looks like a phone number",
+        `${keys.length} key(s) inspected`,
+      );
+      check(
+        keys.every((k) => !/^\d{1,3}(\.\d{1,3}){3}$/.test(k) && !k.includes(":")),
+        "and none looks like an address",
+      );
+    }
+
     section("Housekeeping");
     {
       await service.from("rate_limits").insert({

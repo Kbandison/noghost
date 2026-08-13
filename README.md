@@ -515,11 +515,13 @@ Everything user-facing is verbatim from spec §9, with four exceptions where
 
 - Provision the dedicated Supabase project (locked decision #17 — it must not
   share a project with anything else).
-- Rate-limit and BotID **every auth endpoint**. The waitlist is done (0019 +
-  `botid`); phone OTP is not, and it is the other write reachable by
-  somebody without an account. `allowRequest()` is the primitive — but read
-  its note on failing open before reusing it there, because an OTP wants the
-  opposite default.
+- Rate limiting is wired on all three account-less writes — the waitlist and
+  both halves of phone OTP (send and verify) — but **none of it fires until
+  `0019_rate_limits.sql` is applied**. Until then `allowRequest()` takes its
+  missing-function path, logs `This endpoint is UNLIMITED until you do`, and
+  lets everything through. That is deliberate: failing closed on a missing
+  migration would take sign-in down entirely, which is worse and much harder to
+  diagnose. Grep the logs for `[rate-limit]` after deploying.
 - Turn BotID on for the project in the Vercel dashboard. The code is wired
   and the check runs, but off the platform `checkBotId()` reports everyone
   human — which is a silent pass, not an error.

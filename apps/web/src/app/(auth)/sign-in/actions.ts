@@ -3,6 +3,13 @@
 import { redirect } from "next/navigation";
 import { otpMessage } from "@/lib/otp";
 import { supabaseServer } from "@/lib/supabase";
+import { allowRequest } from "@/lib/rate-limit";
+import {
+  OTP_SEND_PER_ADDRESS,
+  OTP_SEND_PER_PHONE,
+  OTP_SLOW_DOWN,
+  OTP_VERIFY_PER_PHONE,
+} from "@/lib/auth-limits";
 
 /**
  * Member sign-in — the same phone OTP the funnel uses, minus the account
@@ -13,6 +20,12 @@ import { supabaseServer } from "@/lib/supabase";
  * endpoint useless for enumerating which numbers are members: Supabase returns
  * the same shape whether or not the number exists, and the copy below does not
  * distinguish them either.
+ *
+ * Both halves are rate limited, and they are the two endpoints in the product
+ * an anonymous caller can reach — see `auth-limits.ts` for the numbers and why
+ * each one is keyed the way it is. Supabase applies limits of its own; relying
+ * on them silently would be trusting a setting nothing in this repository can
+ * see, which is the pattern this codebase keeps finding and fixing.
  */
 
 export interface SignInState {
@@ -36,6 +49,18 @@ export async function requestCode(
       stage: "phone",
       error: "Include the country code, like +14045550123.",
     };
+  }
+
+  /*
+   * Both limits before the send, and the address one first: it is the cheaper
+   * refusal and the one that stops a script walking numbers. A caller over
+   * either limit gets the same sentence, which names neither.
+   */
+  if (
+    !(await allowRequest("otp-send-ip", OTP_SEND_PER_ADDRESS)) ||
+    !(await allowRequest("otp-send-phone", OTP_SEND_PER_PHONE, phone))
+  ) {
+    return { stage: "phone", phone, error: OTP_SLOW_DOWN };
   }
 
   const supabase = await supabaseServer();
@@ -72,6 +97,15 @@ export async function verifyCode(
   if (!E164.test(phone)) return { stage: "phone", error: "Start again with your number." };
   if (!/^\d{6}$/.test(code)) {
     return { stage: "code", phone, sent: true, error: "Six digits, from the text." };
+  }
+
+  /*
+   * The one that matters. Six digits is a million combinations, which is
+   * nothing to a script — and the refusal has to come before Supabase sees the
+   * attempt, or the limit is only as good as somebody else's configuration.
+   */
+  if (!(await allowRequest("otp-verify", OTP_VERIFY_PER_PHONE, phone))) {
+    return { stage: "code", phone, sent: true, error: OTP_SLOW_DOWN };
   }
 
   const supabase = await supabaseServer();
