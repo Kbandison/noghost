@@ -109,6 +109,9 @@ async function teardown() {
     if (error) console.log(`  ${R}✗${X} teardown ${table}: ${error.message}`);
   };
 
+  // `respond_graduation` writes an audit row credited to the probe member, so
+  // a run that does not clear it leaves history pointing at deleted chats.
+  await drop("admin_audit", service.from("admin_audit").delete().in("admin_id", ids));
   await drop("graduations", service.from("graduations").delete().in("chat_id", CHAT_IDS));
   await drop("closure_notes", service.from("closure_notes").delete().in("chat_id", CHAT_IDS));
   await drop("messages", service.from("messages").delete().in("chat_id", CHAT_IDS));

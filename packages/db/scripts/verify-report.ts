@@ -51,11 +51,31 @@ function check(ok: boolean, label: string, detail = "") {
 }
 const section = (t: string) => console.log(`\n${t}`);
 
-/** A reports B. C is the bystander who must notice nothing. */
+/*
+ * Probed by calling it, because PostgREST resolves a function by name *and*
+ * parameter names — so "does it exist" is only answerable by asking for the
+ * signature this script actually uses. A `PGRST202` means 0017 has not been
+ * applied; anything else means it is there and refused this particular call.
+ */
+async function hasResolveReport(): Promise<boolean> {
+  const { error } = await service.rpc("resolve_report", {
+    p_report_id: "00000000-0000-0000-0000-000000000000",
+    p_resolution: "dismissed",
+    p_note: null,
+  });
+  return !(error && (error.code === "PGRST202" || /could not find the function/i.test(error.message)));
+}
+
+/**
+ * A reports B. C is the bystander who must notice nothing — and whose chat with
+ * B is what proves a removal reaches every partner, not just the reporter's.
+ * M is a moderator.
+ */
 const PEOPLE = [
   { key: "A", id: "deadbeef-0000-4000-8000-00000000fa11", name: "Report A" },
   { key: "B", id: "deadbeef-0000-4000-8000-00000000fb22", name: "Report B" },
   { key: "C", id: "deadbeef-0000-4000-8000-00000000fc33", name: "Report C" },
+  { key: "M", id: "deadbeef-0000-4000-8000-00000000fd44", name: "Report M" },
 ] as const;
 
 /** A–B is the reported conversation. B–C must survive it untouched. */
@@ -82,6 +102,8 @@ async function signIn(key: string) {
 
 async function teardown() {
   const ids = PEOPLE.map((p) => p.id);
+  await service.from("admin_users").delete().in("id", ids);
+  await service.from("admin_audit").delete().in("admin_id", ids);
   const chats = PAIRS.map((p) => p.chat);
   await service.from("reports").delete().in("reporter_id", ids);
   await service.from("closure_notes").delete().in("chat_id", chats);
@@ -358,6 +380,140 @@ async function main() {
       const { data: notes } = await service
         .from("closure_notes").select("id").eq("chat_id", CHAT_AB);
       check(notes?.length === 1, "and the closed chat gains no second note", `${notes?.length ?? 0}`);
+    }
+    section("Resolving — 0017");
+    if (!(await hasResolveReport())) {
+      console.log(
+        `  ${D}– skipped: needs 0017_resolve_report.sql — the function does not exist yet${X}`,
+      );
+    } else {
+      const moderator = PEOPLE[3]!;
+      const { error: grantError } = await service
+        .from("admin_users")
+        .upsert({ id: moderator.id, email: email("M"), active: true }, { onConflict: "id" });
+      if (grantError) throw new Error(`grant admin: ${grantError.message}`);
+      const clientM = await signIn("M");
+
+      const { data: open } = await service
+        .from("reports").select("id").eq("reporter_id", a!.id)
+        .is("resolution", null).order("created_at").limit(1).single();
+
+      {
+        // The boundary first: an ordinary member with a session must not be
+        // able to resolve their own report.
+        const { error } = await clientA.rpc("resolve_report", {
+          p_report_id: open!.id,
+          p_resolution: "dismissed",
+          p_note: null,
+        });
+        check(
+          Boolean(error) && /only an admin/i.test(error?.message ?? ""),
+          "a member cannot resolve a report",
+          error?.message ?? "NO ERROR — anyone could dismiss reports about themselves",
+        );
+      }
+      {
+        const { error } = await clientM.rpc("resolve_report", {
+          p_report_id: open!.id,
+          p_resolution: "banished",
+          p_note: null,
+        });
+        check(
+          Boolean(error) && /unknown resolution/i.test(error?.message ?? ""),
+          "and an invented resolution is refused",
+          error?.message ?? "no error",
+        );
+      }
+
+      {
+        const { error } = await clientM.rpc("resolve_report", {
+          p_report_id: open!.id,
+          p_resolution: "dismissed",
+          p_note: "Read the thread; nothing actionable.",
+        });
+        check(!error, "M dismisses it", error?.message ?? "");
+
+        const { data: row } = await service
+          .from("reports").select("resolution,resolved_by,resolved_at").eq("id", open!.id).single();
+        check(row?.resolution === "dismissed", "recorded", row?.resolution ?? "none");
+        check(row?.resolved_by === moderator.id, "and attributed to the moderator who did it");
+        check(Boolean(row?.resolved_at), "with a timestamp");
+
+        const { data: still } = await clientA
+          .from("visible_profiles").select("id").eq("id", b!.id).maybeSingle();
+        check(
+          !still,
+          "dismissing does NOT un-hide them from each other — no action against the " +
+            "account is not the same as the reporter having been wrong",
+        );
+
+        const { error: again } = await clientM.rpc("resolve_report", {
+          p_report_id: open!.id,
+          p_resolution: "removed",
+          p_note: "second opinion",
+        });
+        check(
+          Boolean(again) && /already resolved/i.test(again?.message ?? ""),
+          "and a second moderator cannot quietly overturn it",
+          again?.message ?? "NO ERROR — a resolved report was re-resolved",
+        );
+      }
+
+      section("Removal reaches every partner, not just the reporter");
+      {
+        const { data: second } = await service
+          .from("reports").select("id").eq("reporter_id", a!.id)
+          .is("resolution", null).limit(1).single();
+
+        const { error } = await clientM.rpc("resolve_report", {
+          p_report_id: second!.id,
+          p_resolution: "removed",
+          p_note: "Repeat behaviour across two reports.",
+        });
+        check(!error, "M removes B", error?.message ?? "");
+
+        const { data: profile } = await service
+          .from("profiles").select("status").eq("id", b!.id).single();
+        check(profile?.status === "removed", "B's account is removed", profile?.status);
+
+        const { data: bc } = await service
+          .from("chats").select("state,closed_at").eq("id", CHAT_BC).single();
+        check(
+          bc?.state === "closed_by_user" && Boolean(bc?.closed_at),
+          "B's chat with C — who reported nobody — is closed too",
+          bc?.state,
+        );
+        const { data: notes } = await service
+          .from("closure_notes").select("template_id,from_user").eq("chat_id", CHAT_BC);
+        check(notes?.length === 1, "with a note", `${notes?.length ?? 0}`);
+        check(
+          notes?.[0]?.template_id === "removal" && notes?.[0]?.from_user === null,
+          "the same neutral one, from nobody — §7.3's “even removal doesn't ghost anyone”",
+          notes?.[0]?.template_id ?? "none",
+        );
+        const { data: system } = await service
+          .from("messages").select("body").eq("chat_id", CHAT_BC).eq("kind", "system");
+        check(
+          (system ?? []).some((m) => m.body === "removal"),
+          "delivered into C's conversation, not only into a table",
+        );
+
+        const { data: audit } = await service
+          .from("admin_audit").select("action,detail,admin_id")
+          .eq("admin_id", moderator.id).eq("action", "resolve_report");
+        check((audit ?? []).length === 2, "both decisions are in the audit trail", `${audit?.length ?? 0}`);
+        const removal = (audit ?? []).find((r) => r.detail?.resolution === "removed");
+        check(
+          removal?.detail?.note?.startsWith("Repeat behaviour"),
+          "the reviewer's reasoning is on the removal",
+          JSON.stringify(removal?.detail ?? {}).slice(0, 90),
+        );
+        check(
+          removal?.detail?.chats_closed >= 1,
+          "and it records how many conversations it ended",
+          `${removal?.detail?.chats_closed}`,
+        );
+      }
     }
   } finally {
     section("Teardown");

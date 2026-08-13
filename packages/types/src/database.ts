@@ -169,6 +169,15 @@ export interface Database {
         };
         Returns: string;
       };
+      /** Admin-only (§7.3). `p_note` is the reviewer's reasoning, not the reporter's. */
+      resolve_report: {
+        Args: {
+          p_report_id: string;
+          p_resolution: "dismissed" | "warned" | "removed";
+          p_note?: string | null;
+        };
+        Returns: undefined;
+      };
       advance_application: {
         Args: {
           p_application_id: string;
