@@ -29,6 +29,12 @@ export const DEFAULT_PREFS: NotificationPrefs = {
   smsOptInAt: null,
 };
 
+export interface ProfilePhotoRow {
+  path: string;
+  /** False until a reviewer approves it — see 0020. Members read their own. */
+  approved: boolean;
+}
+
 export interface Identity {
   firstName: string;
   age: number;
@@ -39,6 +45,16 @@ export interface Identity {
   /** True once admitted — the trigger refuses identity edits from here on. */
   locked: boolean;
   phone: string | null;
+  /**
+   * Their own photos, approved or not.
+   *
+   * Read from `profiles` rather than `visible_profiles`, which is the whole
+   * point: 0020 hides unapproved photos from everyone *else*, and the owner
+   * needs to see them to know one is waiting rather than to think it vanished.
+   */
+  photos: ProfilePhotoRow[];
+  prompts: { prompt_id: string; answer: string }[];
+  voiceIntroPath: string | null;
 }
 
 export async function readSettings(): Promise<{
@@ -54,7 +70,9 @@ export async function readSettings(): Promise<{
   const [{ data: profile }, { data: prefs }, { data: application }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("first_name,birthdate,gender,seeking,neighborhood,status,phone")
+      .select(
+        "first_name,birthdate,gender,seeking,neighborhood,status,phone,photos,prompts,voice_intro_path",
+      )
       .eq("id", user.id)
       .maybeSingle(),
     supabase
@@ -95,6 +113,16 @@ export async function readSettings(): Promise<{
       status: profile.status,
       locked: Boolean(application),
       phone: profile.phone,
+      photos: Array.isArray(profile.photos)
+        ? (profile.photos as { path: string; approved?: boolean }[]).map((photo) => ({
+            path: photo.path,
+            approved: photo.approved === true,
+          }))
+        : [],
+      prompts: Array.isArray(profile.prompts)
+        ? (profile.prompts as { prompt_id: string; answer: string }[])
+        : [],
+      voiceIntroPath: profile.voice_intro_path,
     },
     prefs: prefs
       ? {

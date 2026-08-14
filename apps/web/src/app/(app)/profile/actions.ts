@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@noghost/db/service";
+import { PHOTO_MAX, PHOTO_MIN, PROMPT_COUNT } from "@noghost/config";
+import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import { requireMember } from "@/lib/member";
 import { supabaseServer } from "@/lib/supabase";
 
@@ -227,4 +229,104 @@ export async function deleteAccount(
 
   await supabase.auth.signOut();
   redirect("/");
+}
+
+/**
+ * Editing prompts — spec §7.2's "edit photos/prompts".
+ *
+ * No review step, unlike photos. §7.3 asks for photo re-review specifically and
+ * not prompt re-review, and the difference is real: a photo is a claim about
+ * who you are that a reviewer checked against a selfie, and text is not. If
+ * somebody writes something they should not have, that is what reporting is
+ * for — a queue that held every prompt edit would be a queue nobody drains.
+ */
+export async function savePrompts(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const member = await requireMember();
+
+  const prompts: { prompt_id: string; answer: string }[] = [];
+  for (let i = 0; i < PROMPT_COUNT; i += 1) {
+    const promptId = String(formData.get(`prompt-${i}`) ?? "");
+    const answer = String(formData.get(`answer-${i}`) ?? "").trim();
+
+    if (!PROMPT_LIBRARY.some((prompt) => prompt.id === promptId)) {
+      return { error: "Pick three questions from the list." };
+    }
+    if (answer.length < 2) return { error: "Every question needs an answer." };
+    if (answer.length > 300) return { error: "Keep each answer under 300 characters." };
+    prompts.push({ prompt_id: promptId, answer });
+  }
+
+  // §9.7 has members answer three *different* questions; the same one twice is
+  // a picker mistake rather than a choice.
+  if (new Set(prompts.map((prompt) => prompt.prompt_id)).size !== PROMPT_COUNT) {
+    return { error: "Pick three different questions." };
+  }
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase.from("profiles").update({ prompts }).eq("id", member.id);
+
+  if (error) {
+    console.error(`[settings] prompts ${member.id}: ${error.message}`);
+    return { error: "That didn't save. Try again." };
+  }
+
+  revalidatePath("/profile");
+  return { saved: true };
+}
+
+/**
+ * Editing photos — spec §7.2, and the member half of 0020's review loop.
+ *
+ * The client uploads to the `photos` bucket first (it can: the storage policy
+ * is folder-scoped to their own id) and sends the resulting paths here. This
+ * action only ever writes the array.
+ *
+ * `approved` is written as `false` for everything, and it does not matter what
+ * this sends: 0021's trigger carries the real flag over by path and forces
+ * false for anything new, precisely so a client cannot approve itself. Sending
+ * false is the honest statement of intent rather than a load-bearing value.
+ */
+export async function savePhotos(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const member = await requireMember();
+
+  const paths = formData
+    .getAll("paths")
+    .map((path) => String(path).trim())
+    .filter(Boolean);
+
+  if (paths.length < PHOTO_MIN) {
+    return { error: `Keep at least ${PHOTO_MIN} photos on your profile.` };
+  }
+  if (paths.length > PHOTO_MAX) return { error: `${PHOTO_MAX} photos maximum.` };
+  if (new Set(paths).size !== paths.length) return { error: "That photo is already on there." };
+
+  /*
+   * Every path must sit in the member's own folder. The storage policy already
+   * refuses a write anywhere else, so this is not what stops an upload — it
+   * stops somebody *referencing* a file they did not upload, which is a
+   * different attack and one the bucket cannot see.
+   */
+  if (!paths.every((path) => path.startsWith(`${member.id}/`))) {
+    return { error: "One of those photos isn't yours." };
+  }
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ photos: paths.map((path, order) => ({ path, order, approved: false })) })
+    .eq("id", member.id);
+
+  if (error) {
+    console.error(`[settings] photos ${member.id}: ${error.message}`);
+    return { error: "That didn't save. Try again." };
+  }
+
+  revalidatePath("/profile");
+  return { saved: true };
 }

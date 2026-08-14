@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BRAND } from "@noghost/config";
 import { requireMember } from "@/lib/member";
 import { readSettings } from "@/lib/settings";
+import { PhotosForm, PromptsForm } from "./edit-forms";
 import { DeleteForm, NotificationForm, PauseForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Profile" };
@@ -28,10 +29,14 @@ export const dynamic = "force-dynamic";
  * on this page that cannot be undone, and it should be findable without being
  * offered.
  *
- * Editing photos, prompts and the voice intro is not here yet — §7.3 sends
- * changed photos back through review ("photo re-review"), which is an
- * admissions-side flow that does not exist, and shipping an editor whose
- * changes appear instantly would quietly route around it.
+ * Photos and prompts are editable; the voice intro is not, because there is
+ * still nowhere legal to put one until 0015 lands and no funnel step that
+ * records one to edit.
+ *
+ * A changed photo goes back through review (§7.3) rather than appearing
+ * instantly. That loop only became real in 0020 — before it, an editor here
+ * would have put unreviewed images straight onto cards, which is why this
+ * waited for it.
  */
 export default async function ProfilePage() {
   await requireMember();
@@ -76,6 +81,14 @@ export default async function ProfilePage() {
             These lock once you&rsquo;re admitted, because they get checked against your selfie.
           </p>
         )}
+      </Section>
+
+      <Section title="Your photos">
+        <PhotosForm photos={identity.photos} />
+      </Section>
+
+      <Section title="Your answers">
+        <PromptsForm prompts={identity.prompts} />
       </Section>
 
       <Section title="What we're allowed to send you">

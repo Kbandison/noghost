@@ -304,6 +304,90 @@ async function main() {
         paths(intact?.photos).join(","),
       );
     }
+    section("A member cannot approve their own — 0021");
+    {
+      /*
+       * The hole 0020 opens. `owner edits own profile` permits any UPDATE on
+       * your own row and `photos` is one jsonb column, so without 0021 a member
+       * can simply write `approved: true` and put an unreviewed image on their
+       * card — with the review queue sitting empty and looking correct.
+       */
+      const { error } = await clientA
+        .from("profiles")
+        .update({
+          photos: PHOTOS.map((photo, order) => ({ path: photo.path, order, approved: true })),
+        })
+        .eq("id", a!.id);
+      check(!error, "A can rewrite their own photo array (they must be able to)", error?.message ?? "");
+
+      const { data: stored } = await service
+        .from("profiles").select("photos").eq("id", a!.id).single();
+      const approved = (stored?.photos as { approved?: boolean }[]).filter((p) => p.approved);
+      check(
+        approved.length === 0,
+        "but the approval flag does not stick",
+        approved.length === 0
+          ? ""
+          : `${approved.length} self-approved — apply 0021_members_cannot_approve_their_own_photos.sql`,
+      );
+
+      const { data: seen } = await clientB
+        .from("visible_profiles").select("photos").eq("id", a!.id).maybeSingle();
+      check(
+        paths(seen?.photos).length === 0,
+        "and B still sees nothing",
+        `${paths(seen?.photos).length} visible`,
+      );
+    }
+
+    section("Adding and reordering keeps approval with the photo");
+    if (!(await hasApprovalRpc())) {
+      skip("needs 0020 to approve one first");
+    } else {
+      const clientM = await signIn("M");
+      await service.from("admin_users").upsert(
+        { id: m!.id, email: email("M"), active: true },
+        { onConflict: "id" },
+      );
+      await clientM.rpc("set_photo_approval", {
+        p_user_id: a!.id,
+        p_path: PHOTOS[1]!.path,
+        p_approved: true,
+      });
+
+      // Reversed, plus a new one — the shape of a real edit.
+      const reordered = [
+        { path: "photo-probe/new.webp", order: 0, approved: true },
+        { path: PHOTOS[1]!.path, order: 1, approved: false },
+        { path: PHOTOS[0]!.path, order: 2, approved: false },
+      ];
+      const { error } = await clientA.from("profiles").update({ photos: reordered }).eq("id", a!.id);
+      check(!error, "A reorders and adds a photo", error?.message ?? "");
+
+      const { data: stored } = await service
+        .from("profiles").select("photos").eq("id", a!.id).single();
+      const byPath = new Map(
+        (stored?.photos as { path: string; approved?: boolean }[]).map((p) => [p.path, p.approved]),
+      );
+      check(
+        byPath.get(PHOTOS[1]!.path) === true,
+        "the approved one stays approved after moving position",
+        `${byPath.get(PHOTOS[1]!.path)}`,
+      );
+      check(
+        byPath.get("photo-probe/new.webp") === false,
+        "the new one is unapproved however it was submitted",
+        `${byPath.get("photo-probe/new.webp")}`,
+      );
+
+      const { data: seen } = await clientB
+        .from("visible_profiles").select("photos").eq("id", a!.id).maybeSingle();
+      check(
+        paths(seen?.photos).length === 1 && paths(seen?.photos)[0] === PHOTOS[1]!.path,
+        "so B sees exactly the one a reviewer approved",
+        paths(seen?.photos).join(","),
+      );
+    }
   } finally {
     section("Teardown");
     await teardown();
