@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   GENDERS,
   GENDER_LABELS,
@@ -18,11 +18,20 @@ import { CONSENT, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationDraft, FieldErrors } from "@noghost/logic";
 import { Chip, CheckboxRow, SelectField, TextArea, TextField } from "@/components/ui/field";
 import { FieldError } from "@/components/ui/field";
-import { publicPhotoUrl, uploadImage } from "@/lib/upload";
+import { publicPhotoUrl, uploadImage, uploadVoiceIntro } from "@/lib/upload";
+import { VoicePlayer } from "@/components/ui/voice-player";
+import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
+import { VOICE_INTRO_MAX_MS } from "@/lib/voice";
 
 export interface StepProps {
   draft: ApplicationDraft;
   errors: FieldErrors;
+  /**
+   * A signed link to an intro already on the draft, or null. Only `VoiceStep`
+   * reads it; it is on the shared props because the funnel renders every step
+   * through one `<Body>`.
+   */
+  voiceIntroUrl?: string | null;
 }
 
 const CLUSTER_LABELS: Record<keyof typeof NEIGHBORHOOD_CLUSTERS, string> = {
@@ -559,6 +568,97 @@ export function SelfieStep({ draft, errors }: StepProps) {
       <FieldError id="selfie-error">{errors.selfie}</FieldError>
 
       <p className="text-[14px] leading-relaxed text-[var(--text-dim)]">{CONSENT.selfie}</p>
+    </div>
+  );
+}
+
+/**
+ * The optional 30s intro — §7.2's "optional 30s voice intro".
+ *
+ * The only step in the funnel nobody has to do, and it says so twice: in the
+ * skip affordance and in what the Continue button does when the field is empty.
+ * `validateStep` returns ok for this step whatever the draft holds, so an empty
+ * one moves on exactly like a filled one.
+ *
+ * Thirty seconds rather than the chat note's sixty. A card in somebody's drop
+ * is being skimmed, and the difference between a voice you can place and a
+ * monologue is roughly the length of a sentence you would say out loud.
+ */
+export function VoiceStep({ draft, errors, voiceIntroUrl }: StepProps) {
+  const [path, setPath] = useState<string | undefined>(draft.voiceIntroPath);
+  const [recording, setRecording] = useState<Recording | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!recording) return;
+    return () => URL.revokeObjectURL(recording.url);
+  }, [recording]);
+
+  async function keep(next: Recording) {
+    setRecording(next);
+    setError(null);
+    setBusy(true);
+    try {
+      setPath(await uploadVoiceIntro(next.blob));
+    } catch (cause) {
+      setPath(undefined);
+      setError(cause instanceof Error ? cause.message : "That upload didn't work.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Submitted whether or not it is set — an empty value clears a previous
+          recording, which is how "record another" and "remove" both work. */}
+      <input type="hidden" name="voiceIntroPath" value={path ?? ""} />
+
+      {recording || path ? (
+        <div className="space-y-3">
+          {/*
+            A recording made in this session plays from its object URL; one
+            carried in on a resumed draft plays from the link the server signed.
+            Duration is only known for the former — the player measures the
+            other once its metadata loads.
+          */}
+          <VoicePlayer
+            src={recording?.url ?? voiceIntroUrl ?? null}
+            durationMs={recording?.durationMs ?? null}
+            mine
+            className="max-w-full"
+          />
+          {busy && <p className="text-[14px] text-[var(--text-dim)]">Saving it…</p>}
+          {!busy && path && (
+            <p className="text-[14px] text-[var(--success)]">Saved. It plays on your card.</p>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setRecording(null);
+              setPath(undefined);
+              setError(null);
+            }}
+            className="text-[15px] text-[var(--text-secondary)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--text-primary)]"
+          >
+            Record a different one
+          </button>
+        </div>
+      ) : (
+        <VoiceRecorder onRecorded={keep} disabled={busy} maxMs={VOICE_INTRO_MAX_MS} />
+      )}
+
+      {(error ?? errors.voiceIntroPath) && (
+        <p role="alert" className="text-[15px] leading-snug text-[var(--error)]">
+          {error ?? errors.voiceIntroPath}
+        </p>
+      )}
+
+      <p className="text-[15px] leading-relaxed text-[var(--text-dim)]">
+        Thirty seconds, and entirely optional &mdash; Continue skips it. It sits on your card next
+        to your name, so people can hear you before they decide whether to write.
+      </p>
     </div>
   );
 }

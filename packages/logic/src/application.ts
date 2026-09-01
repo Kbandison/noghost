@@ -27,6 +27,10 @@ export const APPLICATION_STEPS = [
   "interests",
   "photos",
   "prompts",
+  // Optional, and still its own step (§7.2). Folding it into the prompts screen
+  // would make the one thing here that nobody has to do look like a field they
+  // forgot, and `validateStep` returning ok is what lets Continue skip it.
+  "voice",
   "selfie",
 ] as const;
 
@@ -46,6 +50,16 @@ export interface ApplicationDraft {
   /** Storage paths, never image bytes. */
   photoPaths?: string[];
   prompts?: { prompt_id: string; answer: string }[];
+  /** Optional 30s intro (§7.2). A storage path, never audio bytes. */
+  voiceIntroPath?: string;
+  /**
+   * When they were offered the intro, whether or not they recorded one.
+   *
+   * Recording is optional; being asked is not. Without this the step validates
+   * on an empty draft, `nextIncompleteStep` walks straight past it, and anyone
+   * who closes the tab before finishing is never offered a voice intro at all.
+   */
+  voiceSeenAt?: string;
   selfiePath?: string;
   consentedAt?: string;
 }
@@ -192,6 +206,25 @@ export function validatePrompts(draft: ApplicationDraft): StepResult {
   return ok;
 }
 
+/**
+ * The one step nobody has to complete — but everybody has to be shown.
+ *
+ * Satisfied by either a recording or the act of passing through, so `Continue`
+ * on an empty step is a real answer rather than a skipped screen. The
+ * distinction matters on resume: this is what stops `nextIncompleteStep`
+ * jumping from prompts to the selfie and quietly retiring the feature for
+ * anybody who finishes their application in two sittings.
+ *
+ * The message is never rendered. `applyStep` stamps `voiceSeenAt` before the
+ * validator runs, so submitting this step always passes; the failure exists
+ * only so the resume logic has something to stop on.
+ */
+export function validateVoice(draft: ApplicationDraft): StepResult {
+  return draft.voiceIntroPath || draft.voiceSeenAt
+    ? ok
+    : fail({ voiceIntroPath: "Record something or press Continue — either one is an answer." });
+}
+
 export function validateSelfie(draft: ApplicationDraft): StepResult {
   return draft.selfiePath
     ? ok
@@ -219,6 +252,8 @@ export function validateStep(
       return validatePhotos(draft);
     case "prompts":
       return validatePrompts(draft);
+    case "voice":
+      return validateVoice(draft);
     case "selfie":
       return validateSelfie(draft);
   }
@@ -243,10 +278,27 @@ export function isSubmittable(draft: ApplicationDraft, now: string): boolean {
   return nextIncompleteStep(draft, now) === null;
 }
 
-/** 0–1, for the progress indicator. */
+/**
+ * Steps nobody has to *complete*. They still have to be reached — see
+ * `validateVoice` — and they still count in "Step 8 of 9", because they are
+ * real screens. They do not count in the progress ratio, which is a claim about
+ * how much work is left rather than how many screens remain.
+ */
+export const OPTIONAL_STEPS: readonly ApplicationStep[] = ["voice"];
+
+const REQUIRED_STEPS = APPLICATION_STEPS.filter((step) => !OPTIONAL_STEPS.includes(step));
+
+/**
+ * How far through the required work they are, 0 to 1.
+ *
+ * Optional steps are excluded rather than counted as done. Recording an intro
+ * is not work the applicant owes, so a bar that moves when they do it — or
+ * stalls at 8/9 when they decline — would be measuring the wrong thing. Nothing
+ * renders this today; the funnel's own indicator is positional.
+ */
 export function completionRatio(draft: ApplicationDraft, now: string): number {
-  const done = APPLICATION_STEPS.filter((s) => validateStep(s, draft, now).ok).length;
-  return done / APPLICATION_STEPS.length;
+  const done = REQUIRED_STEPS.filter((s) => validateStep(s, draft, now).ok).length;
+  return done / REQUIRED_STEPS.length;
 }
 
 /**

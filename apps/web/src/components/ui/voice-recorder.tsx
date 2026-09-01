@@ -53,9 +53,12 @@ const assumeSupported = () => true;
 export function VoiceRecorder({
   onRecorded,
   disabled,
+  maxMs = MAX_DURATION_MS,
 }: {
   onRecorded: (recording: Recording) => void;
   disabled?: boolean;
+  /** Defaults to a chat note's minute; the profile intro passes thirty seconds. */
+  maxMs?: number;
 }) {
   const supported = useSyncExternalStore(NEVER_CHANGES, supportsRecording, assumeSupported);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -134,7 +137,7 @@ export function VoiceRecorder({
     };
 
     recorder.onstop = () => {
-      const durationMs = Math.min(Date.now() - startedAtRef.current, MAX_DURATION_MS);
+      const durationMs = Math.min(Date.now() - startedAtRef.current, maxMs);
       // Chromium reports `audio/webm;codecs=opus`; the blob keeps the full
       // string, and the server maps it down to a bucket-allowed base type.
       const type = recorder.mimeType || "audio/webm";
@@ -164,7 +167,7 @@ export function VoiceRecorder({
     setElapsed(0);
 
     tickRef.current = setInterval(() => setElapsed(Date.now() - startedAtRef.current), 100);
-    capRef.current = setTimeout(stop, MAX_DURATION_MS);
+    capRef.current = setTimeout(stop, maxMs);
 
     // Held down and released while the permission prompt was still up. Without
     // this the gesture ends and the recording carries on, which is the one
@@ -173,7 +176,7 @@ export function VoiceRecorder({
       stopWhenReadyRef.current = false;
       stop();
     }
-  }, [onRecorded, phase, release, stop]);
+  }, [maxMs, onRecorded, phase, release, stop]);
 
   if (!supported) {
     return (
@@ -184,7 +187,7 @@ export function VoiceRecorder({
   }
 
   const recording = phase === "recording";
-  const remaining = Math.max(0, MAX_DURATION_MS - elapsed);
+  const remaining = Math.max(0, maxMs - elapsed);
 
   return (
     <div className="flex flex-wrap items-center gap-3">

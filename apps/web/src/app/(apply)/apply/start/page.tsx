@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { APPLICATION_STEPS, nextIncompleteStep } from "@noghost/logic";
 import { getPublicSeasonStats } from "@noghost/db";
 import { readDraft } from "@/lib/application-draft";
+import { signedVoiceUrls } from "@/lib/voice-urls";
 import { Funnel } from "./funnel";
 
 export const metadata: Metadata = {
@@ -27,5 +28,18 @@ export default async function ApplyStartPage() {
   // than silently submitting on page load.
   const resumeAt = step ?? APPLICATION_STEPS[APPLICATION_STEPS.length - 1]!;
 
-  return <Funnel initialDraft={draft} initialStep={resumeAt} />;
+  /*
+   * A resumed draft carries a storage path, not a playable link, and the intro
+   * bucket is private. Signing here is what stops the voice step telling
+   * somebody their own recording can't be played when nothing is wrong with it.
+   */
+  const voiceIntroUrl = draft.voiceIntroPath
+    ? ((await signedVoiceUrls([draft.voiceIntroPath], "voice-intros")).get(
+        draft.voiceIntroPath,
+      ) ?? null)
+    : null;
+
+  return (
+    <Funnel initialDraft={draft} initialStep={resumeAt} voiceIntroUrl={voiceIntroUrl} />
+  );
 }

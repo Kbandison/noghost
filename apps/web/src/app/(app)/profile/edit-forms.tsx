@@ -1,14 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 import { PHOTO_MAX, PHOTO_MIN, PROMPT_COUNT } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import { Button } from "@/components/ui/button";
+import { VoicePlayer } from "@/components/ui/voice-player";
+import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
 import { publicPhotoUrl } from "@/lib/photos";
-import { uploadImage } from "@/lib/upload";
+import { uploadImage, uploadVoiceIntro } from "@/lib/upload";
+import { VOICE_INTRO_MAX_MS } from "@/lib/voice";
 import type { ProfilePhotoRow } from "@/lib/settings";
-import { savePhotos, savePrompts, type SettingsState } from "./actions";
+import { savePhotos, savePrompts, saveVoiceIntro, type SettingsState } from "./actions";
 
 const initial: SettingsState = {};
 
@@ -287,5 +290,161 @@ function Nudge({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * The voice intro, in Settings.
+ *
+ * `url` is a signed link so an existing recording is playable; a fresh one
+ * plays from its object URL until the page reloads. The distinction never
+ * reaches the member, which is the point — record, hear it, keep it or drop it.
+ *
+ * `hasIntro` is passed separately rather than inferred from `url` because
+ * signing can fail on its own. A member whose link did not sign still has an
+ * intro on their card, and showing them an empty recorder would say otherwise.
+ */
+export function VoiceIntroForm({ url, hasIntro }: { url: string | null; hasIntro: boolean }) {
+  const [state, action, pending] = useActionState(saveVoiceIntro, initial);
+  const [recording, setRecording] = useState<Recording | null>(null);
+  const [saved, setSaved] = useState(hasIntro);
+  const [savedUrl, setSavedUrl] = useState<string | null>(url);
+  /*
+   * Asking to re-record does not delete anything. The old intro stays on the
+   * card until a new one lands, so somebody who changes their mind mid-way and
+   * closes the tab keeps what they had — and the copy below says so, because a
+   * player that vanishes on click reads as a deletion that already happened.
+   */
+  const [replacing, setReplacing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!recording) return;
+    return () => URL.revokeObjectURL(recording.url);
+  }, [recording]);
+
+  const save = (path: string) => {
+    const data = new FormData();
+    data.set("path", path);
+    startTransition(() => action(data));
+  };
+
+  async function keep(next: Recording) {
+    setRecording(next);
+    setError(null);
+    setBusy(true);
+    try {
+      save(await uploadVoiceIntro(next.blob));
+      setSaved(true);
+      setSavedUrl(null);
+      setReplacing(false);
+    } catch (cause) {
+      setRecording(null);
+      setError(cause instanceof Error ? cause.message : "That upload didn't work.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function remove() {
+    setRecording(null);
+    setSaved(false);
+    setSavedUrl(null);
+    setReplacing(false);
+    save("");
+  }
+
+  /*
+   * `replacing` outranks both sources. Checking it only against the saved intro
+   * left "record a different one" dead after somebody had just recorded one in
+   * this session — `recording` was still set, so the player stayed put and the
+   * button did nothing. Nothing is torn down to get here, which is what lets
+   * "keep the one I have" put the player back.
+   */
+  const playing = replacing
+    ? null
+    : (recording ?? (saved ? { url: savedUrl, durationMs: null } : null));
+
+  return (
+    <div className="space-y-4">
+      {playing ? (
+        <>
+          {playing.url ? (
+            <VoicePlayer
+              src={playing.url}
+              durationMs={playing.durationMs}
+              mine
+              className="max-w-full"
+            />
+          ) : (
+            /*
+             * A path with no signed link. Their intro is on their card and
+             * playing it here is what failed — which is a different sentence
+             * from "you don't have one", and the difference decides whether
+             * they re-record something that was never broken.
+             */
+            <p className="text-[15px] leading-snug text-[var(--text-dim)]">
+              Your intro is saved and playing on your card. We couldn&rsquo;t load it here just
+              now &mdash; reload the page to try again.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              disabled={pending || busy}
+              onClick={() => setReplacing(true)}
+              className="text-[15px] text-[var(--text-secondary)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+            >
+              Record a different one
+            </button>
+            <button
+              type="button"
+              disabled={pending || busy}
+              onClick={remove}
+              className="text-[15px] text-[var(--text-dim)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--error)] disabled:opacity-40"
+            >
+              Remove it
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <VoiceRecorder onRecorded={keep} disabled={busy || pending} maxMs={VOICE_INTRO_MAX_MS} />
+          {replacing && (
+            <div className="flex flex-wrap items-center gap-4">
+              <p className="text-[14px] text-[var(--text-dim)]">
+                The one you have stays on your card until this replaces it.
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setReplacing(false)}
+                className="text-[15px] text-[var(--text-secondary)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--text-primary)] disabled:opacity-40"
+              >
+                Keep the one I have
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {busy && <p className="text-[14px] text-[var(--text-dim)]">Saving it&hellip;</p>}
+      {(state.error ?? error) && (
+        <p role="alert" className="text-[15px] leading-snug text-[var(--error)]">
+          {state.error ?? error}
+        </p>
+      )}
+      {state.saved && !state.error && !busy && (
+        <p role="status" className="text-[15px] text-[var(--success)]">
+          Saved.
+        </p>
+      )}
+
+      <p className="text-[14px] leading-relaxed text-[var(--text-dim)]">
+        Thirty seconds, optional, and it sits on your card next to your name. Unlike a photo it
+        doesn&rsquo;t wait for review.
+      </p>
+    </div>
   );
 }

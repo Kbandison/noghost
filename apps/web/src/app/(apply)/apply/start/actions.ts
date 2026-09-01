@@ -111,6 +111,22 @@ function applyStep(step: ApplicationStep, draft: ApplicationDraft, fd: FormData)
       };
     }
 
+    /*
+     * An empty field clears a previous recording, which is what makes "record a
+     * different one" and skipping after recording the same gesture.
+     *
+     * `voiceSeenAt` is stamped either way, and stamped here rather than in an
+     * effect so it is set before the validator runs: passing through is what
+     * satisfies this step, so Continue on an empty recorder has to count as an
+     * answer on the very submit that gives it.
+     */
+    case "voice":
+      return {
+        ...draft,
+        voiceIntroPath: str(fd, "voiceIntroPath") || undefined,
+        voiceSeenAt: draft.voiceSeenAt ?? new Date().toISOString(),
+      };
+
     case "selfie":
       return { ...draft, selfiePath: str(fd, "selfiePath") || undefined };
   }
@@ -299,6 +315,9 @@ async function fileApplication(
       // `approved` stays false until a reviewer says otherwise.
       photos: (draft.photoPaths ?? []).map((path, order) => ({ path, order, approved: false })),
       prompts: draft.prompts ?? [],
+      // Null rather than absent when skipped, so a resubmission clears a
+      // recording somebody changed their mind about.
+      voice_intro_path: draft.voiceIntroPath ?? null,
       phone: draft.phone ?? null,
     },
     { onConflict: "id" },

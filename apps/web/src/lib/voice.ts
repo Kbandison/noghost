@@ -31,6 +31,13 @@
  */
 export const MAX_DURATION_MS = 60_000;
 
+/**
+ * Thirty seconds for the profile intro — §7.2 says so, and it is shorter than a
+ * chat note on purpose. A card in somebody's drop is being skimmed, and the gap
+ * between a voice you can place and a monologue is about one spoken sentence.
+ */
+export const VOICE_INTRO_MAX_MS = 30_000;
+
 /** 32kbps mono. Speech, not music — and see the note on MAX_DURATION_MS. */
 export const AUDIO_BITS_PER_SECOND = 32_000;
 

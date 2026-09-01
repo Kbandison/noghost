@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { BRAND } from "@noghost/config";
 import { requireMember } from "@/lib/member";
 import { readSettings } from "@/lib/settings";
-import { PhotosForm, PromptsForm } from "./edit-forms";
+import { signedVoiceUrls } from "@/lib/voice-urls";
+import { PhotosForm, PromptsForm, VoiceIntroForm } from "./edit-forms";
 import { DeleteForm, NotificationForm, PauseForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Profile" };
@@ -29,9 +30,9 @@ export const dynamic = "force-dynamic";
  * on this page that cannot be undone, and it should be findable without being
  * offered.
  *
- * Photos and prompts are editable; the voice intro is not, because there is
- * still nowhere legal to put one until 0015 lands and no funnel step that
- * records one to edit.
+ * Photos, prompts and the voice intro are all editable. The intro needs 0015's
+ * bucket to actually store anything; without it the recorder says which
+ * migration is missing rather than failing at the upload.
  *
  * A changed photo goes back through review (§7.3) rather than appearing
  * instantly. That loop only became real in 0020 — before it, an editor here
@@ -44,6 +45,14 @@ export default async function ProfilePage() {
   if (!settings) notFound();
 
   const { identity, prefs } = settings;
+
+  // Signed here rather than in the client component: the bucket is private, and
+  // signing is a server capability.
+  const voiceIntroUrl = identity.voiceIntroPath
+    ? ((await signedVoiceUrls([identity.voiceIntroPath], "voice-intros")).get(
+        identity.voiceIntroPath,
+      ) ?? null)
+    : null;
 
   return (
     <div className="mx-auto w-full max-w-[38rem] px-6 py-12">
@@ -89,6 +98,10 @@ export default async function ProfilePage() {
 
       <Section title="Your answers">
         <PromptsForm prompts={identity.prompts} />
+      </Section>
+
+      <Section title="Your voice">
+        <VoiceIntroForm url={voiceIntroUrl} hasIntro={Boolean(identity.voiceIntroPath)} />
       </Section>
 
       <Section title="What we're allowed to send you">

@@ -13,6 +13,7 @@ import {
   PreferencesStep,
   PromptsStep,
   SelfieStep,
+  VoiceStep,
   VerifyStep,
   type StepProps,
 } from "./steps";
@@ -68,6 +69,12 @@ const COPY: Record<
     cta: "Continue",
     component: PromptsStep,
   },
+  voice: {
+    statement: "Say hello, if you want to.",
+    sub: "Thirty seconds of your actual voice, on your card next to your name. Nobody has to do this one — Continue skips it.",
+    cta: "Continue",
+    component: VoiceStep,
+  },
   selfie: {
     statement: "Last one. Prove you're you.",
     sub: "Review team only. Never shown to another member.",
@@ -81,9 +88,12 @@ const initial: StepState = {};
 export function Funnel({
   initialDraft,
   initialStep,
+  voiceIntroUrl,
 }: {
   initialDraft: ApplicationDraft;
   initialStep: ApplicationStep;
+  /** Signed on the server for a draft resumed after an intro was recorded. */
+  voiceIntroUrl: string | null;
 }) {
   const [step, setStep] = useState<ApplicationStep>(initialStep);
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -177,6 +187,7 @@ export function Funnel({
                   key={`${step}-${state.version ?? 0}`}
                   draft={state.draft ?? initialDraft}
                   errors={state.errors ?? {}}
+                  voiceIntroUrl={voiceIntroUrl}
                 />
               </motion.div>
             </AnimatePresence>

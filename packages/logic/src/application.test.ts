@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   APPLICATION_STEPS,
+  OPTIONAL_STEPS,
   completionRatio,
   isSubmittable,
   nextIncompleteStep,
@@ -12,6 +13,7 @@ import {
   validatePreferences,
   validatePrompts,
   validateSelfie,
+  validateVoice,
   type ApplicationDraft,
 } from "./application";
 
@@ -36,6 +38,7 @@ function complete(overrides: Partial<ApplicationDraft> = {}): ApplicationDraft {
       { prompt_id: "prompt_04", answer: "I remember what you told me last time." },
       { prompt_id: "prompt_11", answer: "Grits do not need sugar." },
     ],
+    voiceSeenAt: NOW,
     selfiePath: "selfie.jpg",
     ...overrides,
   };
@@ -182,10 +185,45 @@ describe("resuming a half-finished application", () => {
   });
 
   it("tracks progress from 0 to 1", () => {
+    const required = APPLICATION_STEPS.length - OPTIONAL_STEPS.length;
+
     expect(completionRatio({}, NOW)).toBe(0);
     expect(completionRatio(complete(), NOW)).toBe(1);
     expect(completionRatio(complete({ selfiePath: undefined }), NOW)).toBeCloseTo(
-      (APPLICATION_STEPS.length - 1) / APPLICATION_STEPS.length,
+      (required - 1) / required,
     );
+  });
+
+  it("does not count the optional step as progress", () => {
+    // Recording an intro is not work the applicant owes, so it must not move a
+    // bar that claims to measure what is left to do.
+    expect(OPTIONAL_STEPS.length).toBeGreaterThan(0);
+    expect(completionRatio({ voiceIntroPath: "someone/intro.webm" }, NOW)).toBe(0);
+    expect(completionRatio(complete({ voiceIntroPath: undefined }), NOW)).toBe(1);
+  });
+});
+
+describe("the optional voice intro", () => {
+  it("is satisfied by a recording or by passing through", () => {
+    expect(validateVoice({ voiceIntroPath: "someone/intro.webm" }).ok).toBe(true);
+    expect(validateVoice({ voiceSeenAt: NOW }).ok).toBe(true);
+    expect(validateVoice({}).ok).toBe(false);
+  });
+
+  it("stops a resumed application so the offer is not silently retired", () => {
+    // The bug this exists to prevent: an always-valid step is walked past by
+    // `nextIncompleteStep`, so anyone returning to a half-finished application
+    // goes prompts -> selfie and is never asked.
+    const { voiceSeenAt: _seen, selfiePath: _selfie, ...upToPrompts } = complete();
+    expect(nextIncompleteStep(upToPrompts, NOW)).toBe("voice");
+  });
+
+  it("does not ask twice once they have answered either way", () => {
+    const declined = { ...complete({ selfiePath: undefined }), voiceIntroPath: undefined };
+    expect(nextIncompleteStep(declined, NOW)).toBe("selfie");
+  });
+
+  it("is not required for submission", () => {
+    expect(isSubmittable(complete({ voiceIntroPath: undefined }), NOW)).toBe(true);
   });
 });

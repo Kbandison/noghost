@@ -330,3 +330,42 @@ export async function savePhotos(
   revalidatePath("/profile");
   return { saved: true };
 }
+
+/**
+ * The voice intro, from Settings — §7.2's "edit photos/prompts/voice intro".
+ *
+ * No review step, unlike a photo. §7.3 asks for photo re-review specifically,
+ * and the reason a photo needs it does not transfer: a photo is a claim about
+ * who you are that a reviewer checked against a selfie. A voice is not, and a
+ * queue that held every re-recording would be a queue nobody drains.
+ *
+ * The path is validated to sit in the member's own folder for the reason the
+ * photo action does it: 0015's policy already refuses a *write* anywhere else,
+ * and this refuses a *reference* to a file they did not upload, which the
+ * bucket cannot see.
+ */
+export async function saveVoiceIntro(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const member = await requireMember();
+  const path = String(formData.get("path") ?? "").trim();
+
+  if (path && !path.startsWith(`${member.id}/`)) {
+    return { error: "That recording isn't yours." };
+  }
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ voice_intro_path: path || null })
+    .eq("id", member.id);
+
+  if (error) {
+    console.error(`[settings] voice intro ${member.id}: ${error.message}`);
+    return { error: "That didn't save. Try again." };
+  }
+
+  revalidatePath("/profile");
+  return { saved: true };
+}
