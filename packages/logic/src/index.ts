@@ -25,3 +25,4 @@ export * from "./application";
 export * from "./claim";
 export * from "./notifications";
 export * from "./notify-copy";
+export * from "./season-phase";

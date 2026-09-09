@@ -206,11 +206,9 @@ async function main() {
   await teardown();
   await setup();
 
-  const reachable = CRON
-    ? await fetch(`${BASE}/api/cron/connect-sweep`, {
-        headers: { authorization: `Bearer ${CRON}` },
-      }).then((r) => r.ok, () => false)
-    : false;
+  // The home page, not the cron endpoint: probing the endpoint would run the
+  // sweep, and a reachability check must not be one of the things being tested.
+  const up = await fetch(BASE).then((r) => r.ok, () => false);
 
   try {
     const [s, r1, r2, r3] = PEOPLE;
@@ -218,7 +216,7 @@ async function main() {
     if (!CRON) {
       section("The sweep");
       skip("CRON_SECRET is not set");
-    } else if (!reachable) {
+    } else if (!up) {
       section("The sweep");
       skip(`no dev server on ${BASE} — run: pnpm --filter @noghost/web dev`);
     } else {

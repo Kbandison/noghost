@@ -197,3 +197,18 @@ export const CONNECT_NUDGE_HOURS = 72;
 
 /** Quiet hours — nothing sends between these times, local — spec §8. */
 export const QUIET_HOURS = { startHour: 23, endHour: 9 } as const;
+
+/**
+ * The cohort locks a week before day one — §11's S−7 milestone. That is when a
+ * season stops taking applications and enters `pre_season`, which deliberately
+ * does not serve drops: the pool is still forming, and a drop built from a
+ * half-full cohort would burn first impressions on whoever claimed early.
+ */
+export const COHORT_LOCK_DAYS = 7;
+
+/**
+ * The last week of a season is its own phase — §9.5.5's "final week + finale
+ * event". It still serves drops; what changes is that everyone is told the end
+ * is coming, which is the opposite of a season that simply stops.
+ */
+export const FINALE_WEEK_DAYS = 7;

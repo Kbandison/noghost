@@ -345,14 +345,42 @@ async function fileApplication(
     return { selfie: "We couldn't save your selfie. Try again in a moment." };
   }
 
-  const { error: applicationError } = await supabase.from("applications").upsert(
-    { user_id: user.id, season_id: season.id, status: "applied" },
-    { onConflict: "user_id,season_id", ignoreDuplicates: true },
-  );
+  const { data: filed, error: applicationError } = await supabase
+    .from("applications")
+    .upsert(
+      { user_id: user.id, season_id: season.id, status: "applied" },
+      { onConflict: "user_id,season_id", ignoreDuplicates: true },
+    )
+    .select("id");
 
   if (applicationError) {
     console.error(`[apply] application insert failed for ${user.id}: ${applicationError.message}`);
     return { selfie: "We couldn't file your application. Try again in a moment." };
+  }
+
+  /*
+   * §8's `application_received`, which nothing has ever enqueued.
+   *
+   * Gated on the row actually being inserted. `ignoreDuplicates` returns an
+   * empty set for a resubmission, which is exactly the once-only signal needed
+   * — an unguarded enqueue here would mail somebody a receipt every time they
+   * re-ran the last step.
+   *
+   * Through the service client because `enqueue_notification` is not granted to
+   * `authenticated`, and failure is logged rather than surfaced for the same
+   * reason `advanceToReview`'s is: the application exists, and telling the
+   * applicant their submission failed over a missing receipt would be a lie.
+   */
+  if ((filed ?? []).length > 0) {
+    const { error: notifyError } = await createServiceClient().rpc("enqueue_notification", {
+      p_user: user.id,
+      p_channel: "email",
+      p_template: "application_received",
+      p_payload: { season_id: season.id, season_name: season.name },
+    });
+    if (notifyError) {
+      console.error(`[apply] application_received for ${user.id}: ${notifyError.message}`);
+    }
   }
 
   await advanceToReview(user.id, season.id);
