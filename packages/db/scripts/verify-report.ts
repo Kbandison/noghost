@@ -559,7 +559,21 @@ async function main() {
         const { data: audit } = await service
           .from("admin_audit").select("action,detail,admin_id")
           .eq("admin_id", moderator.id).eq("action", "resolve_report");
-        check((audit ?? []).length === 2, "both decisions are in the audit trail", `${audit?.length ?? 0}`);
+        /*
+         * Asserted as a set rather than a count. This read `=== 2` until the
+         * warning section was added above it and nobody moved the number — and
+         * a count would not have caught the failure that matters anyway, which
+         * is two rows recording the same decision twice.
+         */
+        const decisions = (audit ?? [])
+          .map((row) => (row.detail as { resolution?: string } | null)?.resolution ?? "?")
+          .sort()
+          .join(", ");
+        check(
+          decisions === "dismissed, removed, warned",
+          "every decision is in the audit trail, and each says which one it was",
+          decisions || "none",
+        );
         const removal = (audit ?? []).find((r) => r.detail?.resolution === "removed");
         check(
           removal?.detail?.note?.startsWith("Repeat behaviour"),
