@@ -20,9 +20,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { ENV_PATH, loadRepoEnv } from "./env";
 
-const ENV_PATH = resolve(process.cwd(), "apps/web/.env.local");
-if (existsSync(ENV_PATH)) process.loadEnvFile(ENV_PATH);
+loadRepoEnv();
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const PUBLISHABLE = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;

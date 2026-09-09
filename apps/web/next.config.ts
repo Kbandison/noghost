@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
 import { withBotId } from "botid/next/config";
+import { loadRootEnv } from "../../env.config";
+
+/*
+ * Before anything else. The monorepo keeps one `.env.local` at its root rather
+ * than a copy per app, and Next only ever looks in the app directory — so this
+ * is what puts those values in `process.env` in time for `NEXT_PUBLIC_*` to be
+ * inlined into the client bundle.
+ */
+loadRootEnv();
 
 const nextConfig: NextConfig = {
   // Workspace packages ship raw TypeScript from `src/`, so Next compiles them

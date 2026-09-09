@@ -22,8 +22,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { resolve } from "node:path";
 import { SEED_SEASON } from "../src/seed/data";
+import { loadRepoEnv } from "./env";
 
-process.loadEnvFile(resolve(process.cwd(), "apps/web/.env.local"));
+loadRepoEnv();
 
 const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
   auth: { persistSession: false },
