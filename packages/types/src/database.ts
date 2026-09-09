@@ -191,6 +191,21 @@ export interface Database {
         Returns: undefined;
       };
       /**
+       * Registers the caller's browser for Web Push (0024). Takes the endpoint
+       * over from a previous owner — a subscription left pointing at a browser
+       * somebody else now uses would deliver one member's notifications to
+       * another, and RLS alone cannot reassign a row you do not own.
+       */
+      register_push_subscription: {
+        Args: {
+          p_endpoint: string;
+          p_p256dh: string;
+          p_auth: string;
+          p_user_agent: string | null;
+        };
+        Returns: string;
+      };
+      /**
        * Admin-only (§7.3's Comms). One `broadcast` notification per season
        * member, in-app and optionally by email; returns the number of rows
        * written. The body is audited in full — for this one, the words are the

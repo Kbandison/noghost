@@ -369,21 +369,56 @@ async function main() {
       }
 
       {
-        // The same browser signing in as somebody else must move the endpoint,
-        // not duplicate it — otherwise one device notifies two accounts.
-        const { error } = await clientB.from("push_subscriptions").upsert(
+        /*
+         * A plain upsert cannot do this, which is the whole reason 0024 adds an
+         * RPC. `owner manages own push subscriptions` is
+         * `using (auth.uid() = user_id)`, so an upsert that resolves to an
+         * UPDATE of A's row fails the USING clause — with no error and no
+         * change, leaving A subscribed to a browser B is now using.
+         */
+        const { error: upsertError } = await clientB.from("push_subscriptions").upsert(
           { user_id: b!.id, endpoint, p256dh: "b-p256dh", auth: "b-auth" },
           { onConflict: "endpoint" },
         );
-        const { data } = await service
+        const { data: stuck } = await service
           .from("push_subscriptions")
           .select("user_id")
           .eq("endpoint", endpoint);
         check(
-          !error && data?.length === 1 && data[0]!.user_id === b!.id,
-          "one browser, one person — re-registering moves the endpoint",
-          `${data?.length ?? 0} row(s), owned by ${data?.[0]?.user_id === b!.id ? "B" : "A"}`,
+          stuck?.[0]?.user_id === a!.id,
+          "a raw upsert cannot take the endpoint over — RLS holds the row",
+          `owned by ${stuck?.[0]?.user_id === b!.id ? "B" : "A"}` +
+            (upsertError ? ` · refused: ${upsertError.message.slice(0, 70)}` : " · no error raised"),
         );
+      }
+
+      {
+        // The handover, through the function that can actually do it.
+        const { error } = await clientB.rpc("register_push_subscription", {
+          p_endpoint: endpoint,
+          p_p256dh: "b-p256dh",
+          p_auth: "b-auth",
+          p_user_agent: "verifier B",
+        });
+
+        if (error && /could not find the function|PGRST202/i.test(error.message)) {
+          skip("register_push_subscription is missing — apply 0024");
+        } else {
+          const { data } = await service
+            .from("push_subscriptions")
+            .select("user_id,user_agent")
+            .eq("endpoint", endpoint);
+          check(
+            !error && data?.length === 1 && data[0]!.user_id === b!.id,
+            "one browser, one person — registering moves the endpoint to B",
+            `${data?.length ?? 0} row(s), owned by ${data?.[0]?.user_id === b!.id ? "B" : "A"}`,
+          );
+          check(
+            data?.[0]?.user_agent === "verifier B",
+            "and nothing of A's row survives into B's",
+            data?.[0]?.user_agent ?? "none",
+          );
+        }
       }
 
       await service.from("push_subscriptions").delete().eq("endpoint", endpoint);
@@ -416,9 +451,18 @@ async function main() {
           expect: { sent: true },
         },
         {
+          /*
+           * Both true at once: 30 hours old against a 6-hour TTL, on a channel
+           * with no transport when VAPID is unset. The planner names the cause
+           * that was sufficient on its own — with no push configured the row
+           * was never going anywhere, and its age is a consequence of that
+           * rather than of a slow sweep. Which reason appears therefore depends
+           * on the deployment, and asserting one unconditionally is what made
+           * this fail on a machine with no keys.
+           */
           label: "a fuse warning from yesterday",
           row: { channel: "push", template: "fuse_48h", payload: { chat_id: CHAT }, created_at: hoursAgo(30) },
-          expect: { skip: "stale" },
+          expect: { skipOneOf: ["stale", "no-transport"] },
         },
         {
           label: "a template no rule knows",
@@ -431,9 +475,16 @@ async function main() {
           expect: { pending: true },
         },
         {
-          label: "an SMS, with no Twilio",
+          /*
+           * Skipped `declined`, not left pending, and that ordering is the
+           * point: consent is checked before transport. Somebody with no
+           * recorded `sms_opt_in_at` must never be texted (TCPA, §9.8), and
+           * that is true whether or not Twilio exists — so the row is closed
+           * now rather than held against the day a provider appears.
+           */
+          label: "an SMS to somebody who never opted in",
           row: { channel: "sms", template: "admitted_claim", payload: {}, created_at: hoursAgo(1) },
-          expect: { pending: true },
+          expect: { skip: "declined" },
         },
       ] as const;
 
@@ -466,6 +517,13 @@ async function main() {
             Boolean(row.sent_at) && !row.skipped_at,
             `${fixture.label} → sent`,
             row.skipped_at ? `skipped: ${row.skip_reason}` : "",
+          );
+        } else if ("skipOneOf" in fixture.expect) {
+          const allowed = fixture.expect.skipOneOf as readonly string[];
+          check(
+            Boolean(row.skipped_at) && allowed.includes(row.skip_reason ?? ""),
+            `${fixture.label} → skipped "${allowed.join('" or "')}"`,
+            row.skip_reason ?? (row.sent_at ? "SENT" : "still pending"),
           );
         } else if ("skip" in fixture.expect) {
           check(

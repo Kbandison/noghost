@@ -35,26 +35,29 @@ export async function savePushSubscription(
     return { error: "That subscription is missing its keys. Try turning it off and on again." };
   }
 
+  /*
+   * Through the RPC rather than an upsert. `owner manages own push
+   * subscriptions` is `using (auth.uid() = user_id)`, so an upsert that
+   * resolves to an UPDATE of a row registered by somebody else fails the USING
+   * clause — silently, with no error and no change. On a shared browser that
+   * left the previous person's subscription live against a device this person
+   * is now using, which delivers their notifications to this screen. 0024's
+   * `register_push_subscription` takes the endpoint over.
+   */
   const supabase = await supabaseServer();
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
-      user_id: member.id,
-      endpoint: subscription.endpoint,
-      p256dh: subscription.keys.p256dh,
-      auth: subscription.keys.auth,
-      user_agent: userAgent.slice(0, 400),
-      // Re-subscribing revives a subscription the sweep had retired.
-      expired_at: null,
-    },
-    { onConflict: "endpoint" },
-  );
+  const { error } = await supabase.rpc("register_push_subscription", {
+    p_endpoint: subscription.endpoint,
+    p_p256dh: subscription.keys.p256dh,
+    p_auth: subscription.keys.auth,
+    p_user_agent: userAgent.slice(0, 400),
+  });
 
   if (error) {
     console.error(`[push] subscribe ${member.id}: ${error.message}`);
-    if (/push_subscriptions/i.test(error.message) && /does not exist|schema cache/i.test(error.message)) {
+    if (/could not find the function|PGRST202/i.test(error.message)) {
       return {
         error:
-          "This database hasn't had 0022_notifications_that_arrive.sql applied, so there's " +
+          "This database hasn't had 0024_the_guard_that_never_fired.sql applied, so there's " +
           "nowhere to store a subscription yet.",
       };
     }
