@@ -82,6 +82,13 @@ export const NOTIFICATION_TTL_HOURS: Record<string, number | null> = {
   connect_received: 72,
   connect_accepted: 72,
   date_confirmed: 24,
+  /*
+   * An announcement somebody typed (§7.3's Comms). No TTL: it is delivered
+   * in-app, where "delivered" means the row exists and the banner shows it the
+   * next time they open the app — holding one back for being six hours old
+   * would drop an announcement the cohort was meant to get.
+   */
+  broadcast: null,
   // Things that happened. Worth reading whenever they arrive.
   chat_closed_fuse: null,
   closure_received: null,

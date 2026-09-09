@@ -60,6 +60,37 @@ describe("filling in §9.4's copy", () => {
     expect(second?.tag).toBe(first?.tag);
   });
 
+  it("names the season in the two announcements that are about one", () => {
+    const start = renderNotification(
+      "season_start",
+      { season_id: "s1", season_name: "Atlanta Season One" },
+      context,
+    );
+    expect(start?.body).toBe(
+      "Atlanta Season One starts today. Your first drop lands at 8:00 PM tonight.",
+    );
+    expect(start?.url).toBe("/tonight");
+
+    // And without the name it sends nothing rather than "{{SEASON_NAME}} starts
+    // today" — the rule every other template here follows.
+    expect(renderNotification("season_start", {}, context)).toBeNull();
+  });
+
+  it("carries a broadcast's own words, because §9 has none for it", () => {
+    const result = renderNotification(
+      "broadcast",
+      { body: "The finale venue is booked — details Friday." },
+      context,
+    );
+    expect(result?.body).toBe("The finale venue is booked — details Friday.");
+    expect(result?.url).toBe("/tonight");
+  });
+
+  it("and refuses an empty one rather than showing a blank notification", () => {
+    expect(renderNotification("broadcast", {}, context)).toBeNull();
+    expect(renderNotification("broadcast", { body: "" }, context)).toBeNull();
+  });
+
   it("never puts a chat id in front of somebody as a destination it cannot reach", () => {
     // No id in the payload: the fallback is a real route, not `/chats/undefined`.
     const result = renderNotification("closure_received", {}, context);

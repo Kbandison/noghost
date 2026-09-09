@@ -56,7 +56,15 @@ function destination(template: string, payload: Payload): string {
   const connect = str(payload, "connect_id");
 
   switch (template) {
+    /*
+     * Everything about a season rather than about one conversation goes to
+     * Tonight. Without this they fell through to the chat branch and, having no
+     * `chat_id`, opened the chat list — so "your first drop lands at 8:00 PM"
+     * would have taken somebody to the one screen the drop is not on.
+     */
     case "drop_live":
+    case "season_start":
+    case "season_finale":
       return "/tonight";
     case "connect_received":
       return connect ? `/inbox/${connect}` : "/inbox";
@@ -79,6 +87,17 @@ export function renderNotification(
   payload: Payload,
   context: RenderContext,
 ): RenderedNotification | null {
+  /*
+   * A broadcast is the one notification whose words are not in §9 — an admin
+   * typed them, and they arrive in the payload. Everything else here is
+   * substitution into signed-off copy; this is the exception, and it is the
+   * reason `body` is read rather than looked up.
+   */
+  if (template === "broadcast") {
+    const body = str(payload, "body");
+    return body ? { title: BRAND.APP_NAME, body, url: "/tonight", tag: "broadcast" } : null;
+  }
+
   const copy = (NOTIFICATION_COPY as Record<string, { push?: string } | undefined>)[template];
   const line = copy?.push;
   if (!line) return null;
@@ -92,6 +111,9 @@ export function renderNotification(
     PROMPT_TOPIC: prompt ? promptById(prompt)?.topic : undefined,
     PLACE: str(payload, "place"),
     DAY: day ? dayLabel(day, context.timeZone) : undefined,
+    // Carried on the payload by `season-tick`, because a season's name is the
+    // one substitution that is not derivable from the recipient.
+    SEASON_NAME: str(payload, "season_name"),
   };
 
   /*

@@ -4,7 +4,9 @@ import { requireMember } from "@/lib/member";
 import { unansweredCount } from "@/lib/inbox";
 import { openChatCount } from "@/lib/chats";
 import { pendingWarning } from "@/lib/warnings";
+import { pendingBroadcasts } from "@/lib/broadcasts";
 import { WarningScreen } from "@/components/warning/warning-screen";
+import { BroadcastBanner } from "@/components/broadcast/broadcast-banner";
 import { signOut } from "./actions";
 import { AppNav } from "./app-nav";
 
@@ -21,10 +23,11 @@ import { AppNav } from "./app-nav";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const member = await requireMember();
-  const [waiting, chats, warning] = await Promise.all([
+  const [waiting, chats, warning, broadcasts] = await Promise.all([
     unansweredCount(member.id),
     openChatCount(member.id),
     pendingWarning(),
+    pendingBroadcasts(),
   ]);
 
   return (
@@ -55,6 +58,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </header>
+
+      {/*
+        Below the header and above everything else, but only when there is not a
+        warning — a member being told they broke the standards should not have
+        an announcement about the finale sitting on top of it.
+      */}
+      {!warning && <BroadcastBanner broadcasts={broadcasts} />}
 
       <main id="main" className="flex-1">
         {/*

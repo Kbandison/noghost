@@ -18,6 +18,7 @@
     "db:verify:fuse": "tsx packages/db/scripts/verify-fuse.ts",
     "db:verify:connect": "tsx packages/db/scripts/verify-connect.ts",
     "db:verify:season": "tsx packages/db/scripts/verify-season.ts",
+    "db:verify:comms": "tsx packages/db/scripts/verify-comms.ts",
     "db:verify:graduation": "tsx packages/db/scripts/verify-graduation.ts",
     "db:verify:voice": "tsx packages/db/scripts/verify-voice.ts",
     "db:verify:report": "tsx packages/db/scripts/verify-report.ts",

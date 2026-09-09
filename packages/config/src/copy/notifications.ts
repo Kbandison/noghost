@@ -41,7 +41,35 @@ export const NOTIFICATION_COPY = {
   connect_nudge: {
     push: "Someone wrote you a note two days ago. They deserve an answer either way — that's the whole idea.",
   },
+
+  /*
+   * ⚠️ DRAFTED, not transcribed — see `UNSIGNED_NOTIFICATIONS` below.
+   *
+   * §8's matrix routes both of these to push, and §9.4 has no line for either;
+   * only the §9.5 emails were written. Until `season-tick` existed nothing
+   * enqueued them so the gap was invisible, and the Comms console now reports
+   * it as "routed to push with no copy" — a push template with no wording is
+   * skipped `no-copy` by the sweep forever, which is a notification that can
+   * never arrive.
+   *
+   * Each is the preheader of its own §9.5 email, which is the one sentence
+   * that copy already chose to lead with. Derived rather than invented, so the
+   * push and the email do not say two different things.
+   */
+  season_start: {
+    push: "{{SEASON_NAME}} starts today. Your first drop lands at 8:00 PM tonight.",
+  },
+  season_finale: {
+    push: "Final week of {{SEASON_NAME}}. Drops run to the end, then the app goes quiet.",
+  },
 } as const;
+
+/**
+ * Push lines that are drafted rather than transcribed from §9.4, the way
+ * `UNSIGNED_CLOSURES` and `MEMBER_WARNING` are. They want a read before the
+ * first real send.
+ */
+export const UNSIGNED_NOTIFICATIONS: readonly string[] = ["season_start", "season_finale"];
 
 export type NotificationTemplateKey = keyof typeof NOTIFICATION_COPY;
 

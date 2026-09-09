@@ -190,6 +190,25 @@ export interface Database {
         Args: { p_user_id: string; p_path: string; p_approved: boolean };
         Returns: undefined;
       };
+      /**
+       * Admin-only (§7.3's Comms). One `broadcast` notification per season
+       * member, in-app and optionally by email; returns the number of rows
+       * written. The body is audited in full — for this one, the words are the
+       * mutation.
+       */
+      broadcast_to_season: {
+        Args: { p_season_id: string; p_body: string; p_email: boolean };
+        Returns: number;
+      };
+      /**
+       * Admin-only, and can only ever target the caller. `enqueue_notification`
+       * stays ungranted to `authenticated` precisely so no console button can
+       * send an arbitrary template to an arbitrary member.
+       */
+      send_test_notification: {
+        Args: { p_template: string; p_channel: NotifChannel; p_payload: Record<string, unknown> };
+        Returns: string;
+      };
       /** Admin-only (§7.3). `p_note` is the reviewer's reasoning, not the reporter's. */
       resolve_report: {
         Args: {
