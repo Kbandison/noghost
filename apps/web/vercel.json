@@ -14,6 +14,10 @@
       "schedule": "27 * * * *"
     },
     {
+      "path": "/api/cron/connect-sweep",
+      "schedule": "37 * * * *"
+    },
+    {
       "path": "/api/cron/generate-drops",
       "schedule": "30 23 * * *"
     },

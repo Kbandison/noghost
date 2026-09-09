@@ -16,6 +16,7 @@
     "db:seed:remote": "tsx packages/db/scripts/seed-remote.ts",
     "db:verify:writes": "tsx packages/db/scripts/verify-writes.ts",
     "db:verify:fuse": "tsx packages/db/scripts/verify-fuse.ts",
+    "db:verify:connect": "tsx packages/db/scripts/verify-connect.ts",
     "db:verify:graduation": "tsx packages/db/scripts/verify-graduation.ts",
     "db:verify:voice": "tsx packages/db/scripts/verify-voice.ts",
     "db:verify:report": "tsx packages/db/scripts/verify-report.ts",

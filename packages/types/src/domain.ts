@@ -169,6 +169,13 @@ export interface Connect {
   reply_voice_path: string | null;
   status: ConnectStatus;
   responded_at: Timestamp | null;
+  /**
+   * The single 72h nudge to the recipient (§6.2). Null means not yet nudged,
+   * and `connect-sweep` claims a row by setting it — the column and its partial
+   * index have existed since 0003, but this field did not, so nothing could
+   * write it without a type error.
+   */
+  nudged_at: Timestamp | null;
   created_at: Timestamp;
 }
 

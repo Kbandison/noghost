@@ -51,6 +51,26 @@ export const SYSTEM_CLOSURES = {
   /** Sent to the person whose connect was declined. There is no reply channel. */
   decline_auto:
     "{{FIRST_NAME}} read your note and isn't able to connect this season. That's a real answer, not a maybe — which means you can spend your energy where it counts. See you at tonight's drop.",
+  /**
+   * Sent to the sender when the season ends with their note still unanswered
+   * — §6.2's "decline auto-note variant".
+   *
+   * ⚠️ DRAFTED, not transcribed. §9.2 lists the four notes above and not this
+   * one, and §13 says missing copy is a question rather than something to
+   * improvise; it is drafted here because the alternative was shipping the
+   * mechanic without it, which is the ghost this whole change removes. Marked
+   * in `UNSIGNED_CLOSURES` below and wants a read before the first real send.
+   *
+   * It exists because `decline_auto` is *false* here. That copy says "read your
+   * note and isn't able to connect" — nobody read it. Telling a sender they
+   * were turned down when they were in fact never answered is a worse ending
+   * than the silence, because it invents a person's decision for them.
+   *
+   * §3.2 forbids shaming, and that cuts both ways: this must not blame the
+   * recipient either. Nobody did anything wrong; the clock ran out.
+   */
+  expired_auto:
+    "The season ended before {{FIRST_NAME}} answered your note. No decision was made about you — the clock simply ran out on them, and you deserve to know that rather than wonder. Thank you for writing something real.",
   /** Sent to the partners of a removed member. Even removal doesn't ghost. */
   removal:
     "This conversation was closed by {{APP_NAME}} and won't continue. It's nothing you did. Your next drop is at 8.",
@@ -60,6 +80,14 @@ export const SYSTEM_CLOSURES = {
 } as const;
 
 export type SystemClosureId = keyof typeof SYSTEM_CLOSURES;
+
+/**
+ * System closures that are drafted rather than transcribed from §9.2, the way
+ * `MEMBER_WARNING` and the `lifecycle.ts` bodies are. Listed rather than
+ * carried on each entry so `SYSTEM_CLOSURES` stays a plain id → string map that
+ * every caller can index without unwrapping.
+ */
+export const UNSIGNED_CLOSURES: readonly SystemClosureId[] = ["expired_auto"];
 
 /** Every template id that can land in `closure_notes.template_id`. */
 export type AnyClosureId = ClosureTemplateId | SystemClosureId;

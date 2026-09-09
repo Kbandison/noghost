@@ -139,12 +139,17 @@ export function respondToConnect(
 
 /**
  * A season ending with the connect still pending is still an answer — the
- * sender gets the decline note rather than nothing (spec §6.2).
+ * sender gets a note rather than nothing (spec §6.2).
+ *
+ * `expired_auto`, not `decline_auto`. The decline copy says the recipient "read
+ * your note and isn't able to connect", and in this branch nobody read it.
+ * Reusing it would invent a decision on behalf of someone who never made one,
+ * which is a worse ending than the silence it replaces.
  */
 export function expireConnect(fromUser: string): ConnectOutcome {
   return {
     status: "expired",
-    effects: [{ kind: "system_message", templateId: "decline_auto", toUser: fromUser }],
+    effects: [{ kind: "system_message", templateId: "expired_auto", toUser: fromUser }],
   };
 }
 

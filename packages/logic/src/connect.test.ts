@@ -135,9 +135,10 @@ describe("respondToConnect", () => {
   it("still answers the sender when the season expires a pending connect", () => {
     const outcome = expireConnect("alice");
     expect(outcome.status).toBe("expired");
+    // Its own note, not the decline. `decline_auto` claims they read it.
     expect(outcome.effects).toContainEqual({
       kind: "system_message",
-      templateId: "decline_auto",
+      templateId: "expired_auto",
       toUser: "alice",
     });
   });

@@ -195,7 +195,16 @@ function Settled({ connect }: { connect: IncomingConnect }) {
  * true`; this is where that lands, printed verbatim from §9.2's `decline_auto`.
  */
 function Sent({ connect }: { connect: OutgoingConnect }) {
-  const note = SYSTEM_CLOSURES.decline_auto
+  /*
+   * Which note depends on which ending. `decline_auto` says they "read your
+   * note and isn't able to connect" — true of a decline and false of an expiry,
+   * where the season simply ran out before anybody answered. Printing the
+   * decline for both invents a decision on behalf of someone who never made
+   * one, which is a worse ending than the silence it replaced.
+   */
+  const note = (
+    connect.status === "expired" ? SYSTEM_CLOSURES.expired_auto : SYSTEM_CLOSURES.decline_auto
+  )
     .replace("{{FIRST_NAME}}", connect.to.firstName)
     .replace("{{APP_NAME}}", BRAND.APP_NAME);
 
@@ -251,9 +260,16 @@ function Sent({ connect }: { connect: OutgoingConnect }) {
                 .
               </p>
             )}
-            <p className="mt-4 text-[15px] text-[var(--text-dim)]">
-              The chat itself opens in the next release.
-            </p>
+            {connect.chat && (
+              <p className="mt-4 text-[15px]">
+                <Link
+                  href={`/chats/${connect.chat.id}`}
+                  className="text-[var(--accent-text)] underline decoration-[1.5px] underline-offset-4"
+                >
+                  Open the conversation
+                </Link>
+              </p>
+            )}
           </>
         )}
 
