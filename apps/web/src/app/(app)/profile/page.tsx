@@ -4,6 +4,7 @@ import { BRAND } from "@noghost/config";
 import { requireMember } from "@/lib/member";
 import { readSettings } from "@/lib/settings";
 import { signedVoiceUrls } from "@/lib/voice-urls";
+import { PushToggle } from "@/components/push/push-toggle";
 import { PhotosForm, PromptsForm, VoiceIntroForm } from "./edit-forms";
 import { DeleteForm, NotificationForm, PauseForm } from "./settings-forms";
 
@@ -106,6 +107,16 @@ export default async function ProfilePage() {
 
       <Section title="What we're allowed to send you">
         <NotificationForm prefs={prefs} />
+      </Section>
+
+      {/*
+        Its own section, below the preferences rather than inside them. Those
+        switches are about what you want to hear; this is about whether this
+        particular browser is somewhere you can hear it, and a member with two
+        devices turns it on twice.
+      */}
+      <Section title="Notifications on this device">
+        <PushToggle vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
       </Section>
 
       <Section title={identity.status === "paused" ? "Paused" : "Taking a break"}>

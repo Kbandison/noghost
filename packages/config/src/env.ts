@@ -31,6 +31,17 @@ export const clientEnvSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+
+  /*
+   * The VAPID public key, which is meant to be public — the browser needs it to
+   * create a subscription, and it identifies the sender rather than authorising
+   * anything. Its private half is in `serverEnvSchema` and must stay there.
+   *
+   * Optional because push is the one channel that degrades cleanly: with no key
+   * the app never offers to enable notifications, and the sweep defers push
+   * rows instead of failing.
+   */
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().min(1).optional(),
 });
 
 /** Server-only. Never prefixed `NEXT_PUBLIC_`, never imported by a client component. */
@@ -54,6 +65,22 @@ export const serverEnvSchema = z.object({
 
   /** Every cron endpoint verifies this before doing anything — spec §4.3. */
   CRON_SECRET: z.string().min(16),
+
+  /*
+   * Web Push — spec §8's only channel that needs no third-party account.
+   *
+   * Optional as a pair. Push is opt-in infrastructure: without these the app
+   * does not offer notifications and the sweep reports push as untransportable
+   * rather than crashing, which is what lets the rest of the queue drain on a
+   * deployment that has not set them up yet.
+   */
+  VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+  VAPID_SUBJECT: z
+    .string()
+    .refine((v) => v.startsWith("mailto:") || v.startsWith("https://"), {
+      message: "must be a mailto: or https: URL — the push services contact you there",
+    })
+    .optional(),
 });
 
 /** Admin app only — separate deploy, separate allow-list (spec §7.3). */

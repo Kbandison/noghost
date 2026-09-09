@@ -264,9 +264,37 @@ export interface Notification {
   channel: NotifChannel;
   template: string;
   payload: Record<string, unknown>;
+  /**
+   * Stamped by `notification-sweep` only when a transport accepted it. A row
+   * with both this and `skipped_at` null is still pending.
+   */
   sent_at: Timestamp | null;
+  /** Set when the sweep decided it will never be sent (0022). */
+  skipped_at: Timestamp | null;
+  /** stale · declined · no-transport · no-copy · unknown-template */
+  skip_reason: string | null;
   read_at: Timestamp | null;
   created_at: Timestamp;
+}
+
+/**
+ * One browser installation that can receive Web Push (0022).
+ *
+ * Per device, not per account: the endpoint is the identity and is unique, so
+ * signing into a second account on a shared browser moves the subscription
+ * rather than duplicating it.
+ */
+export interface PushSubscriptionRow {
+  id: UUID;
+  user_id: UUID;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
+  created_at: Timestamp;
+  last_sent_at: Timestamp | null;
+  /** Set when the push service reported it gone (404/410). */
+  expired_at: Timestamp | null;
 }
 
 export interface NotificationPrefs {

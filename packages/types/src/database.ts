@@ -15,6 +15,7 @@ import type {
   ProcessedWebhookEvent,
   Notification,
   NotificationPrefs,
+  PushSubscriptionRow,
   Profile,
   Report,
   Season,
@@ -105,6 +106,7 @@ export interface Database {
       waitlist: Table<WaitlistEntry>;
       notifications: Table<Notification>;
       notification_prefs: Table<NotificationPrefs>;
+      push_subscriptions: Table<PushSubscriptionRow>;
       graduations: Table<Graduation>;
       exit_surveys: Table<ExitSurvey>;
       admin_audit: Table<AdminAuditEntry>;

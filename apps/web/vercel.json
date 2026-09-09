@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/release-drops",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/notification-sweep",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
