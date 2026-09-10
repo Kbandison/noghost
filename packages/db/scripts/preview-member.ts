@@ -5,6 +5,7 @@
  *   pnpm preview:member Maya       # by first name
  *   pnpm preview:member --list     # who is available, and what each of them has
  *   pnpm preview:member --release  # also make tonight's drop visible now
+ *   pnpm preview:member --url https://…   # target a deployment, not localhost
  *
  * Prints a one-time URL. Open it and you are that member, in their real
  * account, reading real rows through RLS — not a mock. Everything you see is
@@ -37,8 +38,16 @@ if (!URL_ || !SECRET) {
   process.exit(1);
 }
 
-const APP = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "http://localhost:3000";
-const BASE = APP.includes("localhost") ? APP : "http://localhost:3000";
+/*
+ * Local by default, because that is where this is normally used and a link
+ * accidentally pointed at a deployment would burn a single-use token against
+ * the wrong host. `--url` opts into a specific one:
+ *
+ *   pnpm preview:member --url https://noghost-web-….vercel.app
+ */
+const urlFlag = process.argv.find((arg) => arg.startsWith("--url="))?.slice(6)
+  ?? (process.argv.includes("--url") ? process.argv[process.argv.indexOf("--url") + 1] : undefined);
+const BASE = (urlFlag ?? "http://localhost:3000").replace(/\/$/, "");
 
 const G = "\x1b[32m", R = "\x1b[31m", D = "\x1b[2m", B = "\x1b[1m", X = "\x1b[0m";
 
@@ -47,7 +56,12 @@ const db: SupabaseClient<any> = createClient(URL_, SECRET, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
-const wanted = process.argv.slice(2).filter((arg) => !arg.startsWith("--"))[0];
+const positional = process.argv.slice(2).filter((arg, i, all) => {
+  if (arg.startsWith("--")) return false;
+  // The value after a bare `--url` is the URL, not a member's name.
+  return all[i - 1] !== "--url";
+});
+const wanted = positional[0];
 const listing = process.argv.includes("--list");
 const releasing = process.argv.includes("--release");
 
