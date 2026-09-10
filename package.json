@@ -14,6 +14,7 @@
     "db:seed": "pnpm --filter @noghost/db run seed",
     "db:verify": "tsx packages/db/scripts/verify-schema.ts",
     "db:seed:remote": "tsx packages/db/scripts/seed-remote.ts",
+    "preview:member": "tsx packages/db/scripts/preview-member.ts",
     "db:verify:writes": "tsx packages/db/scripts/verify-writes.ts",
     "db:verify:fuse": "tsx packages/db/scripts/verify-fuse.ts",
     "db:verify:connect": "tsx packages/db/scripts/verify-connect.ts",

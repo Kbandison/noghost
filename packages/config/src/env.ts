@@ -74,6 +74,14 @@ export const serverEnvSchema = z.object({
    * rather than crashing, which is what lets the rest of the queue drain on a
    * deployment that has not set them up yet.
    */
+  /*
+   * Turns on `/auth/confirm`, which redeems an admin-issued link into a session
+   * so the member app can be looked at before Twilio exists. Off by default and
+   * meant to stay off in production: §7.4 gives this product one credential,
+   * and a preview convenience should not quietly become a second one.
+   */
+  PREVIEW_SIGN_IN: z.enum(["on", "off"]).default("off"),
+
   VAPID_PRIVATE_KEY: z.string().min(1).optional(),
   /*
    * The scheme is not enough: a bare `mailto:` passes a `startsWith` check and

@@ -388,6 +388,54 @@ async function main() {
         paths(seen?.photos).join(","),
       );
     }
+    section("A caller with no member session is not the member this rule is about — 0025");
+    {
+      /*
+       * The seed writes `approved: true` and 0021's trigger was turning every
+       * one back to false, with no error — forty faceless people in the local
+       * environment and "No photos on this profile" on the drop screen. The
+       * rule is about a member approving their own photo; the service role is
+       * not a member.
+       */
+      const { error } = await service
+        .from("profiles")
+        .update({
+          photos: [{ path: "photo-probe/seeded.webp", order: 0, approved: true }],
+        })
+        .eq("id", a!.id);
+      check(!error, "the service role writes an already-reviewed photo", error?.message ?? "");
+
+      const { data } = await service.from("profiles").select("photos").eq("id", a!.id).single();
+      const photos = (data?.photos ?? []) as { path: string; approved?: boolean }[];
+      const seeded = photos.find((photo) => photo.path === "photo-probe/seeded.webp");
+      check(
+        seeded?.approved === true,
+        "and the flag survives — a fixture is not a member approving themselves",
+        seeded ? `approved=${seeded.approved}` : "photo missing",
+      );
+
+      // The member rule still holds, which is the half that must not regress.
+      const { error: memberError } = await clientA
+        .from("profiles")
+        .update({
+          photos: [{ path: "photo-probe/self.webp", order: 0, approved: true }],
+        })
+        .eq("id", a!.id);
+      const { data: after } = await service
+        .from("profiles")
+        .select("photos")
+        .eq("id", a!.id)
+        .single();
+      const own = ((after?.photos ?? []) as { path: string; approved?: boolean }[]).find(
+        (photo) => photo.path === "photo-probe/self.webp",
+      );
+      check(
+        !memberError && own?.approved === false,
+        "while a member still cannot approve their own",
+        own ? `approved=${own.approved}` : "photo missing",
+      );
+    }
+
   } finally {
     section("Teardown");
     await teardown();
