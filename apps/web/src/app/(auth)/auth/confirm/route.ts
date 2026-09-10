@@ -10,16 +10,27 @@ import { supabaseServer } from "@/lib/supabase";
  * the thing being built is any good. `pnpm preview:member` mints a link through
  * the admin API and this is what the link lands on.
  *
- * **Off unless `PREVIEW_SIGN_IN=on`.** Not because redeeming a token is unsafe
- * — possession of a Supabase-issued single-use token *is* the authentication,
- * and this is the pattern every Supabase email flow uses — but because a
- * product whose only credential is a phone number should not grow a second
- * front door as a side effect of a debugging convenience. Absent the flag the
- * route does not exist, so production has exactly the one way in that §7.4
- * describes.
+ * **Two gates, and both must hold.**
  *
- * 404 rather than 403 when disabled, matching `requireCron`: an unauthenticated
- * caller learns nothing about which routes are here.
+ * `PREVIEW_SIGN_IN=on` is the first. Not because redeeming a token is unsafe —
+ * possession of a Supabase-issued single-use token *is* the authentication, and
+ * this is the pattern every Supabase email flow uses — but because a product
+ * whose only credential is a phone number should not grow a second front door
+ * as a side effect of a debugging convenience.
+ *
+ * The host is the second, and it exists because the first one quietly stopped
+ * being enough. This was enabled while every URL sat behind Vercel SSO, so
+ * "only the owner can reach it" was true of the deployment itself. Attaching
+ * `noghostdating.app` ended that: the project protects
+ * `all_except_custom_domains`, so the real domain is public and the flag alone
+ * would have put a second sign-in path on it.
+ *
+ * `.vercel.app` hosts are still SSO-protected, so the preview keeps working
+ * where it is contained and does not exist where it is not — without anybody
+ * having to remember to turn a flag off on launch day.
+ *
+ * 404 rather than 403, matching `requireCron`: an unauthenticated caller learns
+ * nothing about which routes are here.
  */
 
 export const dynamic = "force-dynamic";
@@ -33,8 +44,26 @@ export const dynamic = "force-dynamic";
 const TYPES = ["magiclink", "signup", "email", "recovery", "invite", "email_change"] as const;
 type EmailOtpType = (typeof TYPES)[number];
 
+/**
+ * Only the SSO-protected preview hosts. A custom domain is public by this
+ * project's protection setting, and localhost is where the script points by
+ * default.
+ */
+function previewHost(host: string): boolean {
+  const name = host.split(":")[0]?.toLowerCase() ?? "";
+  return name === "localhost" || name === "127.0.0.1" || name.endsWith(".vercel.app");
+}
+
 export async function GET(request: Request) {
   if (process.env.PREVIEW_SIGN_IN !== "on") {
+    return new Response("Not found", { status: 404 });
+  }
+
+  /*
+   * `host` rather than the URL: behind a proxy `request.url` can carry the
+   * internal hostname, while `host` is what the client actually asked for.
+   */
+  if (!previewHost(request.headers.get("host") ?? "")) {
     return new Response("Not found", { status: 404 });
   }
 

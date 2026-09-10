@@ -56,10 +56,10 @@ export const BRAND = {
   APP_NAME: "NoGhost",
   TAGLINE: "Dating with a start date.",
   PITCH: "Dating in seasons. Everyone starts together. Nobody gets ghosted.",
-  DOMAIN: "noghost.app",            // verify availability before purchase
-  APP_URL: "https://app.noghost.app",
-  ADMIN_URL: "https://admin.noghost.app",
-  SUPPORT_EMAIL: "hello@noghost.app",
+  DOMAIN: "noghostdating.app",      // bought 2026-09-10; .com/.app/.co were taken
+  APP_URL: "https://noghostdating.app",   // same host — nothing routes by hostname
+  ADMIN_URL: "https://admin.noghostdating.app",
+  SUPPORT_EMAIL: "hello@noghostdating.app",
   CITY_S1: "Atlanta",
   SEASON_S1_NAME: "Atlanta Season One",
 } as const;
@@ -91,11 +91,11 @@ noghost/
 ├── apps/
 │   ├── web/            # Next.js 15 App Router — marketing + member app
 │   │   └── src/app/
-│   │       ├── (marketing)/        # noghost.app — public site
-│   │       ├── (app)/              # app.noghost.app — member experience
+│   │       ├── (marketing)/        # noghostdating.app — public site
+│   │       ├── (app)/              # same host, /tonight onward — member experience
 │   │       └── api/                # route handlers, webhooks, cron
 │   ├── mobile/         # Expo + Expo Router + NativeWind — member app only
-│   └── admin/          # Next.js 15 — admin.noghost.app, separate Vercel deploy
+│   └── admin/          # Next.js 16 — admin.noghostdating.app, separate Vercel deploy
 ├── packages/
 │   ├── config/         # brand constants, season defaults, env schema (zod)
 │   ├── types/          # shared TS types (generated Supabase types + domain types)
@@ -519,7 +519,7 @@ Claude API call (claude-sonnet-4-6, temp 0) with a fixed rubric: reject cruelty,
 
 ## 7. Surface Specs
 
-### 7.1 Marketing site — `apps/web (marketing)` — noghost.app
+### 7.1 Marketing site — `apps/web (marketing)` — noghostdating.app
 
 Pages: **Home**, **How It Works**, **FAQ**, **Apply** (`/apply`), **Terms/Privacy**, **Waitlist** (other cities / season full).
 
@@ -542,7 +542,7 @@ Design system: run the LuxWeb Archetype Selection Gate (`.luxweb/ARCHETYPES.md`)
 Mobile specifics: Expo Router tabs (Tonight / Inbox / Chats / Profile), Expo AV for voice record+play, Expo Notifications, deep links `noghost://chat/[id]` from pushes, checkout opens system browser → Stripe → universal-link return.
 Web specifics: installable PWA (manifest + service worker), Web Push opt-in flow immediately after pass claim (the moment motivation peaks), MediaRecorder voice notes with waveform scrub.
 
-### 7.3 Admin — `apps/admin` — admin.noghost.app
+### 7.3 Admin — `apps/admin` — admin.noghostdating.app
 
 Auth: Supabase email allow-list (`ADMIN_EMAILS` env) + password + TOTP. Every mutation → `admin_audit`.
 

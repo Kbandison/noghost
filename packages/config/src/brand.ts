@@ -9,10 +9,15 @@ export const BRAND = {
   APP_NAME: "NoGhost",
   TAGLINE: "Dating with a start date.",
   PITCH: "Dating in seasons. Everyone starts together. Nobody gets ghosted.",
-  DOMAIN: "noghost.app",
-  APP_URL: "https://app.noghost.app",
-  ADMIN_URL: "https://admin.noghost.app",
-  SUPPORT_EMAIL: "hello@noghost.app",
+  DOMAIN: "noghostdating.app",
+  /*
+   * The same host as the marketing site, not `app.` — `apps/web` serves both
+   * from one deployment and nothing routes by hostname, so a subdomain here
+   * would be a URL the product prints and cannot serve differently.
+   */
+  APP_URL: "https://noghostdating.app",
+  ADMIN_URL: "https://admin.noghostdating.app",
+  SUPPORT_EMAIL: "hello@noghostdating.app",
   CITY_S1: "Atlanta",
   SEASON_S1_NAME: "Atlanta Season One",
 } as const;

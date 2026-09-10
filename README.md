@@ -453,7 +453,7 @@ a no-op.
 ```
 apps/
   web/            Next.js 16 — (marketing) now, (app) next
-  admin/          Next.js 16 — admin.noghost.app (Phase 2)
+  admin/          Next.js 16 — admin.noghostdating.app (Phase 2)
 packages/
   config/         Brand constants, season defaults, zod env schema, the §9 copy library
   types/          Domain types, Postgres enums, the supabase-js Database type
