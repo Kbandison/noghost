@@ -8,6 +8,9 @@ import { isSubmittable } from "@noghost/logic";
 import { Ghost } from "@/components/ui/ghost";
 import { readDraft } from "@/lib/application-draft";
 import { supabaseServer } from "@/lib/supabase";
+import { claimContext } from "@/lib/claim";
+import { stripeConfigured } from "@/lib/stripe";
+import { ClaimSeat } from "./claim";
 
 export const metadata: Metadata = {
   title: "Application received",
@@ -41,7 +44,7 @@ async function filedApplication() {
 
   const { data } = await supabase
     .from("applications")
-    .select("id,status,created_at,season_id")
+    .select("id,status,created_at,season_id,claim_deadline")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -61,6 +64,17 @@ export default async function ReviewPage() {
   // and someone returning on a cleared cookie should still see their status.
   if (!application && !isSubmittable(draft, new Date().toISOString())) redirect("/apply/start");
 
+  /*
+   * An admitted application has a seat waiting and, until now, no way to take
+   * it — this screen has been telling people they would get N hours to claim
+   * one since the funnel shipped. Priced from `season_members`, which is the
+   * same count the checkout session charges against.
+   */
+  const claim =
+    application?.status === "admitted"
+      ? await claimContext(application.season_id, application.claim_deadline)
+      : null;
+
   return (
     <div className="mx-auto grid w-full max-w-[var(--content-max)] grid-cols-1 gap-12 px-6 pb-24 pt-16 md:px-8 lg:grid-cols-12 lg:gap-16 lg:pt-24">
       <div className="lg:col-span-7">
@@ -73,6 +87,27 @@ export default async function ReviewPage() {
          * A multi-line text node that follows an interpolation loses its
          * leading space in this toolchain — it rendered "Season Oneis in".
          */}
+        {claim && (
+          <section className="mt-8 border-l-2 border-[var(--accent)] pl-6">
+            <h2 className="font-[family-name:var(--font-display)] text-[26px] font-bold tracking-[-0.02em]">
+              You&rsquo;re in.
+            </h2>
+            <p className="mt-2 text-[17px] leading-relaxed text-[var(--text-secondary)]">
+              A person read your application and said yes.
+            </p>
+            <div className="mt-5">
+              <ClaimSeat
+                cents={claim.quote.cents}
+                tier={claim.quote.tier}
+                earlyBirdRemaining={claim.quote.earlyBirdRemaining}
+                deadline={claim.claimDeadline}
+                seasonName={claim.seasonName}
+                available={stripeConfigured()}
+              />
+            </div>
+          </section>
+        )}
+
         <p className="prose-measure mt-7 text-[19px] leading-[1.65] text-[var(--text-secondary)]">
           {`Your application for ${season?.name ?? BRAND.SEASON_S1_NAME} is in. ` +
             "A person on the review team reads it and compares your selfie to your photos. " +

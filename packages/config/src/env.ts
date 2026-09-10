@@ -48,11 +48,18 @@ export const clientEnvSchema = z.object({
 export const serverEnvSchema = z.object({
   SUPABASE_SECRET_KEY: z.string().min(1),
 
-  // Payments — spec §4.2. Money is integer cents everywhere.
-  STRIPE_SECRET_KEY: z.string().min(1),
-  STRIPE_WEBHOOK_SECRET: z.string().min(1),
-  STRIPE_PRICE_EARLY_BIRD: z.string().min(1),
-  STRIPE_PRICE_STANDARD: z.string().min(1),
+  /*
+   * Payments — spec §4.2. Money is integer cents everywhere.
+   *
+   * Optional, like the VAPID pair and the Resend key, and for the same reason:
+   * a deployment without them is a valid state — the claim screen says
+   * payments are not switched on and the webhook 404s, rather than a button
+   * that 500s and an endpoint that is open.
+   */
+  STRIPE_SECRET_KEY: z.string().min(1).optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
+  STRIPE_PRICE_EARLY_BIRD: z.string().min(1).optional(),
+  STRIPE_PRICE_STANDARD: z.string().min(1).optional(),
 
   // Transactional email + SMS
   /*
