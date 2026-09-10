@@ -34,6 +34,14 @@ export function SignInForm() {
       <Button type="submit" tone="primary" disabled={pending} className="w-full">
         {pending ? "Checking…" : "Continue"}
       </Button>
+      <p className="text-[14px]">
+        <a
+          href="/reset-password"
+          className="text-[var(--text-secondary)] underline underline-offset-4 hover:text-[var(--text-primary)]"
+        >
+          Forgotten your password?
+        </a>
+      </p>
     </form>
   );
 }
