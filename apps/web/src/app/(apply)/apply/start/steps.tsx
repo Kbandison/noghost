@@ -54,11 +54,28 @@ export function PhoneStep({ draft, errors }: StepProps) {
         defaultValue={draft.phone ?? ""}
         error={errors.phone}
       />
+      {/*
+        §7.4's "email captured at application for receipts/comms". It sits on
+        this step rather than a screen of its own because it answers the same
+        question as the number above it — how we reach you — and the two
+        together are what the consent line below is consenting to.
+      */}
+      <TextField
+        label="Email"
+        name="email"
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        placeholder="you@example.com"
+        defaultValue={draft.email ?? ""}
+        error={errors.email}
+      />
       <CheckboxRow name="consent" error={errors.consent} defaultChecked={Boolean(draft.consentedAt)}>
         {interpolate(CONSENT.application, { MIN_AGE })}
       </CheckboxRow>
       <p className="text-[14px] leading-relaxed text-[var(--text-dim)]">
-        Your number is how you sign in. It&rsquo;s never shown to another member.
+        Your number is how you sign in &mdash; it&rsquo;s never shown to another member. Your
+        email is for your receipt and your admission decision, nothing else.
       </p>
     </div>
   );

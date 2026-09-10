@@ -55,7 +55,15 @@ export const serverEnvSchema = z.object({
   STRIPE_PRICE_STANDARD: z.string().min(1),
 
   // Transactional email + SMS
-  RESEND_API_KEY: z.string().min(1),
+  /*
+   * §8's email channel. Optional like the VAPID pair and for the same reason:
+   * a deployment without it defers email rows rather than failing, which is how
+   * every environment starts. Separate from Supabase's SMTP settings, which
+   * send auth mail only.
+   */
+  RESEND_API_KEY: z.string().min(1).optional(),
+  /** Must be on a Resend-verified domain, or every send is a 550. */
+  EMAIL_FROM: z.string().min(1).optional(),
   TWILIO_ACCOUNT_SID: z.string().min(1),
   TWILIO_AUTH_TOKEN: z.string().min(1),
   TWILIO_MESSAGING_SERVICE_SID: z.string().min(1),

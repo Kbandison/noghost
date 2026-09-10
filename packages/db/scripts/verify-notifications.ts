@@ -476,6 +476,13 @@ async function main() {
           expect: { pending: true },
         },
         {
+          // §9.5 has no email body for a push-only template, so it can never be
+          // sent however well the transport is configured.
+          label: "an email for a template §9.5 never wrote",
+          row: { channel: "email", template: "connect_received", payload: {}, created_at: hoursAgo(1) },
+          expect: { emailOnly: true, skip: "no-copy" },
+        },
+        {
           /*
            * Skipped `declined`, not left pending, and that ordering is the
            * point: consent is checked before transport. Somebody with no
@@ -500,6 +507,7 @@ async function main() {
       });
       const summary = (await response.json()) as Record<string, unknown>;
       console.log(`  ${D}${JSON.stringify(summary)}${X}`);
+      const emailUp = summary.emailConfigured === true;
 
       const { data: after } = await service
         .from("notifications")
@@ -511,6 +519,16 @@ async function main() {
         const row = byId.get(seeded![i]!.id);
         if (!row) {
           check(false, `${fixture.label}: row vanished`);
+          return;
+        }
+        /*
+         * An email fixture says nothing about the sweep when there is no
+         * transport — the planner defers it before the email path is reached.
+         * Skipped rather than asserted, so this does not go green for the
+         * wrong reason on a machine with no RESEND_API_KEY.
+         */
+        if ("emailOnly" in fixture.expect && !emailUp) {
+          skip(`${fixture.label} — no RESEND_API_KEY, so email rows defer first`);
           return;
         }
         if ("sent" in fixture.expect) {

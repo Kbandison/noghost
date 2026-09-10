@@ -46,6 +46,10 @@ export type NotificationSkipReason =
   | "no-transport"
   /** Not in §8's matrix — nothing knows what it is or who it is for. */
   | "unknown-template"
+  /** No address on the profile. 0026 added the column; older members have none. */
+  | "no-address"
+  /** The provider rejected the address itself. Another sweep will not help. */
+  | "bad-address"
   /**
    * In the matrix, but §9 has no wording for it on this channel. Distinct from
    * `unknown-template` because it is a copy gap, not a bug: the lifecycle

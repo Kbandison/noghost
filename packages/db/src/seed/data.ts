@@ -195,6 +195,10 @@ export function generateSeedProfiles(count = 40): Profile[] {
       })),
       voice_intro_path: null,
       phone: null,
+      // A fixture gets a routable-looking but undeliverable address, so the
+      // email channel can be exercised without a seeded profile ever being
+      // able to receive real mail.
+      email: `seed-${seedId(100 + i).slice(-4)}@noghost.test`,
       status: "active" as const,
       created_at: "2026-08-01T12:00:00.000Z",
       updated_at: "2026-08-01T12:00:00.000Z",

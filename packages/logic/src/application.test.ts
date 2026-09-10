@@ -22,6 +22,7 @@ const NOW = "2026-08-01T12:00:00.000Z";
 function complete(overrides: Partial<ApplicationDraft> = {}): ApplicationDraft {
   return {
     phone: "+14045550134",
+    email: "maya@example.com",
     consentedAt: NOW,
     phoneVerifiedAt: NOW,
     firstName: "Maya",
@@ -45,10 +46,33 @@ function complete(overrides: Partial<ApplicationDraft> = {}): ApplicationDraft {
 }
 
 describe("phone", () => {
-  it("requires E.164 and the consent confirmation", () => {
-    expect(validatePhone({ phone: "+14045550134", consentedAt: NOW })).toEqual({ ok: true });
-    expect(validatePhone({ phone: "404-555-0134", consentedAt: NOW }).ok).toBe(false);
-    expect(validatePhone({ phone: "+14045550134" }).ok).toBe(false);
+  const good = { phone: "+14045550134", email: "maya@example.com", consentedAt: NOW };
+
+  it("requires E.164, an address, and the consent confirmation", () => {
+    expect(validatePhone(good)).toEqual({ ok: true });
+    expect(validatePhone({ ...good, phone: "404-555-0134" }).ok).toBe(false);
+    expect(validatePhone({ ...good, consentedAt: undefined }).ok).toBe(false);
+  });
+
+  it("needs an email, because every §9.5 mail has nowhere to go without one", () => {
+    // §7.4: "Email captured at application for receipts/comms." It never was —
+    // the funnel created phone-only accounts and the four email templates in §8
+    // had no recipient at all.
+    expect(validatePhone({ ...good, email: undefined }).ok).toBe(false);
+    expect(validatePhone({ ...good, email: "not-an-address" }).ok).toBe(false);
+    expect(validatePhone({ ...good, email: "no@domain" }).ok).toBe(false);
+  });
+
+  it("does not refuse addresses that are merely unusual", () => {
+    // A stricter pattern rejects real people on the first screen. Bouncing mail
+    // is the check that actually knows.
+    for (const email of [
+      "maya+noghost@example.com",
+      "o'brien@example.co.uk",
+      "someone@sub.domain.museum",
+    ]) {
+      expect(validatePhone({ ...good, email })).toEqual({ ok: true });
+    }
   });
 });
 

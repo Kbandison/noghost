@@ -50,7 +50,9 @@ export interface Profile {
   occupation: string | null;
   photos: ProfilePhoto[];
   prompts: ProfilePromptAnswer[];
-  voice_intro_path: string | null;
+/** Receipts and lifecycle mail (§7.4, 0026). Never a sign-in credential. */
+  email: string | null;
+    voice_intro_path: string | null;
   phone: string | null;
   status: MemberStatus;
   created_at: Timestamp;

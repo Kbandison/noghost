@@ -67,6 +67,9 @@ function applyStep(step: ApplicationStep, draft: ApplicationDraft, fd: FormData)
       return {
         ...draft,
         phone: normalizePhone(str(fd, "phone")) ?? undefined,
+        // Lowercased and trimmed here so the draft, the profile and the
+        // `citext` unique index all agree on what one address is.
+        email: str(fd, "email").trim().toLowerCase() || undefined,
         consentedAt: str(fd, "consent") === "on" ? new Date().toISOString() : undefined,
         // Changing the number invalidates any previous verification.
         phoneVerifiedAt: undefined,
@@ -320,6 +323,9 @@ async function fileApplication(
       // recording somebody changed their mind about.
       voice_intro_path: draft.voiceIntroPath ?? null,
       phone: draft.phone ?? null,
+      // §7.4. Without this the four email templates in §8 have no recipient —
+      // see 0026, which is where the column finally came from.
+      email: draft.email ?? null,
     },
     { onConflict: "id" },
   );

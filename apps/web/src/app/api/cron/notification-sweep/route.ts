@@ -1,7 +1,13 @@
 import { createServiceClient } from "@noghost/db/service";
 import { SEASON_DEFAULTS } from "@noghost/config";
-import { planNotification, renderNotification, type NotificationPrefs } from "@noghost/logic";
+import {
+  planNotification,
+  renderEmail,
+  renderNotification,
+  type NotificationPrefs,
+} from "@noghost/logic";
 import { requireCron } from "@/lib/cron";
+import { emailConfigured, sendEmail } from "@/lib/email";
 import { pushConfigured, sendPush, type PushTarget } from "@/lib/push";
 
 /**
@@ -119,6 +125,35 @@ export async function GET(request: Request) {
   const names = await resolveCounterpartNames(db, rows);
 
   /*
+   * Addresses, for the email channel. `profiles.email` only exists as of 0026,
+   * so every member admitted before it has none — which is why a missing
+   * address is a skip with a reason rather than a failure.
+   */
+  const { data: addressRows } = await db.from("profiles").select("id,email").in("id", userIds);
+  const addressOf = new Map(
+    (addressRows ?? [])
+      .filter((row): row is { id: string; email: string } => Boolean(row.email))
+      .map((row) => [row.id, row.email]),
+  );
+
+  /*
+   * Season names and end dates, because §9.5's copy asks for both by name and a
+   * missing substitution kills the whole email. One read for the sweep rather
+   * than one per row.
+   */
+  const seasonIds = [
+    ...new Set(
+      rows
+        .map((row) => (row.payload ?? {}).season_id)
+        .filter((id): id is string => typeof id === "string"),
+    ),
+  ];
+  const { data: seasonRows } = seasonIds.length
+    ? await db.from("seasons").select("id,name,ends_at,timezone").in("id", seasonIds)
+    : { data: [] };
+  const seasonById = new Map((seasonRows ?? []).map((season) => [season.id, season]));
+
+  /*
    * `push` is available only if there is a VAPID pair AND this member has a
    * device. The second half is per-row, so the transport map below carries the
    * global answer and the per-member check happens at send time — a member with
@@ -126,7 +161,8 @@ export async function GET(request: Request) {
    * the planner's TTL is what eventually retires the row.
    */
   const configured = pushConfigured();
-  const transports = { push: configured, sms: false, email: false };
+  const emailUp = emailConfigured();
+  const transports = { push: configured, sms: false, email: emailUp };
 
   const sent: string[] = [];
   const skipped: { id: string; reason: string }[] = [];
@@ -157,9 +193,56 @@ export async function GET(request: Request) {
       continue;
     }
 
+    if (row.channel === "email") {
+      const to = addressOf.get(row.user_id);
+      if (!to) {
+        // 0026 added the column; anybody who applied before it has no address,
+        // and no number of sweeps will give them one.
+        skipped.push({ id: row.id, reason: "no-address" });
+        continue;
+      }
+
+      const payload = row.payload ?? {};
+      const season = typeof payload.season_id === "string"
+        ? seasonById.get(payload.season_id)
+        : undefined;
+
+      const mail = renderEmail(row.template, payload, {
+        seasonName: season?.name,
+        seasonEndDate: season
+          ? new Intl.DateTimeFormat("en-US", {
+              month: "long",
+              day: "numeric",
+              timeZone: season.timezone ?? SEASON_DEFAULTS.timezone,
+            }).format(new Date(season.ends_at))
+          : undefined,
+        seasonWeeks: SEASON_DEFAULTS.weeks,
+        link: process.env.NEXT_PUBLIC_APP_URL,
+      });
+
+      if (!mail) {
+        skipped.push({ id: row.id, reason: "no-copy" });
+        continue;
+      }
+
+      const result = await sendEmail(to, mail);
+      if (result.ok) {
+        sent.push(row.id);
+      } else if (result.permanent) {
+        // Retrying cannot fix a rejected address.
+        skipped.push({ id: row.id, reason: "bad-address" });
+        failures.push(`${row.template} -> ${row.user_id}: ${result.detail}`);
+      } else {
+        deferred += 1;
+        failures.push(`${row.template} -> ${row.user_id}: ${result.detail}`);
+      }
+      continue;
+    }
+
     if (row.channel !== "push") {
-      // Unreachable while `transports` has sms and email false, and left here
-      // rather than assumed: the day an adapter lands, this is where it goes.
+      // SMS. Left explicit rather than assumed: the day a Twilio adapter lands
+      // for notifications — Supabase's Verify is auth only — this is where it
+      // goes.
       deferred += 1;
       continue;
     }
@@ -258,6 +341,7 @@ export async function GET(request: Request) {
     deferred,
     expiredSubscriptions: expiredSubs.size,
     pushConfigured: configured,
+    emailConfigured: emailUp,
     failures: failures.length,
   });
 }

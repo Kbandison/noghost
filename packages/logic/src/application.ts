@@ -50,6 +50,8 @@ export interface ApplicationDraft {
   /** Storage paths, never image bytes. */
   photoPaths?: string[];
   prompts?: { prompt_id: string; answer: string }[];
+  /** Receipts and lifecycle mail (§7.4). Never a sign-in credential. */
+  email?: string;
   /** Optional 30s intro (§7.2). A storage path, never audio bytes. */
   voiceIntroPath?: string;
   /**
@@ -73,9 +75,25 @@ const fail = (errors: FieldErrors): StepResult => ({ ok: false, errors });
 /** E.164, matching the `e164` domain the schema enforces. */
 export const E164 = /^\+[1-9]\d{1,14}$/;
 
+/**
+ * Deliberately loose. The only thing worth refusing here is an address that
+ * cannot be one — a typo'd domain is caught by the mail bouncing, and a
+ * stricter pattern rejects real addresses (apostrophes, plus tags, new TLDs)
+ * on the first screen of an application.
+ */
+export const EMAIL_SHAPE = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/;
+
 export function validatePhone(draft: ApplicationDraft): StepResult {
   if (!draft.phone || !E164.test(draft.phone)) {
     return fail({ phone: "Enter a phone number we can text, including the country code." });
+  }
+  /*
+   * Required, not optional. §7.4 says email is "captured at application for
+   * receipts/comms", and every §9.5 lifecycle mail — including the one telling
+   * somebody they got in — has nowhere to go without it.
+   */
+  if (!draft.email || !EMAIL_SHAPE.test(draft.email.trim())) {
+    return fail({ email: "We need an email for your receipt and your admission decision." });
   }
   if (!draft.consentedAt) {
     return fail({ consent: "Please confirm the three statements above." });
