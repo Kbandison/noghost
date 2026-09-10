@@ -22,6 +22,7 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=${publicKey}
 VAPID_PRIVATE_KEY=${privateKey}
 VAPID_SUBJECT=mailto:you@example.com
 
-The subject must be a mailto: or https: URL a push service can use to reach you.
-Keep the private key server-side — never NEXT_PUBLIC_.
+Replace the subject with a real address — a bare "mailto:" is accepted by FCM
+and rejected by Mozilla, so push would work in Chrome and silently fail in
+Firefox. Keep the private key server-side — never NEXT_PUBLIC_.
 `);

@@ -48,6 +48,22 @@ export function pushConfigured(): boolean {
     return ready;
   }
 
+  /*
+   * A subject with a scheme and nothing after it — `mailto:` on its own — is
+   * what a half-finished paste leaves. `web-push` accepts it and so does FCM;
+   * Mozilla's push service returns 400. Refusing here means push is uniformly
+   * off rather than working in one browser and not another.
+   */
+  if (!/^mailto:.+@.+\..+$/.test(subject) && !/^https:\/\/.+\..+/.test(subject)) {
+    console.error(
+      `[push] VAPID_SUBJECT is "${subject}", which is not a contact address. ` +
+        "Use mailto:you@example.com or https://example.com — a bare scheme is " +
+        "accepted by FCM and rejected by Mozilla.",
+    );
+    ready = false;
+    return ready;
+  }
+
   try {
     webpush.setVapidDetails(subject, publicKey, privateKey);
     ready = true;
@@ -102,10 +118,23 @@ export async function sendPush(target: PushTarget, payload: PushPayload): Promis
       const expired = cause.statusCode === 404 || cause.statusCode === 410;
       return { ok: false, expired, detail: `${cause.statusCode} ${cause.body ?? cause.message}` };
     }
-    return {
-      ok: false,
-      expired: false,
-      detail: cause instanceof Error ? cause.message : String(cause),
-    };
+    const detail = cause instanceof Error ? cause.message : String(cause);
+
+    /*
+     * Not a `WebPushError`, so no request was ever made: `web-push` validates
+     * the subscription's keys before it encrypts, and a p256dh that is not 65
+     * bytes or an auth that is not 16 can never become a valid message.
+     *
+     * Retired rather than retried, because retrying cannot fix a length. A row
+     * like this is a corrupted or hand-written subscription, and without this
+     * the sweep would pick it up, fail, and pick it up again on every run
+     * forever — spending a send attempt per sweep on a device that cannot
+     * receive anything.
+     */
+    if (/should be \d+ bytes long|must be a string|Unsupported/i.test(detail)) {
+      return { ok: false, expired: true, detail: `malformed subscription: ${detail}` };
+    }
+
+    return { ok: false, expired: false, detail };
   }
 }

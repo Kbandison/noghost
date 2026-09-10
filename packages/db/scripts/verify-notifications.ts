@@ -17,6 +17,7 @@
  * Builds and removes its own world.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createECDH, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { SEED_SEASON } from "../src/seed/data";
@@ -563,8 +564,23 @@ async function main() {
         // A dead endpoint must retire the subscription rather than the row, and
         // must not mark anything sent.
         const endpoint = "https://fcm.googleapis.com/fcm/send/definitely-not-a-real-endpoint";
+
+        /*
+         * Validly *shaped* keys for an endpoint that does not exist, which is
+         * the case being tested. `web-push` checks the key lengths before it
+         * encrypts anything, so placeholder strings never reach the network and
+         * the push service never gets to say the subscription is gone — the
+         * first version of this used "probe" for both and was asserting that a
+         * local length check does not retire a row, which is a different and
+         * much less interesting fact.
+         */
+        const ecdh = createECDH("prime256v1");
+        ecdh.generateKeys();
         await service.from("push_subscriptions").insert({
-          user_id: a!.id, endpoint, p256dh: "probe", auth: "probe",
+          user_id: a!.id,
+          endpoint,
+          p256dh: ecdh.getPublicKey().toString("base64url"),
+          auth: randomBytes(16).toString("base64url"),
         });
         const { data: row } = await service
           .from("notifications")

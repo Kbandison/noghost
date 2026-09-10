@@ -75,10 +75,19 @@ export const serverEnvSchema = z.object({
    * deployment that has not set them up yet.
    */
   VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+  /*
+   * The scheme is not enough: a bare `mailto:` passes a `startsWith` check and
+   * is what a half-finished paste leaves behind. FCM accepts it, Mozilla's push
+   * service does not — so the failure is push that works in Chrome and silently
+   * does nothing in Firefox, which is the hardest kind of bug to be told about.
+   */
   VAPID_SUBJECT: z
     .string()
-    .refine((v) => v.startsWith("mailto:") || v.startsWith("https://"), {
-      message: "must be a mailto: or https: URL — the push services contact you there",
+    .refine((v) => /^mailto:.+@.+\..+$/.test(v) || /^https:\/\/.+\..+/.test(v), {
+      message:
+        "must be a real contact URL — mailto:you@example.com or https://example.com. " +
+        "A bare 'mailto:' is accepted by FCM and rejected by Mozilla, so push would " +
+        "work in Chrome and silently fail in Firefox.",
     })
     .optional(),
 });
