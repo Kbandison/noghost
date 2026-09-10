@@ -86,7 +86,7 @@ export function validatePhone(draft: ApplicationDraft): StepResult {
 export function validateVerify(draft: ApplicationDraft): StepResult {
   return draft.phoneVerifiedAt
     ? ok
-    : fail({ code: "That code didn't match. Check the last six digits we sent." });
+    : fail({ code: "That code didn't match. Check the code we sent, or ask for a new one." });
 }
 
 export function validateAbout(draft: ApplicationDraft, now: string): StepResult {

@@ -195,6 +195,23 @@ export const CHECKIN_EXPIRE_AFTER_HOURS = 72;
 /** A pending connect gets one nudge at 72h — spec §6.2. Exactly one. */
 export const CONNECT_NUDGE_HOURS = 72;
 
+/**
+ * How many digits a phone OTP has.
+ *
+ * NOT six. Supabase issues 6–10 and the length is a per-project setting, so the
+ * app cannot assume one — it was assuming six in eight places, including a
+ * `maxLength={6}` that silently swallowed the seventh digit of a correct code
+ * and then said "that code didn't match". A member would have retyped it until
+ * they gave up.
+ *
+ * Validated as a range rather than read from config, because the app has no way
+ * to ask Supabase what it is set to; accepting the whole supported range and
+ * letting the server be the judge is the honest version.
+ */
+export const OTP_MIN_DIGITS = 6;
+export const OTP_MAX_DIGITS = 10;
+export const OTP_PATTERN = /^\d{6,10}$/;
+
 /** Quiet hours — nothing sends between these times, local — spec §8. */
 export const QUIET_HOURS = { startHour: 23, endHour: 9 } as const;
 

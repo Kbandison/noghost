@@ -12,6 +12,7 @@ import {
   PHOTO_MAX,
   PHOTO_MIN,
   PROMPT_COUNT,
+  OTP_MAX_DIGITS,
   interpolate,
 } from "@noghost/config";
 import { CONSENT, PROMPT_LIBRARY } from "@noghost/config/copy";
@@ -71,7 +72,7 @@ export function VerifyStep({ draft, errors }: StepProps) {
         name="code"
         inputMode="numeric"
         autoComplete="one-time-code"
-        maxLength={6}
+        maxLength={OTP_MAX_DIGITS}
         placeholder="000000"
         className="text-center font-[family-name:var(--font-display)] text-[28px] tracking-[0.4em]"
         error={errors.code}

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { OTP_PATTERN } from "@noghost/config";
 import { otpMessage } from "@/lib/otp";
 import { supabaseServer } from "@/lib/supabase";
 import { allowRequest } from "@/lib/rate-limit";
@@ -95,7 +96,7 @@ export async function verifyCode(
   const code = String(formData.get("code") ?? "").replace(/\D/g, "");
 
   if (!E164.test(phone)) return { stage: "phone", error: "Start again with your number." };
-  if (!/^\d{6}$/.test(code)) {
+  if (!OTP_PATTERN.test(code)) {
     return { stage: "code", phone, sent: true, error: "Six digits, from the text." };
   }
 

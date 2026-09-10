@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { OTP_MAX_DIGITS } from "@noghost/config";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/field";
 import { requestCode, verifyCode, type SignInState } from "./actions";
@@ -62,7 +63,7 @@ export function SignInForm() {
         name="code"
         inputMode="numeric"
         autoComplete="one-time-code"
-        maxLength={6}
+        maxLength={OTP_MAX_DIGITS}
         placeholder="000000"
         required
         error={state.error}

@@ -1,5 +1,6 @@
 "use server";
 
+import { OTP_PATTERN } from "@noghost/config";
 import { usingSeedData } from "@noghost/config/env";
 import { createServiceClient } from "@noghost/db/service";
 import { allowRequest } from "@/lib/rate-limit";
@@ -142,7 +143,7 @@ async function runEffect(
     // Seed mode keeps the funnel clickable with nothing provisioned. It says
     // so on screen rather than pretending an SMS was sent.
     if (step === "verify") {
-      const accepted = /^\d{6}$/.test(str(fd, "code"));
+      const accepted = OTP_PATTERN.test(str(fd, "code"));
       return { draft: { ...draft, phoneVerifiedAt: accepted ? new Date().toISOString() : undefined } };
     }
     return { draft };
@@ -180,7 +181,7 @@ async function runEffect(
 
   if (step === "verify") {
     const code = str(fd, "code");
-    if (!draft.phone || !/^\d{6}$/.test(code)) {
+    if (!draft.phone || !OTP_PATTERN.test(code)) {
       return { draft: { ...draft, phoneVerifiedAt: undefined } };
     }
 
@@ -240,7 +241,7 @@ export async function submitStep(prev: StepState, formData: FormData): Promise<S
       draft: next,
       version,
       notice: usingSeedData()
-        ? "Seed mode — no SMS was sent. Any six digits will do."
+        ? "Seed mode — no SMS was sent. Any 6-10 digits will do."
         : `Code sent to ${next.phone}.`,
     };
   }

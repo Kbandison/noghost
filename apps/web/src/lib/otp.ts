@@ -18,7 +18,7 @@ export function otpMessage(raw: string): string {
     return "That's a lot of codes in a short time. Wait a minute, then try again.";
   }
   if (m.includes("expired") || m.includes("invalid") || m.includes("token")) {
-    return "That code didn't match. Check the last six digits we sent, or ask for a new one.";
+    return "That code didn't match. Check the code we sent, or ask for a new one.";
   }
   if (m.includes("provider") || m.includes("not enabled") || m.includes("disabled")) {
     // Configuration, not the member's fault. Say so rather than implying their
