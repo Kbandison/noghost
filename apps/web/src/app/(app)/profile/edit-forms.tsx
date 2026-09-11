@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
 import { publicPhotoUrl } from "@/lib/photos";
-import { uploadImage, uploadVoiceIntro } from "@/lib/upload";
+import { screeningThumbnail, uploadImage, uploadVoiceIntro } from "@/lib/upload";
+import {
+  screenBeforeUpload,
+  screenPhoto,
+} from "@/app/(apply)/apply/start/photo-actions";
 import { VOICE_INTRO_MAX_MS } from "@/lib/voice";
 import type { ProfilePhotoRow } from "@/lib/settings";
 import { LocationField } from "@/components/ui/location-field";
@@ -186,8 +190,36 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
     try {
       const uploaded: ProfilePhotoRow[] = [];
       for (const file of picked) {
-        uploaded.push({ path: await uploadImage("photos", file), approved: false });
+        /*
+         * Screened here too, and it was not.
+         *
+         * The funnel refuses explicit content at the upload, but this screen —
+         * where an admitted member changes their photos months later — went
+         * straight to storage. Moderation that only covers the way in is
+         * moderation somebody walks around by waiting until they are in.
+         *
+         * Same order as the funnel: judge a small copy first so nothing
+         * unusable reaches a publicly readable bucket, then confirm against the
+         * stored file, which is what a reviewer and the approval flag rest on.
+         */
+        const data = new FormData();
+        data.set("thumb", await screeningThumbnail(file));
+        const screened = await screenBeforeUpload(data);
+        if (screened.verdict === "refuse") {
+          setUploadError(screened.reason ?? "That photo can’t be used here. Pick a different one.");
+          continue;
+        }
+
+        const path = await uploadImage("photos", file);
+        const confirmed = await screenPhoto(path);
+        if (confirmed.verdict === "refuse") {
+          setUploadError(confirmed.reason ?? "That photo can’t be used here. Pick a different one.");
+          continue;
+        }
+
+        uploaded.push({ path, approved: false });
       }
+      if (uploaded.length === 0) return;
       const next = [...rows, ...uploaded];
       setRows(next);
       save(next);

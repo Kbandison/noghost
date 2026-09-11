@@ -159,6 +159,21 @@ async function setup() {
       gender: "woman",
       seeking: ["man"],
       status: "active",
+      /*
+       * An address, so the email checks reach the thing they are checking.
+       *
+       * The sweep skips `no-address` before it ever looks at copy (0026 added
+       * this column, and anybody who applied before it has none). Without one
+       * here, the row asserting "a template §9.5 never wrote is skipped as
+       * no-copy" was being skipped as no-address instead — passing, or
+       * skipping, for a reason that had nothing to do with what it claims to
+       * test.
+       *
+       * `.test` is not a deliverable domain, which is the point: the fixture
+       * can exercise every branch up to the send without any of it being able
+       * to reach a real inbox.
+       */
+      email: email(person.key),
     });
     if (profileError) throw new Error(`profile ${person.key}: ${profileError.message}`);
   }

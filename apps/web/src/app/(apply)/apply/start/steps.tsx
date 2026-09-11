@@ -291,7 +291,25 @@ export function PhotosStep({ draft, errors }: StepProps) {
    * because somebody picking six files at once should be told about the last
    * refusal rather than reading a stack of them.
    */
-  const [refused, setRefused] = useState<string | null>(null);
+  const [refused, setRefused] = useState<{ text: string; id: number } | null>(null);
+
+  /*
+   * Clears itself after five seconds.
+   *
+   * A new object every time, so two refusals in a row restart the clock rather
+   * than the first one's timer cutting the second one short.
+   *
+   * `role="alert"` on the element below matters more than usual here: it is
+   * announced the moment it appears, so somebody using a screen reader hears
+   * the whole thing before it is removed. An auto-dismissing message that was
+   * only visual would be readable by exactly the people least likely to need
+   * it read aloud.
+   */
+  useEffect(() => {
+    if (!refused) return;
+    const timer = setTimeout(() => setRefused(null), 5000);
+    return () => clearTimeout(timer);
+  }, [refused]);
   const [photos, setPhotos] = useState<PendingPhoto[]>(() =>
     (draft.photoPaths ?? []).map((path, i) => ({
       key: `restored-${i}-${path}`,
@@ -301,6 +319,12 @@ export function PhotosStep({ draft, errors }: StepProps) {
       error: null,
     })),
   );
+
+  const refuse = (text: string | undefined) =>
+    setRefused({
+      text: text ?? "That photo can’t be used here. Pick a different one.",
+      id: Date.now(),
+    });
 
   const stored = photos.filter((p) => p.path !== null).length;
   const uploading = photos.filter((p) => p.path === null && p.error === null).length;
@@ -344,7 +368,7 @@ export function PhotosStep({ draft, errors }: StepProps) {
 
         if (screened.verdict === "refuse") {
           setPhotos((prev) => prev.filter((p) => p.key !== key));
-          setRefused(screened.reason ?? "That photo can’t be used here. Pick a different one.");
+          refuse(screened.reason);
           return;
         }
 
@@ -361,7 +385,7 @@ export function PhotosStep({ draft, errors }: StepProps) {
         const confirmed = await screenPhoto(path);
         if (confirmed.verdict !== "refuse") return;
         setPhotos((prev) => prev.filter((p) => p.key !== key));
-        setRefused(confirmed.reason ?? "That photo can’t be used here. Pick a different one.");
+        refuse(confirmed.reason);
       })()
         .catch((cause: unknown) =>
           setPhotos((prev) =>
@@ -462,10 +486,11 @@ export function PhotosStep({ draft, errors }: StepProps) {
       </p>
       {refused && (
         <p
+          key={refused.id}
           role="alert"
           className="border-l-2 border-[var(--error)] pl-3 text-[15px] leading-snug text-[var(--error)]"
         >
-          {refused}
+          {refused.text}
         </p>
       )}
 
