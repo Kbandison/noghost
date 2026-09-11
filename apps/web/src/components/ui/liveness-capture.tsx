@@ -308,6 +308,32 @@ export function LivenessCapture({
             still while the screen changes colour. That&rsquo;s what tells us a real person is
             there, rather than a photo of one.
           </p>
+          {/*
+            * Lighting guidance, because the check is a light meter.
+            *
+            * It works by reading the screen's colour sequence reflected off a
+            * face. A window or lamp BEHIND somebody defeats that twice over:
+            * their face sits darker than the wall behind it, so there is little
+            * reflected signal to read, and the camera's exposure then hunts the
+            * bright background for the whole recording, moving the very
+            * measurement being taken.
+            *
+            * That is not hypothetical. The first backlit capture through this
+            * screen scored 0.0001 while matching its own profile photo at
+            * 99.99 — Rekognition was certain of the face and certain it was not
+            * live. Its three well-lit attempts that day scored 64.6, 73.5 and
+            * 89.4, and every one of them held exposure within 5% across the
+            * capture where the failed one swung 28%.
+            *
+            * AWS's own guidance is to say this BEFORE the check rather than
+            * retry afterwards, and saying it to everybody up front is the only
+            * version compatible with never telling somebody their score — a
+            * lighting tip offered after a low one is a score, spelled out.
+            */}
+          <p className="border-l-2 border-[var(--border)] pl-4 text-[15px] leading-relaxed text-[var(--text-secondary)]">
+            Face a window or a lamp if you can &mdash; light <em>behind</em> you leaves your
+            face in shadow, and shadow is the one thing this check struggles to read.
+          </p>
           <button
             type="button"
             onClick={() => void start()}
