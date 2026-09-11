@@ -554,6 +554,15 @@
         what Vercel hands you by default from <code>sfo1</code>, and it is the
         one region in this neighbourhood that has neither service.
       </p>
+      <div class="watch">
+        <b>This is not the region picker in the AWS console.</b> Every step
+        below happens in IAM, which is a global service — so the selector in
+        the top-right will read <b>Global</b> the whole way through, and that
+        is correct rather than a problem to fix. You never need to switch it.
+        <code>AWS_REGION</code> is a string you type into an environment
+        variable, and it chooses which API endpoint gets called. The only other
+        place the region appears is typed into the policy ARN in step 2.
+      </div>
     </section>
 
     <section class="step">

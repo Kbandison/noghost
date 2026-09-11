@@ -58,6 +58,14 @@ sa-east-1       us-east-1      us-east-2       us-gov-west-1   us-west-2
 Note what is missing: `us-west-1`, which is what Vercel hands you by
 default from `sfo1`.
 
+**This is not the region picker in the AWS console.** Every step below
+happens in IAM, which is a global service — so the selector in the
+top-right will read **Global** the whole way through, and that is correct
+rather than a problem to fix. You never need to switch it. `AWS_REGION`
+is a string you type into an environment variable, and it chooses which
+API endpoint gets called. The only other place the region appears is
+typed into the policy ARN in step 2.
+
 ## 2. Create the policy
 
 IAM → **Policies** → **Create policy** → **JSON** tab. Paste this,
