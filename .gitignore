@@ -51,3 +51,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*
+
+# Copied from node_modules by apps/web/scripts/vendor-liveness-assets.mjs on
+# every build. Committing them invites exactly the version drift the script
+# exists to prevent.
+apps/web/public/tfjs-wasm/

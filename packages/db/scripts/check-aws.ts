@@ -19,7 +19,11 @@ import {
   GetFaceLivenessSessionResultsCommand,
   RekognitionClient,
 } from "@aws-sdk/client-rekognition";
-import { GeoPlacesClient, GeocodeCommand } from "@aws-sdk/client-geo-places";
+import {
+  GeoPlacesClient,
+  GeocodeCommand,
+  ReverseGeocodeCommand,
+} from "@aws-sdk/client-geo-places";
 import { ENV_PATH, loadRepoEnv } from "./env";
 
 loadRepoEnv();
@@ -277,6 +281,33 @@ async function main() {
     }
   } catch (cause) {
     bad("Geocode failed", explain(cause));
+  }
+
+  /*
+   * A separate IAM action from Geocode, and the one the "use my location"
+   * button needs. Without it that button falls back to saying "Your current
+   * area", which tells somebody the tap registered and nothing about whether
+   * their browser put them in the right city.
+   */
+  try {
+    const out = await new GeoPlacesClient({ region, credentials }).send(
+      new ReverseGeocodeCommand({
+        // Downtown Atlanta, [lng, lat].
+        QueryPosition: [-84.384, 33.781],
+        // SingleUse on purpose: the label is shown and discarded, never stored,
+        // so the cheaper bucket is also the honest one.
+        IntendedUse: "SingleUse",
+        MaxResults: 1,
+        QueryRadius: 2000,
+      }),
+    );
+    const item = out.ResultItems?.[0];
+    ok(
+      "ReverseGeocode is allowed, with IntendedUse: SingleUse",
+      `that point → ${item?.Address?.Locality ?? "?"}, ${item?.Address?.Region?.Code ?? "?"}`,
+    );
+  } catch (cause) {
+    bad("ReverseGeocode failed", explain(cause));
   }
 
   if (failures > 0) {

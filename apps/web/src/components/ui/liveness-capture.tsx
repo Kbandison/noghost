@@ -2,6 +2,19 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
+/*
+ * The component's own stylesheet, and it is not optional.
+ *
+ * Without it the thing renders as a stack of unstyled boxes: the instructions
+ * overflow, and the oval that is supposed to sit *over* the camera preview
+ * lands underneath it as a white blob on black. It looks broken because it is
+ * — every rule that positions the overlay lives in here.
+ *
+ * Imported in this file rather than a global so it rides along with the dynamic
+ * import. 330KB of CSS on the eight screens that do not use a camera would be a
+ * poor trade.
+ */
+import "@aws-amplify/ui-react-liveness/styles.css";
 import {
   startLiveness,
   finishLiveness,
@@ -71,6 +84,42 @@ const SELF_HOSTED = {
   binaryPath: "/tfjs-wasm/",
   faceModelUrl: "/face-model/model.json",
 };
+
+/*
+ * Amplify's own theme, re-pointed at NoGhost's.
+ *
+ * The component reads `--amplify-*` custom properties, so this is a translation
+ * layer rather than a fight with its stylesheet: set them on the wrapper and
+ * everything inside inherits. Left alone it arrives in Amplify's blue-and-grey,
+ * which in the middle of a warm serif funnel reads as a third-party widget
+ * somebody embedded — which is exactly what it is, and exactly what it should
+ * not look like.
+ */
+const AMPLIFY_THEME: React.CSSProperties = {
+  "--amplify-fonts-default-variable": "var(--font-sans)",
+  "--amplify-fonts-default-static": "var(--font-sans)",
+  "--amplify-colors-background-primary": "var(--bg-primary)",
+  "--amplify-colors-background-secondary": "var(--bg-secondary)",
+  "--amplify-colors-background-tertiary": "var(--bg-secondary)",
+  "--amplify-colors-font-primary": "var(--text-primary)",
+  "--amplify-colors-font-secondary": "var(--text-secondary)",
+  "--amplify-colors-font-tertiary": "var(--text-dim)",
+  "--amplify-colors-border-primary": "var(--border)",
+  "--amplify-colors-border-secondary": "var(--border-subtle)",
+  "--amplify-colors-border-focus": "var(--accent-text)",
+  // The primary button, and the oval's own accent while it tracks a face.
+  "--amplify-colors-brand-primary-10": "var(--accent-wash, var(--bg-secondary))",
+  "--amplify-colors-brand-primary-80": "var(--accent)",
+  "--amplify-colors-brand-primary-90": "var(--accent-hover)",
+  "--amplify-colors-brand-primary-100": "var(--accent-hover)",
+  "--amplify-colors-primary-80": "var(--accent)",
+  "--amplify-colors-primary-90": "var(--accent-hover)",
+  "--amplify-components-button-primary-background-color": "var(--accent)",
+  "--amplify-components-button-primary-color": "var(--on-accent)",
+  "--amplify-radii-small": "3px",
+  "--amplify-radii-medium": "4px",
+  "--amplify-radii-large": "6px",
+} as React.CSSProperties;
 
 type Phase = "idle" | "starting" | "streaming" | "checking" | "done" | "unavailable";
 
@@ -200,7 +249,10 @@ export function LivenessCapture({
   return (
     <div className="space-y-5">
       {phase === "streaming" && session?.sessionId ? (
-        <div className="overflow-hidden rounded-md border border-[var(--border)]">
+        <div
+          style={AMPLIFY_THEME}
+          className="overflow-hidden rounded-md border border-[var(--border)]"
+        >
           <FaceLivenessDetectorCore
             sessionId={session.sessionId}
             region={session.region!}

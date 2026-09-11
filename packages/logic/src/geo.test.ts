@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALLOWED_RADII_KM,
+  defaultRadiusFor,
   distanceKm,
   distanceLabel,
+  formatRadius,
   isUsablePoint,
   placeLabel,
   proximityScore,
+  radiiFor,
   roundForStorage,
+  unitForCountry,
+  unitForLocale,
   withinReach,
 } from "./geo";
 
@@ -163,5 +169,64 @@ describe("placeLabel — a place, never an address", () => {
   it("gives back what they typed rather than nothing at all", () => {
     expect(placeLabel({}, "30308")).toBe("30308");
     expect(placeLabel({ title: "  ", locality: "  " }, "Lisbon")).toBe("Lisbon");
+  });
+});
+
+describe("distance units — stored in km, read in whatever you think in", () => {
+  it("picks miles for the countries that actually use them", () => {
+    for (const c of ["US", "GB", "LR", "MM", "us", "gb"]) {
+      expect(unitForCountry(c)).toBe("mi");
+    }
+    // Britain is the one that catches people out: metric for nearly everything,
+    // imperial on road signs.
+    expect(unitForCountry("GB")).toBe("mi");
+  });
+
+  it("picks kilometres everywhere else, and when it has no idea", () => {
+    for (const c of ["PT", "FR", "JP", "CA", "AU", "", null, undefined]) {
+      expect(unitForCountry(c)).toBe("km");
+    }
+  });
+
+  it("reads a locale's region", () => {
+    expect(unitForLocale("en-US")).toBe("mi");
+    expect(unitForLocale("en-GB")).toBe("mi");
+    expect(unitForLocale("en-CA")).toBe("km");
+    expect(unitForLocale("pt-PT")).toBe("km");
+    expect(unitForLocale("en")).toBe("km");
+    expect(unitForLocale(undefined)).toBe("km");
+  });
+
+  it("offers round numbers in the unit shown, not converted ones", () => {
+    // The whole point: an applicant in Atlanta picks "25 miles", and 40 is
+    // simply what that is in the column. They never see 16 or 161.
+    expect(radiiFor("mi").map((km) => formatRadius(km, "mi")))
+      .toEqual(["5 miles", "10 miles", "25 miles", "50 miles", "100+ miles"]);
+    expect(radiiFor("km").map((km) => formatRadius(km, "km")))
+      .toEqual(["5 km", "10 km", "25 km", "50 km", "100+ km"]);
+  });
+
+  it("every offered radius is one the server will accept", () => {
+    for (const unit of ["km", "mi"] as const) {
+      for (const km of radiiFor(unit)) expect(ALLOWED_RADII_KM).toContain(km);
+      expect(ALLOWED_RADII_KM).toContain(defaultRadiusFor(unit));
+    }
+  });
+
+  it("stays inside the database's 1–500 constraint", () => {
+    for (const km of ALLOWED_RADII_KM) {
+      expect(km).toBeGreaterThanOrEqual(1);
+      expect(km).toBeLessThanOrEqual(500);
+    }
+  });
+
+  it("a radius set in one unit still reaches the same people in the other", () => {
+    // Nobody's matching changes when they cross a border, because the column
+    // never changed — only the label.
+    const atlanta = { lat: 33.781, lng: -84.384 };
+    const decatur = { lat: 33.775, lng: -84.296 };
+    expect(withinReach(atlanta, 40, decatur, 40)).toBe(true);
+    expect(formatRadius(40, "mi")).toBe("25 miles");
+    expect(formatRadius(40, "km")).toBe("40 km");
   });
 });

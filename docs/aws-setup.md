@@ -95,7 +95,10 @@ replacing the region in the ARN if you did not pick `us-east-1`:
     {
       "Sid": "GeocodeTypedPlaces",
       "Effect": "Allow",
-      "Action": "geo-places:Geocode",
+      "Action": [
+        "geo-places:Geocode",
+        "geo-places:ReverseGeocode"
+      ],
       "Resource": "arn:aws:geo-places:us-east-1::provider/default"
     }
   ]

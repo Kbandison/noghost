@@ -1,11 +1,28 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
-import { DEFAULT_TRAVEL_RADIUS_KM, TRAVEL_RADII_KM, roundForStorage } from "@noghost/logic";
-import { lookupPlace, type LookupState } from "@/app/(apply)/apply/start/location-actions";
+import { startTransition, useActionState, useState, useSyncExternalStore } from "react";
+import {
+  defaultRadiusFor,
+  formatRadius,
+  radiiFor,
+  roundForStorage,
+  unitForCountry,
+  unitForLocale,
+  type DistanceUnit,
+} from "@noghost/logic";
+import {
+  lookupPlace,
+  nameThisPlace,
+  type LookupState,
+} from "@/app/(apply)/apply/start/location-actions";
 import { Chip } from "./field";
 
 const initial: LookupState = {};
+
+/* A value that never changes after load, so the subscribe function is a no-op. */
+const NEVER_CHANGES = () => () => {};
+const readLocaleUnit = (): DistanceUnit => unitForLocale(navigator.language);
+const assumeMetric = (): DistanceUnit => "km";
 
 /**
  * Roughly where you are, and how far you'll go.
@@ -43,7 +60,53 @@ export function LocationField({
       : null,
   );
   const [label, setLabel] = useState<string | null>(defaultLabel ?? null);
-  const [radius, setRadius] = useState<number>(defaultRadiusKm ?? DEFAULT_TRAVEL_RADIUS_KM);
+  /*
+   * Miles or kilometres, decided before they have told us anything.
+   *
+   * Read through `useSyncExternalStore` rather than `useState(() => …)`, and
+   * that is not stylistic. A state initialiser runs once, on the server, where
+   * `navigator` does not exist — so it would settle on kilometres and React
+   * would never re-run it during hydration. Every American would have seen
+   * kilometres, and the bug would look like the locale check simply not
+   * working.
+   *
+   * This hook exists for exactly this shape: a value the server cannot know,
+   * with an explicit server fallback. Same pattern as `VoiceRecorder`'s
+   * support check.
+   */
+  const localeUnit = useSyncExternalStore(NEVER_CHANGES, readLocaleUnit, assumeMetric);
+
+  /** Set once a real place is known — a country beats a browser setting. */
+  const [placeUnit, setPlaceUnit] = useState<DistanceUnit | null>(
+    defaultRadiusKm === undefined ? null : null,
+  );
+  const unit: DistanceUnit = placeUnit ?? localeUnit;
+
+  const [pickedRadius, setPickedRadius] = useState<number | null>(defaultRadiusKm ?? null);
+  /*
+   * Derived, not stored. An unpicked radius is "the sensible default for
+   * whatever unit we are showing", so it follows the unit when a country
+   * arrives instead of being stranded at a number from the other list.
+   */
+  const radius = pickedRadius ?? defaultRadiusFor(unit);
+
+  /*
+   * A radius picked in the other unit still has to be selectable. 40km is
+   * "25 miles" to an American and simply 40 to everyone else — so if the value
+   * they already have is not one of this unit's round numbers, show the list it
+   * did come from rather than silently dropping their choice.
+   */
+  const other: DistanceUnit = unit === "mi" ? "km" : "mi";
+  const options = radiiFor(unit).includes(radius)
+    ? radiiFor(unit)
+    : radiiFor(other).includes(radius)
+      ? radiiFor(other)
+      : radiiFor(unit);
+
+  /** A country beats the browser's locale — see `localeUnit` above. */
+  function adoptUnit(country: string | null | undefined) {
+    if (country) setPlaceUnit(unitForCountry(country));
+  }
   const [asking, setAsking] = useState(false);
   const [deviceError, setDeviceError] = useState<string | null>(null);
 
@@ -62,6 +125,7 @@ export function LocationField({
       if (result.lat !== undefined && result.lng !== undefined) {
         setPoint({ lat: result.lat, lng: result.lng });
         setLabel(result.label ?? null);
+        adoptUnit(result.country);
         setDeviceError(null);
       }
       return result;
@@ -103,8 +167,17 @@ export function LocationField({
           lng: position.coords.longitude,
         });
         setPoint(rounded);
-        setLabel("Your current area");
+        /*
+         * "Your current area" was not an answer. It confirmed the tap and said
+         * nothing about whether the browser had put them in the right city —
+         * and a browser that guesses badly guesses by hundreds of miles. Named
+         * now, from the rounded point, so a wrong one is obvious.
+         */
+        setLabel("Finding where that is…");
         setAsking(false);
+        void nameThisPlace(rounded.lat, rounded.lng).then((named) => {
+          setLabel(named.label ?? "Your current area");
+        });
       },
       () => {
         setAsking(false);
@@ -203,15 +276,15 @@ export function LocationField({
           How far you&rsquo;d travel
         </legend>
         <div className="flex flex-wrap gap-2">
-          {TRAVEL_RADII_KM.map((km) => (
+          {options.map((km) => (
             <Chip
               key={km}
               name="travelRadiusKm"
               type="radio"
               value={String(km)}
-              label={km >= 100 ? "100km+" : `${km}km`}
+              label={formatRadius(km, unit)}
               checked={radius === km}
-              onChange={() => setRadius(km)}
+              onChange={() => setPickedRadius(km)}
             />
           ))}
         </div>

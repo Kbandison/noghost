@@ -1,4 +1,8 @@
-import { GeoPlacesClient, GeocodeCommand } from "@aws-sdk/client-geo-places";
+import {
+  GeoPlacesClient,
+  GeocodeCommand,
+  ReverseGeocodeCommand,
+} from "@aws-sdk/client-geo-places";
 import { placeLabel, roundForStorage, isUsablePoint, type Point } from "@noghost/logic";
 import { awsConfig } from "./aws";
 
@@ -42,6 +46,8 @@ export interface GeocodeResult {
   point: Point;
   /** What to show back — "Atlanta, GA". Never coordinates. */
   label: string;
+  /** ISO-3166 alpha-2, so the radius chips can pick miles or kilometres. */
+  country: string | null;
 }
 
 export type GeocodeOutcome =
@@ -114,9 +120,95 @@ export async function geocode(query: string): Promise<GeocodeOutcome> {
       trimmed,
     );
 
-    return { ok: true, result: { point: roundForStorage(point), label } };
+    return {
+      ok: true,
+      result: {
+        point: roundForStorage(point),
+        label,
+        country: address?.Country?.Code2 ?? null,
+      },
+    };
   } catch (cause) {
     console.error(`[geocode] ${trimmed}: ${cause instanceof Error ? cause.message : cause}`);
     return { ok: false, reason: "That lookup didn't work. Try again, or use the button above." };
+  }
+}
+
+/**
+ * A coordinate back into a place name, for the "use my location" button.
+ *
+ * That button used to report "Your current area", which is not an answer — it
+ * tells somebody the tap registered and nothing about whether it got the right
+ * place. Somebody whose browser put them in the wrong city had no way to know.
+ *
+ * `IntendedUse` is **SingleUse** here, deliberately, and it is the one place in
+ * this file where that is correct: the coordinate came from the device and is
+ * already stored, and the only thing this call produces is a line of text shown
+ * back and then discarded. Nothing from the response is persisted, so the
+ * cheaper bucket is also the honest one.
+ *
+ * Returns null rather than throwing. A failed lookup means the label falls back
+ * to something vague, which is exactly where this started — a worse label, not
+ * a broken step.
+ */
+export async function reverseGeocode(point: Point): Promise<string | null> {
+  const config = awsConfig();
+  if (!config) return null;
+
+  client ??= new GeoPlacesClient(config);
+
+  try {
+    const out = await client.send(
+      new ReverseGeocodeCommand({
+        // [longitude, latitude], the order Amazon uses everywhere.
+        QueryPosition: [point.lng, point.lat],
+        IntendedUse: "SingleUse",
+        MaxResults: 1,
+        // The point has already been rounded to ~110m, so asking about a
+        // tighter radius than that would be asking about precision we threw
+        // away. Wide enough to land on the locality rather than a driveway.
+        QueryRadius: 2000,
+      }),
+    );
+
+    const found = out.ResultItems?.[0];
+    if (!found) return null;
+
+    const address = found.Address;
+    return placeLabel(
+      {
+        title: found.Title,
+        locality: address?.Locality,
+        regionCode: address?.Region?.Code,
+        regionName: address?.Region?.Name,
+        subRegion: address?.SubRegion?.Name,
+        country: address?.Country?.Name,
+      },
+      "",
+    ) || null;
+  } catch (cause) {
+    console.error(`[geocode] reverse: ${cause instanceof Error ? cause.message : cause}`);
+    return null;
+  }
+}
+
+/** The country the device's point is in, so the radius chips use the right unit. */
+export async function countryAt(point: Point): Promise<string | null> {
+  const config = awsConfig();
+  if (!config) return null;
+  client ??= new GeoPlacesClient(config);
+
+  try {
+    const out = await client.send(
+      new ReverseGeocodeCommand({
+        QueryPosition: [point.lng, point.lat],
+        IntendedUse: "SingleUse",
+        MaxResults: 1,
+        QueryRadius: 2000,
+      }),
+    );
+    return out.ResultItems?.[0]?.Address?.Country?.Code2 ?? null;
+  } catch {
+    return null;
   }
 }

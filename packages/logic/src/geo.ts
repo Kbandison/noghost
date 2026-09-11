@@ -57,9 +57,89 @@ export const distanceKm = (a: Point, b: Point): number => distanceMetres(a, b) /
  * anyone means, and a slider with 200 positions is 200 chances to fidget over a
  * question that has about four real answers.
  */
+/**
+ * Distance, in the unit the person reading it actually thinks in.
+ *
+ * **Kilometres are always what gets stored.** `travel_radius_km` is the column,
+ * `withinReach` does its arithmetic in km, and a member who moves between
+ * countries keeps the same radius. Only the label changes.
+ *
+ * Which means the two lists below are not conversions of each other, and must
+ * not be. Somebody in Atlanta picks "25 miles", not "40 km" — so the imperial
+ * set is round numbers of miles, stored as whatever kilometre figure they come
+ * to. Showing "16 km" converted to "9.9 miles" would be a metric product
+ * wearing a costume.
+ */
+export const KM_PER_MILE = 1.609344;
+
+export type DistanceUnit = "km" | "mi";
+
 export const TRAVEL_RADII_KM = [5, 10, 25, 50, 100] as const;
-export type TravelRadiusKm = (typeof TRAVEL_RADII_KM)[number];
-export const DEFAULT_TRAVEL_RADIUS_KM: TravelRadiusKm = 25;
+
+/** 5, 10, 25, 50 and 100 miles, in the kilometres actually stored. */
+export const TRAVEL_RADII_MI_AS_KM = [8, 16, 40, 80, 161] as const;
+
+/**
+ * What the server will accept — the union, because either list is a legitimate
+ * answer and the server does not know which chips were on screen.
+ */
+export const ALLOWED_RADII_KM: readonly number[] = [
+  ...new Set([...TRAVEL_RADII_KM, ...TRAVEL_RADII_MI_AS_KM]),
+].sort((a, b) => a - b);
+
+export type TravelRadiusKm = number;
+export const DEFAULT_TRAVEL_RADIUS_KM = 25;
+/** The same distance a US applicant would recognise: 25 miles. */
+export const DEFAULT_TRAVEL_RADIUS_MI_AS_KM = 40;
+
+/**
+ * Miles for road distance, and the list is shorter than people expect.
+ *
+ * The United States, the United Kingdom, Liberia and Myanmar. Britain is the
+ * one that surprises: metric for nearly everything and stubbornly imperial on
+ * road signs, so a Londoner picking how far they will travel is thinking in
+ * miles even though they buy milk in litres.
+ *
+ * Taken from a country code when we have one — the place they just told us they
+ * live — and from the browser's locale when we do not, which is the best guess
+ * available before they have said anything.
+ */
+const IMPERIAL_COUNTRIES = new Set(["US", "USA", "GB", "GBR", "UK", "LR", "LBR", "MM", "MMR"]);
+
+export function unitForCountry(country: string | null | undefined): DistanceUnit {
+  if (!country) return "km";
+  return IMPERIAL_COUNTRIES.has(country.trim().toUpperCase()) ? "mi" : "km";
+}
+
+/** `en-US` → mi. Falls back to km, which is what most of the world uses. */
+export function unitForLocale(locale: string | null | undefined): DistanceUnit {
+  if (!locale) return "km";
+  // The region subtag, if there is one: "en-US" -> "US", "en-GB-oxendict" -> "GB".
+  const region = locale.split(/[-_]/).find((part) => /^[A-Za-z]{2}$/.test(part) && part === part.toUpperCase())
+    ?? locale.split(/[-_]/)[1];
+  return unitForCountry(region);
+}
+
+export const radiiFor = (unit: DistanceUnit): readonly number[] =>
+  unit === "mi" ? TRAVEL_RADII_MI_AS_KM : TRAVEL_RADII_KM;
+
+export const defaultRadiusFor = (unit: DistanceUnit): number =>
+  unit === "mi" ? DEFAULT_TRAVEL_RADIUS_MI_AS_KM : DEFAULT_TRAVEL_RADIUS_KM;
+
+/**
+ * A stored kilometre figure, written the way its owner picked it.
+ *
+ * Rounded, because these only ever came from the lists above: 161 km is the
+ * 100 miles somebody chose, and rendering it as "100.0 miles" would advertise a
+ * precision that was never in the choice.
+ */
+export function formatRadius(km: number, unit: DistanceUnit): string {
+  if (unit === "mi") {
+    const miles = Math.round(km / KM_PER_MILE);
+    return miles >= 100 ? "100+ miles" : `${miles} miles`;
+  }
+  return km >= 100 ? "100+ km" : `${km} km`;
+}
 
 /**
  * Both have to be willing, which is the same rule the age range already

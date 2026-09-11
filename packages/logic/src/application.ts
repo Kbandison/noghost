@@ -8,7 +8,7 @@ import {
 } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { Gender } from "@noghost/types";
-import { TRAVEL_RADII_KM, isUsablePoint } from "./geo";
+import { ALLOWED_RADII_KM, isUsablePoint } from "./geo";
 import { ageOn } from "./time";
 
 /**
@@ -197,7 +197,9 @@ export function validatePreferences(draft: ApplicationDraft, now: string): StepR
   if (!isUsablePoint(draft.point)) {
     errors.location = "We need a rough location so we know who's near you.";
   }
-  if (draft.travelRadiusKm !== undefined && !TRAVEL_RADII_KM.includes(draft.travelRadiusKm as never)) {
+  // The union of both unit sets — the server does not know, and should not
+  // care, which chips the applicant was shown.
+  if (draft.travelRadiusKm !== undefined && !ALLOWED_RADII_KM.includes(draft.travelRadiusKm)) {
     errors.travelRadiusKm = "Pick how far you're willing to travel.";
   }
   /*
