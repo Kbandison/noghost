@@ -627,13 +627,23 @@
 
       <h3>b. Create the role</h3>
       <p>
-        IAM → <b>Roles</b> → <b>Create role</b> → <b>Web identity</b>, choosing
-        the provider you just made. Skip the permissions screen, name it
-        <code>noghost-app</code>, create it — then open it and fix both halves.
+        A role is two things, and the wizard only gets one of them right.
+        <b>Who may assume it</b> is the trust policy; <b>what it may do</b> is
+        the permissions. You attach the permissions on the way through and come
+        back to fix the trust policy.
       </p>
       <p>
-        <b>Trust relationships</b> → <b>Edit trust policy</b>, replacing
-        <code>YOUR_ACCOUNT_ID</code> with your twelve-digit AWS account number:
+        IAM → <b>Roles</b> → <b>Create role</b> → <b>Web identity</b>, choosing
+        the provider you just made and the audience alongside it. On the
+        permissions screen tick <code>noghost-app</code> — the policy from step
+        2. Name the role <code>noghost-app</code> too, and create it.
+      </p>
+      <p>
+        Now open it: <b>Trust relationships</b> → <b>Edit trust policy</b>. The
+        wizard writes one that checks only the <i>audience</i>, which every
+        project on the team shares — so as created, any of the other nine could
+        assume this role. Replace it with the below, putting your twelve-digit
+        AWS account number in place of <code>YOUR_ACCOUNT_ID</code>:
       </p>
       <pre><code>{
   "Version": "2012-10-17",
@@ -669,9 +679,8 @@
         at all.
       </p>
       <p>
-        Then <b>Permissions</b> → <b>Add permissions</b> → <b>Attach
-        policies</b> → tick <code>noghost-app</code>, the policy from step 2.
-        Copy the role ARN.
+        Save it, then copy the role ARN from the top of the page. It looks like
+        <code>arn:aws:iam::123456789012:role/noghost-app</code>.
       </p>
     </section>
 

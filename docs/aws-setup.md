@@ -123,12 +123,21 @@ IAM → **Identity providers** → **Add provider** → **OpenID Connect**.
 
 ### 3b. Create the role
 
-IAM → **Roles** → **Create role** → **Web identity**, pick the provider
-you just made. Skip the permissions screen for now, name it
-**`noghost-app`**, create it — then open it and fix both halves:
+A role is two things, and the wizard only gets one of them right. **Who
+may assume it** is the trust policy; **what it may do** is the
+permissions. You attach the permissions on the way through, then come
+back and fix the trust policy.
 
-**Trust relationships** → **Edit trust policy**. Replace
-`YOUR_ACCOUNT_ID` with your twelve-digit AWS account number:
+IAM → **Roles** → **Create role** → **Web identity**, choosing the
+provider you just made and the audience alongside it. On the permissions
+screen, tick `noghost-app` — the policy from step 2. Name the role
+`noghost-app` too, and create it.
+
+Now open it: **Trust relationships** → **Edit trust policy**. The wizard
+writes one that checks only the *audience*, which every project on the
+team shares — so as created, any of the other nine could assume this
+role. Replace it with this, putting your twelve-digit AWS account number
+in place of `YOUR_ACCOUNT_ID`:
 
 ```json
 {
@@ -163,10 +172,7 @@ other projects share this team. `development` is in the list so the same
 role works from your laptop; drop that line if you would rather local
 development had no AWS at all.
 
-**Permissions** → **Add permissions** → **Attach policies** → tick
-`noghost-app` (the policy from step 2).
-
-Copy the role ARN. It looks like
+Save it, then copy the role ARN from the top of the page. It looks like
 `arn:aws:iam::123456789012:role/noghost-app`.
 
 ## 4. Put two variables in Vercel
