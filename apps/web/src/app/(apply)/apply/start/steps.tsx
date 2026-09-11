@@ -15,7 +15,7 @@ import {
   OTP_MAX_DIGITS,
   interpolate,
 } from "@noghost/config";
-import { CONSENT, LEGAL_LINKS, PROMPT_LIBRARY } from "@noghost/config/copy";
+import { CONSENT, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationDraft, FieldErrors } from "@noghost/logic";
 import { Chip, CheckboxRow, TextArea, TextField } from "@/components/ui/field";
 import { FieldError } from "@/components/ui/field";
@@ -26,7 +26,7 @@ import { publicPhotoUrl, screeningThumbnail, uploadImage, uploadVoiceIntro } fro
 import { screenBeforeUpload, screenPhoto } from "./photo-actions";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { LivenessCapture } from "@/components/ui/liveness-capture";
-import { PolicyDialog } from "@/components/ui/policy-dialog";
+import { PolicyDialogs, PolicyText } from "@/components/ui/policy-dialog";
 import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
 import { VOICE_INTRO_MAX_MS } from "@/lib/voice";
 
@@ -693,32 +693,24 @@ export function AgreeStep({ draft, errors }: StepProps) {
       </ul>
 
       <CheckboxRow name="agree" error={errors.agree} defaultChecked={Boolean(draft.agreedAt)}>
-        {interpolate(CONSENT.application, { MIN_AGE })}
+        {/*
+          * The document names in the sentence are the links.
+          *
+          * A separate "Read them:" line underneath was still a second thing to
+          * notice, and a policy nobody notices is a policy nobody reads. The
+          * sentence somebody is agreeing to is the one place they are certainly
+          * looking.
+          */}
+        <PolicyText text={interpolate(CONSENT.application, { MIN_AGE })} />
       </CheckboxRow>
 
       {/*
-        * Opened here rather than in a new tab.
-        *
-        * A link asked somebody mid-application to leave, read, find their way
-        * back, and trust that their half-finished form survived — which is the
-        * version where nobody reads them. If we are going to ask for
-        * agreement, the thing being agreed to belongs within reach of the box.
+        * Outside the CheckboxRow on purpose: its children render inside a
+        * `<label>`, and a label forwards clicks to its control — so a dialog in
+        * there would tick the agreement box every time somebody scrolled a
+        * policy or pressed Close.
         */}
-      {/*
-        * A div, not a p. `PolicyDialog` renders a `<dialog>` beside its button,
-        * and a `<p>` cannot contain one — the browser closes the paragraph
-        * early and rebuilds the tree, which React sees as a hydration mismatch
-        * and re-renders the whole branch on the client.
-        */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] leading-relaxed text-[var(--text-dim)]">
-        <span>Read them:</span>
-        {LEGAL_LINKS.map((link, index) => (
-          <span key={link.href} className="flex items-center gap-x-2">
-            {index > 0 && <span aria-hidden="true">&middot;</span>}
-            <PolicyDialog slug={link.href.replace("/", "")} label={link.label} />
-          </span>
-        ))}
-      </div>
+      <PolicyDialogs />
     </div>
   );
 }
