@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MIN_FACE_SHARE,
+  REFUSE_NOT_PHOTO_CONFIDENCE,
   REFUSE_CONFIDENCE,
   decidePhoto,
   decidePhotoSet,
@@ -67,9 +68,14 @@ describe("decidePhoto", () => {
   });
 
   it("catches a cartoon through the content type", () => {
-    const d = decidePhoto(clean({ contentTypes: [{ name: "Animated", confidence: 92 }] }));
-    expect(d.verdict).toBe("needs-a-person");
-    expect(d.reason.toLowerCase()).toContain("animated");
+    // Confident enough to refuse; see "refusing at the door" below.
+    const sure = decidePhoto(clean({ contentTypes: [{ name: "Animated", confidence: 96 }] }));
+    expect(sure.verdict).toBe("refuse");
+
+    // Fairly sure only — flagged, and the reason names what it looked like.
+    const unsure = decidePhoto(clean({ contentTypes: [{ name: "Animated", confidence: 70 }] }));
+    expect(unsure.verdict).toBe("needs-a-person");
+    expect(unsure.reason.toLowerCase()).toContain("animated");
   });
 
   it("sends a photo with no face to a person", () => {
@@ -131,5 +137,58 @@ describe("decidePhotoSet — approval is all or nothing", () => {
 
   it("an empty set is never approved", () => {
     expect(decidePhotoSet([]).verdict).toBe("needs-a-person");
+  });
+});
+
+describe("refusing at the door", () => {
+  const clean2 = (over: Partial<PhotoReading> = {}): PhotoReading => ({
+    flags: [], contentTypes: [], faceCount: 1, faceShare: 0.3, faceConfidence: 99, ...over,
+  });
+
+  it("refuses a cartoon outright, and says what to do instead", () => {
+    const d = decidePhoto(clean2({ contentTypes: [{ name: "Illustrated", confidence: 96 }] }));
+    expect(d.verdict).toBe("refuse");
+    expect(d.reason).toContain("real photos of you");
+  });
+
+  it("only flags something it is merely fairly sure is a drawing", () => {
+    // A heavy filter, a black-and-white portrait or a studio backdrop can read
+    // as illustrated. Refusing a real photograph of a real person is the
+    // mistake worth avoiding here, so the bar is higher than for explicit.
+    const d = decidePhoto(
+      clean2({ contentTypes: [{ name: "Illustrated", confidence: REFUSE_NOT_PHOTO_CONFIDENCE - 1 }] }),
+    );
+    expect(d.verdict).toBe("needs-a-person");
+  });
+
+  it("every refusal tells the applicant what to do next", () => {
+    const refusals = [
+      clean2({ flags: [{ name: "x", parent: "Explicit", confidence: 99 }] }),
+      clean2({ contentTypes: [{ name: "Animated", confidence: 99 }] }),
+    ].map(decidePhoto);
+
+    for (const d of refusals) {
+      expect(d.verdict).toBe("refuse");
+      // A refusal with no instruction is a dead end. Each one names a next
+      // action, because the applicant has the picker open right now.
+      expect(/pick a different one|need real photos of you/i.test(d.reason)).toBe(true);
+    }
+  });
+
+  it("still refuses for only those two reasons", () => {
+    const refused: string[] = [];
+    for (const reading of [
+      clean2({ faceCount: 0 }),
+      clean2({ faceCount: 4 }),
+      clean2({ faceShare: 0.01 }),
+      clean2({ faceConfidence: 50 }),
+      clean2({ flags: [{ name: "x", parent: "Violence", confidence: 99 }] }),
+      clean2({ flags: [{ name: "x", parent: "Alcohol", confidence: 99 }] }),
+      null,
+    ]) {
+      const d = decidePhoto(reading);
+      if (d.verdict === "refuse") refused.push(d.reason);
+    }
+    expect(refused).toEqual([]);
   });
 });

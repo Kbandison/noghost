@@ -33,6 +33,7 @@
     "db:verify:geography": "tsx packages/db/scripts/verify-geography.ts",
     "db:verify:verification": "tsx packages/db/scripts/verify-verification.ts",
     "db:verify:admission-route": "tsx packages/db/scripts/verify-admission-route.ts",
+    "db:verify:photo-screening": "tsx packages/db/scripts/verify-photo-screening.ts",
     "admin:grant": "tsx packages/db/scripts/grant-admin.ts",
     "vapid:keys": "node apps/web/scripts/vapid-keys.mjs"
   },

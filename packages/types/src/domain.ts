@@ -142,6 +142,22 @@ export interface VerificationChallenge {
   consumed_at: Timestamp | null;
 }
 
+/**
+ * 0034. One moderation result per uploaded photo, recorded at upload.
+ *
+ * Trustworthy at filing because the `photos` bucket has no update policy and
+ * every upload takes a fresh uuid — the bytes at a screened path cannot change
+ * after they were screened.
+ */
+export interface PhotoScreening {
+  path: string;
+  user_id: UUID;
+  verdict: "ok" | "refuse" | "needs-a-person";
+  reason: string | null;
+  detail: Record<string, unknown>;
+  created_at: Timestamp;
+}
+
 export interface Verification {
   id: UUID;
   user_id: UUID;

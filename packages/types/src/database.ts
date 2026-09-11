@@ -14,6 +14,7 @@ import type {
   Message,
   Notification,
   NotificationPrefs,
+  PhotoScreening,
   ProcessedWebhookEvent,
   Profile,
   PushSubscriptionRow,
@@ -93,6 +94,7 @@ export interface Database {
       profiles: Table<Profile>;
       verifications: Table<Verification>;
       verification_challenges: Table<VerificationChallenge>;
+      photo_screenings: Table<PhotoScreening>;
       seasons: Table<Season>;
       applications: Table<Application>;
       season_members: Table<SeasonMember>;

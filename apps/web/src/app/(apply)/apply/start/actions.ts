@@ -4,7 +4,7 @@ import { OTP_PATTERN } from "@noghost/config";
 import { usingSeedData } from "@noghost/config/env";
 import { createServiceClient } from "@noghost/db/service";
 import { allowRequest } from "@/lib/rate-limit";
-import { compareFaces, faceChecksConfigured, readPhoto } from "@/lib/rekognition";
+import { compareFaces, faceChecksConfigured } from "@/lib/rekognition";
 import {
   OTP_SEND_PER_ADDRESS,
   OTP_SEND_PER_PHONE,
@@ -15,7 +15,6 @@ import {
   FINAL_STEP,
   FORM_ERROR,
   LIVENESS_CONFIDENCE,
-  decidePhotoSet,
   decideVerification,
   normalizePhone,
   roundForStorage,
@@ -669,25 +668,35 @@ async function clearPhotos(
   photoPaths: string[],
 ): Promise<"ok" | "refuse" | "needs-a-person"> {
   if (photoPaths.length === 0) return "needs-a-person";
-  if (!faceChecksConfigured()) return "needs-a-person";
 
-  const readings = await Promise.all(
-    photoPaths.map(async (path) => {
-      const { data } = await service.storage.from("photos").download(path);
-      if (!data) {
-        console.error(`[apply] could not read photo ${path} for ${userId}`);
-        return null;
-      }
-      return readPhoto(new Uint8Array(await data.arrayBuffer()));
-    }),
-  );
+  /*
+   * Read, not recomputed.
+   *
+   * Every photo was screened at upload (0034), so asking Rekognition again here
+   * would double the bill and could disagree with the answer the applicant was
+   * already given — which is the worse of the two problems. Safe to trust
+   * because the `photos` bucket has no update policy and each upload takes a
+   * fresh uuid: the bytes at a screened path cannot have changed since.
+   */
+  const { data: screenings } = await service
+    .from("photo_screenings")
+    .select("path,verdict")
+    .eq("user_id", userId)
+    .in("path", photoPaths);
 
-  const { verdict, perPhoto } = decidePhotoSet(readings);
-  if (verdict !== "ok") {
+  const byPath = new Map((screenings ?? []).map((s) => [s.path, s.verdict as string]));
+
+  // A path with no screening was never checked — AWS off at the time, or an
+  // upload that predates this. Unchecked is not clean.
+  const verdicts = photoPaths.map((path) => byPath.get(path) ?? "needs-a-person");
+
+  if (verdicts.some((v) => v === "refuse")) return "refuse";
+  if (verdicts.some((v) => v !== "ok")) {
     console.error(
-      `[apply] photos for ${userId}: ${perPhoto.map((d, i) => `${i}=${d.verdict} (${d.reason})`).join("; ")}`,
+      `[apply] photos for ${userId} need a look: ` +
+        photoPaths.map((p, i) => `${p.split("/").pop()}=${verdicts[i]}`).join(", "),
     );
-    return verdict;
+    return "needs-a-person";
   }
 
   const { data: profile } = await service

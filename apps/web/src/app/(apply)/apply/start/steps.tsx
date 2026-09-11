@@ -23,6 +23,7 @@ import { AgeRange } from "@/components/ui/age-range";
 import { LocationField } from "@/components/ui/location-field";
 import { cn } from "@/lib/utils";
 import { publicPhotoUrl, uploadImage, uploadVoiceIntro } from "@/lib/upload";
+import { screenPhoto } from "./photo-actions";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { LivenessCapture } from "@/components/ui/liveness-capture";
 import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
@@ -284,6 +285,13 @@ interface PendingPhoto {
 }
 
 export function PhotosStep({ draft, errors }: StepProps) {
+  /*
+   * Sits outside the photo list on purpose: the photo it refers to no longer
+   * exists, so there is no row to attach it to. One slot, replaced each time,
+   * because somebody picking six files at once should be told about the last
+   * refusal rather than reading a stack of them.
+   */
+  const [refused, setRefused] = useState<string | null>(null);
   const [photos, setPhotos] = useState<PendingPhoto[]>(() =>
     (draft.photoPaths ?? []).map((path, i) => ({
       key: `restored-${i}-${path}`,
@@ -318,10 +326,28 @@ export function PhotosStep({ draft, errors }: StepProps) {
             ],
       );
 
+      /*
+       * Uploaded, then screened, before it counts as one of their photos.
+       *
+       * Moderation used to run at filing, five steps later, so an explicit
+       * photo was accepted into a publicly readable bucket and the person who
+       * uploaded it was never told. A refusal now happens here, with the picker
+       * still open, and `screenPhoto` has already deleted the file from storage
+       * by the time this resolves — so removing it from the list is the UI
+       * catching up with the bucket rather than hiding something still there.
+       */
       void uploadImage("photos", file)
-        .then((path) =>
-          setPhotos((prev) => prev.map((p) => (p.key === key ? { ...p, path } : p))),
-        )
+        .then(async (path) => {
+          setPhotos((prev) => prev.map((p) => (p.key === key ? { ...p, path } : p)));
+
+          const screened = await screenPhoto(path);
+          if (screened.verdict !== "refuse") return;
+
+          setPhotos((prev) => prev.filter((p) => p.key !== key));
+          setRefused(
+            screened.reason ?? "That photo can’t be used here. Pick a different one.",
+          );
+        })
         .catch((cause: unknown) =>
           setPhotos((prev) =>
             prev.map((p) =>
@@ -419,6 +445,15 @@ export function PhotosStep({ draft, errors }: StepProps) {
             ? `${stored} of ${PHOTO_MAX} — ${PHOTO_MIN - stored} more needed.`
             : `${stored} of ${PHOTO_MAX}. The first one leads your card.`}
       </p>
+      {refused && (
+        <p
+          role="alert"
+          className="border-l-2 border-[var(--error)] pl-3 text-[15px] leading-snug text-[var(--error)]"
+        >
+          {refused}
+        </p>
+      )}
+
       <FieldError id="photos-error">{errors.photos}</FieldError>
     </div>
   );

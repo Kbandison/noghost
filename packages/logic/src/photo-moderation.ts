@@ -24,8 +24,13 @@
  *
  * A photo is different, and the difference is that it is trivially reversible.
  * "That one won't work, pick another" is a sentence somebody acts on in ten
- * seconds; it costs them a photograph, not their application. So explicit
- * content is refused outright, and everything else ambiguous goes to a person.
+ * seconds; it costs them a photograph, not their application.
+ *
+ * Two things are refused outright, at the upload rather than at submission:
+ * explicit content, and images Rekognition is confident are drawings. Both come
+ * with a sentence saying what to do instead, because a refusal with no next
+ * action is a dead end and the applicant has the picker open right now.
+ * Everything else ambiguous goes to a person.
  *
  * ---------------------------------------------------------------------------
  * What is deliberately NOT refused
@@ -34,8 +39,7 @@
  * Rekognition's taxonomy flags swimwear, alcohol, tobacco and rude gestures.
  * On a dating profile a beach photo and a glass of wine are ordinary, and a
  * product that silently deleted them would be prudish in a way its members
- * would notice and resent. Those flag for a human and nothing more. Only
- * explicit content is refused without asking.
+ * would notice and resent. Those flag for a human and nothing more.
  *
  * Matching is on the top-level category rather than the leaf label, and by
  * substring rather than an enumerated list. AWS versions this taxonomy — it is
@@ -95,6 +99,17 @@ const REFUSE_CATEGORIES = ["explicit"];
 /** Image kinds that are not photographs of a person. */
 const NOT_A_PHOTOGRAPH = ["animated", "illustrated", "cartoon", "drawing", "rendered"];
 
+/**
+ * A drawing is refused, not queued — but only when Rekognition is very sure.
+ *
+ * "Pick a real photo of yourself" is a sentence somebody acts on immediately,
+ * so refusing outright is kinder than a silent wait. The bar is higher than the
+ * explicit one because the failure modes differ: a heavy filter, a black-and-
+ * white portrait or a studio backdrop can read as illustrated, and refusing a
+ * real photograph of a real person is the mistake worth avoiding here.
+ */
+export const REFUSE_NOT_PHOTO_CONFIDENCE = 90;
+
 const topLevel = (flag: ModerationFlag): string => flag.parent ?? flag.name;
 
 export function decidePhoto(reading: PhotoReading | null): PhotoDecision {
@@ -127,12 +142,19 @@ export function decidePhoto(reading: PhotoReading | null): PhotoDecision {
     return { verdict: "needs-a-person", reason: `Flagged: ${names}.` };
   }
 
-  const notPhoto = reading.contentTypes.filter(
-    (type) =>
-      type.confidence >= MODERATION_FLOOR &&
-      NOT_A_PHOTOGRAPH.some((kind) => type.name.toLowerCase().includes(kind)),
+  const notPhoto = reading.contentTypes.filter((type) =>
+    NOT_A_PHOTOGRAPH.some((kind) => type.name.toLowerCase().includes(kind)),
   );
-  if (notPhoto.length > 0) {
+  const certainlyNotPhoto = notPhoto.find((t) => t.confidence >= REFUSE_NOT_PHOTO_CONFIDENCE);
+  if (certainlyNotPhoto) {
+    return {
+      verdict: "refuse",
+      reason:
+        "That looks like a drawing or a cartoon rather than a photograph. " +
+        "We need real photos of you.",
+    };
+  }
+  if (notPhoto.some((t) => t.confidence >= MODERATION_FLOOR)) {
     return {
       verdict: "needs-a-person",
       reason: `Looks like ${notPhoto[0]!.name.toLowerCase()} rather than a photograph.`,
