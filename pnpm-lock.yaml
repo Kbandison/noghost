@@ -91,7 +91,7 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.116.0
         version: 0.116.0(zod@4.4.3)
-      '@aws-sdk/client-location':
+      '@aws-sdk/client-geo-places':
         specifier: ^3.1130.0
         version: 3.1130.0
       '@aws-sdk/client-rekognition':
@@ -276,8 +276,8 @@ packages:
       zod:
         optional: true
 
-  '@aws-sdk/client-location@3.1130.0':
-    resolution: {integrity: sha512-VM/jZDX8GSvIqi+cxRvcsMrZsb3uf9RBWgDUEyGjPFAOc6P+SOYMN2FaJwEkFSBMr9epnV4tcwsAy11Dhl4L0Q==}
+  '@aws-sdk/client-geo-places@3.1130.0':
+    resolution: {integrity: sha512-NE+y/4liE/4dbHTZVKp1r5OMZflqOgf4o7E/I2l5iywYycCb2Y3AS0CypMifVO0tq/kjVIDxMxjyiZAaUVDDMQ==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-rekognition@3.1130.0':
@@ -3067,7 +3067,7 @@ snapshots:
     optionalDependencies:
       zod: 4.4.3
 
-  '@aws-sdk/client-location@3.1130.0':
+  '@aws-sdk/client-geo-places@3.1130.0':
     dependencies:
       '@aws-sdk/core': 3.978.0
       '@aws-sdk/credential-provider-node': 3.972.83

@@ -20,7 +20,10 @@
     "TWILIO_ACCOUNT_SID",
     "TWILIO_AUTH_TOKEN",
     "TWILIO_MESSAGING_SERVICE_SID",
-    "ADMIN_EMAILS"
+    "ADMIN_EMAILS",
+    "AWS_REGION",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY"
   ],
   "tasks": {
     "build": {
