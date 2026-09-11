@@ -47,6 +47,9 @@ export const SEED_SEASON: Season = {
   early_bird_cap: SEASON_DEFAULTS.earlyBirdCap,
   encore_start_week: SEASON_DEFAULTS.encoreStartWeek,
   timezone: SEASON_DEFAULTS.timezone,
+  // Null: the fixture shows the real number of seats left, which is the only
+  // honest default for a field that exists to hold inventory back (0027).
+  seats_display_cap: null,
   created_at: "2026-07-20T00:00:00.000Z",
 };
 

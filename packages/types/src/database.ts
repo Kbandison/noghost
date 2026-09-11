@@ -206,6 +206,38 @@ export interface Database {
         Returns: string;
       };
       /**
+       * Admin-only (§7.3's Season console). Null means leave a field alone;
+       * audits only what actually changed, old and new.
+       */
+      update_season: {
+        Args: {
+          p_season_id: string;
+          p_name?: string | null;
+          p_city?: string | null;
+          p_applications_open_at?: string | null;
+          p_starts_at?: string | null;
+          p_ends_at?: string | null;
+          p_member_cap?: number | null;
+          p_drop_time?: string | null;
+          p_drop_max?: number | null;
+          p_fuse_days?: number | null;
+          p_claim_hours?: number | null;
+          p_price_early_cents?: number | null;
+          p_price_standard_cents?: number | null;
+          p_early_bird_cap?: number | null;
+          p_encore_start_week?: number | null;
+          p_timezone?: string | null;
+          p_seats_display_cap?: number | null;
+          p_clear_seats_cap?: boolean;
+        };
+        Returns: undefined;
+      };
+      /** Admin-only, audited with a reason. Separate on purpose — see 0027. */
+      set_season_phase: {
+        Args: { p_season_id: string; p_phase: SeasonPhase; p_reason?: string | null };
+        Returns: undefined;
+      };
+      /**
        * Admin-only (§7.3's Comms). One `broadcast` notification per season
        * member, in-app and optionally by email; returns the number of rows
        * written. The body is audited in full — for this one, the words are the

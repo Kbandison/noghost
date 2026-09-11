@@ -96,6 +96,11 @@ export interface Season {
   price_standard_cents: number;
   early_bird_cap: number;
   encore_start_week: number;
+  /**
+   * Caps the seats the marketing site shows (0027). Lowers only — it can hold
+   * inventory back, never manufacture scarcity. Null shows the truth.
+   */
+  seats_display_cap: number | null;
   timezone: string;
   created_at: Timestamp;
 }
