@@ -12,6 +12,7 @@ import {
 } from "@/lib/auth-limits";
 import {
   normalizePhone,
+  roundForStorage,
   validateStep,
   type ApplicationDraft,
   type ApplicationStep,
@@ -92,7 +93,18 @@ function applyStep(step: ApplicationStep, draft: ApplicationDraft, fd: FormData)
     case "preferences":
       return {
         ...draft,
-        neighborhood: str(fd, "neighborhood"),
+        neighborhood: str(fd, "neighborhood").trim() || undefined,
+        /*
+         * Both halves or neither — a half-point is what 0028's
+         * `profiles_point_whole` constraint refuses, and it is better to treat
+         * it as "not set" here than to let the write fail at the last step.
+         */
+        point:
+          num(fd, "lat") !== undefined && num(fd, "lng") !== undefined
+            ? roundForStorage({ lat: num(fd, "lat")!, lng: num(fd, "lng")! })
+            : undefined,
+        placeLabel: str(fd, "placeLabel") || undefined,
+        travelRadiusKm: num(fd, "travelRadiusKm"),
         ageMin: num(fd, "ageMin"),
         ageMax: num(fd, "ageMax"),
       };
@@ -315,6 +327,15 @@ async function fileApplication(
       age_max: draft.ageMax!,
       interests: draft.interests ?? [],
       neighborhood: draft.neighborhood ?? null,
+      // Rounded twice on purpose. `LocationField` rounds on the device, which
+      // is what makes the promise ("the precise value never leaves your
+      // browser") true for the honest path; `applyStep` rounds again because a
+      // posted form is not the honest path and this is a plain HTTP field.
+      // The column would round it a third time, silently — which is exactly
+      // why neither of the first two can be left to it.
+      lat: draft.point?.lat ?? null,
+      lng: draft.point?.lng ?? null,
+      travel_radius_km: draft.travelRadiusKm ?? null,
       // Order is the array order — the first photo leads the card (spec §7.2).
       // `approved` stays false until a reviewer says otherwise.
       photos: (draft.photoPaths ?? []).map((path, order) => ({ path, order, approved: false })),

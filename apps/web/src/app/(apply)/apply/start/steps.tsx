@@ -9,7 +9,6 @@ import {
   INTEREST_MIN,
   INTEREST_TAGS,
   MIN_AGE,
-  NEIGHBORHOOD_CLUSTERS,
   PHOTO_MAX,
   PHOTO_MIN,
   PROMPT_COUNT,
@@ -18,9 +17,10 @@ import {
 } from "@noghost/config";
 import { CONSENT, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationDraft, FieldErrors } from "@noghost/logic";
-import { Chip, CheckboxRow, SelectField, TextArea, TextField } from "@/components/ui/field";
+import { Chip, CheckboxRow, TextArea, TextField } from "@/components/ui/field";
 import { FieldError } from "@/components/ui/field";
 import { AgeRange } from "@/components/ui/age-range";
+import { LocationField } from "@/components/ui/location-field";
 import { cn } from "@/lib/utils";
 import { publicPhotoUrl, uploadImage, uploadVoiceIntro } from "@/lib/upload";
 import { VoicePlayer } from "@/components/ui/voice-player";
@@ -37,12 +37,6 @@ export interface StepProps {
    */
   voiceIntroUrl?: string | null;
 }
-
-const CLUSTER_LABELS: Record<keyof typeof NEIGHBORHOOD_CLUSTERS, string> = {
-  "in-town": "In town",
-  "otp-north": "OTP north",
-  "otp-south": "OTP south & east",
-};
 
 export function PhoneStep({ draft, errors }: StepProps) {
   return (
@@ -170,30 +164,33 @@ export function AboutStep({ draft, errors }: StepProps) {
 export function PreferencesStep({ draft, errors }: StepProps) {
   return (
     <div className="space-y-7">
-      <SelectField
+      {/*
+       * A coordinate and a radius, where this used to be a dropdown of forty
+       * Atlanta neighbourhood names. The list only ever worked in the city it
+       * described, and the drop now scores on real distance (0028).
+       */}
+      <LocationField
+        defaultLat={draft.point?.lat}
+        defaultLng={draft.point?.lng}
+        defaultLabel={draft.placeLabel}
+        defaultRadiusKm={draft.travelRadiusKm}
+        error={errors.location}
+      />
+
+      {/*
+       * Optional, and free text. This is the line under somebody's name on
+       * their card — a person describing where they are, not the product
+       * locating them.
+       */}
+      <TextField
         label="Your part of town"
         name="neighborhood"
+        placeholder="Old Fourth Ward"
+        hint="optional, shown on your card"
+        maxLength={60}
         defaultValue={draft.neighborhood ?? ""}
         error={errors.neighborhood}
-      >
-        <option value="" disabled>
-          Choose one
-        </option>
-        {(
-          Object.entries(NEIGHBORHOOD_CLUSTERS) as [
-            keyof typeof NEIGHBORHOOD_CLUSTERS,
-            readonly string[],
-          ][]
-        ).map(([cluster, hoods]) => (
-          <optgroup key={cluster} label={CLUSTER_LABELS[cluster]}>
-            {hoods.map((h) => (
-              <option key={h} value={h}>
-                {h}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </SelectField>
+      />
 
       <fieldset>
         <legend className="mb-3 text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">

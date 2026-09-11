@@ -41,6 +41,16 @@ export interface Identity {
   gender: Gender;
   seeking: Gender[];
   neighborhood: string | null;
+  /**
+   * The rounded point and the radius — matching input, not decoration.
+   *
+   * Read here so the settings page can seed the editor with what is already
+   * stored. It is never rendered as a number; `LocationField` shows a place
+   * name and the radius as a chip.
+   */
+  lat: number | null;
+  lng: number | null;
+  travelRadiusKm: number | null;
   status: MemberStatus;
   /** True once admitted — the trigger refuses identity edits from here on. */
   locked: boolean;
@@ -71,7 +81,7 @@ export async function readSettings(): Promise<{
     supabase
       .from("profiles")
       .select(
-        "first_name,birthdate,gender,seeking,neighborhood,status,phone,photos,prompts,voice_intro_path",
+        "first_name,birthdate,gender,seeking,neighborhood,lat,lng,travel_radius_km,status,phone,photos,prompts,voice_intro_path",
       )
       .eq("id", user.id)
       .maybeSingle(),
@@ -108,6 +118,9 @@ export async function readSettings(): Promise<{
       firstName: profile.first_name,
       age,
       gender: profile.gender,
+      lat: profile.lat === null ? null : Number(profile.lat),
+      lng: profile.lng === null ? null : Number(profile.lng),
+      travelRadiusKm: profile.travel_radius_km,
       seeking: profile.seeking,
       neighborhood: profile.neighborhood,
       status: profile.status,

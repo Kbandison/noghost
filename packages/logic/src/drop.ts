@@ -1,5 +1,10 @@
-import { clusterFor } from "@noghost/config";
 import type { Gender, MemberStatus } from "@noghost/types";
+import {
+  DEFAULT_TRAVEL_RADIUS_KM,
+  proximityScore,
+  withinReach,
+  type Point,
+} from "./geo";
 import { seededShuffle } from "./random";
 import { ageOn, seasonWeek } from "./time";
 
@@ -25,7 +30,12 @@ export interface PoolProfile {
   /** Stated age preference — a hard filter, not a score (spec §6.1). */
   ageMin: number;
   ageMax: number;
+  /** Free text, for the card. Not a location — see `point`. */
   neighborhood: string | null;
+  /** Rounded to ~110m, or null for a member who predates 0028. */
+  point: Point | null;
+  /** How far they will travel. Null means they have not said. */
+  travelRadiusKm: number | null;
   interests: string[];
   status: MemberStatus;
   /** Connects received in the rolling week. Drives the activity-balance nudge. */
@@ -79,7 +89,6 @@ export interface BuildDropResult {
   eligibleCount: number;
 }
 
-const SCORE_SHARED_CLUSTER = 3;
 const SCORE_PER_INTEREST = 1;
 const SCORE_INTEREST_CAP = 3;
 const SCORE_ACTIVITY_BALANCE = 2;
@@ -102,6 +111,26 @@ export function ageRangeMatches(viewer: PoolProfile, other: PoolProfile, now: st
     viewerAge >= other.ageMin &&
     viewerAge <= other.ageMax
   );
+}
+
+/**
+ * Mutual reach — a hard filter, beside the age one and for the same reason.
+ *
+ * A stated radius that only nudged the ordering would be a control that does
+ * nothing: somebody who says they will travel five kilometres would still be
+ * shown people two hours away, slightly further down the list. Both radii have
+ * to admit the distance, so neither person is quietly overruled.
+ *
+ * **Missing data does not exclude anybody.** A member who predates 0028 has no
+ * point, and filtering them out would empty the pool for everyone who does have
+ * one — silently, and worst on day one of a season. Unknown means "cannot
+ * judge", so they stay and simply get no proximity bonus.
+ */
+export function reachMatches(viewer: PoolProfile, other: PoolProfile): boolean {
+  if (!viewer.point || !other.point) return true;
+  const viewerRadius = viewer.travelRadiusKm ?? DEFAULT_TRAVEL_RADIUS_KM;
+  const otherRadius = other.travelRadiusKm ?? DEFAULT_TRAVEL_RADIUS_KM;
+  return withinReach(viewer.point, viewerRadius, other.point, otherRadius);
 }
 
 /**
@@ -141,11 +170,20 @@ export function scoreCandidate(
   let score = 0;
   const reasons: string[] = [];
 
-  const viewerCluster = clusterFor(viewer.neighborhood);
-  const candidateCluster = clusterFor(candidate.neighborhood);
-  if (viewerCluster && candidateCluster && viewerCluster === candidateCluster) {
-    score += SCORE_SHARED_CLUSTER;
-    reasons.push(`+${SCORE_SHARED_CLUSTER} same area (${viewerCluster})`);
+  /*
+   * Graded by distance, where this used to be +3 for sharing one of three
+   * hardcoded Atlanta clusters. The old rule's failure was its edges: half a
+   * mile apart across a boundary scored nothing, nine miles apart inside one
+   * scored full marks.
+   *
+   * Scores 0 when either point is missing rather than guessing. A member who
+   * predates 0028 is not penalised into invisibility — they simply do not get
+   * the proximity bonus, and every other signal still applies.
+   */
+  const proximity = proximityScore(viewer.point, candidate.point);
+  if (proximity > 0) {
+    score += proximity;
+    reasons.push(`+${proximity} nearby`);
   }
 
   const shared = sharedInterests(viewer, candidate);
@@ -199,6 +237,10 @@ export function buildDrop(input: BuildDropInput): BuildDropResult {
 
     // Hard age filter (spec §6.1 states this as a filter, not a score).
     if (!ageRangeMatches(viewer, candidate, now)) continue;
+
+    // Hard reach filter, beside it — a stated radius that only reordered the
+    // list would be a control that does nothing (0028).
+    if (!reachMatches(viewer, candidate)) continue;
 
     // Rule 2 — never shown before, unless they qualify for an encore.
     const alreadySeen = seen.has(candidate.id);

@@ -30,6 +30,8 @@ function complete(overrides: Partial<ApplicationDraft> = {}): ApplicationDraft {
     gender: "woman",
     seeking: ["man"],
     neighborhood: "Midtown",
+    point: { lat: 33.782, lng: -84.384 },
+    travelRadiusKm: 25,
     ageMin: 28,
     ageMax: 40,
     interests: ["live music", "running", "coffee", "film", "cooking"],
@@ -113,9 +115,26 @@ describe("about", () => {
 });
 
 describe("preferences", () => {
-  it("requires a neighborhood from the pick-list", () => {
+  it("requires a location it can measure distance from", () => {
+    // A name from a list only works in the city that list describes. The drop
+    // scores on distance now, so the thing it needs is a point.
     expect(validatePreferences(complete(), NOW)).toEqual({ ok: true });
-    expect(validatePreferences(complete({ neighborhood: "Brooklyn" }), NOW).ok).toBe(false);
+    expect(validatePreferences(complete({ point: undefined }), NOW).ok).toBe(false);
+    // Null Island is what a failed geocode looks like.
+    expect(validatePreferences(complete({ point: { lat: 0, lng: 0 } }), NOW).ok).toBe(false);
+  });
+
+  it("lets the neighbourhood be anything short, or nothing", () => {
+    // It is the line under your name on the card — somebody describing
+    // themselves, not the product locating them.
+    expect(validatePreferences(complete({ neighborhood: "Alfama" }), NOW)).toEqual({ ok: true });
+    expect(validatePreferences(complete({ neighborhood: undefined }), NOW)).toEqual({ ok: true });
+    expect(validatePreferences(complete({ neighborhood: "x".repeat(61) }), NOW).ok).toBe(false);
+  });
+
+  it("only accepts a travel radius it offers", () => {
+    expect(validatePreferences(complete({ travelRadiusKm: 25 }), NOW)).toEqual({ ok: true });
+    expect(validatePreferences(complete({ travelRadiusKm: 23 }), NOW).ok).toBe(false);
   });
 
   it("rejects an inverted or under-21 range", () => {

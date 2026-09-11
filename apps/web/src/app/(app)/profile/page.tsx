@@ -5,7 +5,7 @@ import { requireMember } from "@/lib/member";
 import { readSettings } from "@/lib/settings";
 import { signedVoiceUrls } from "@/lib/voice-urls";
 import { PushToggle } from "@/components/push/push-toggle";
-import { PhotosForm, PromptsForm, VoiceIntroForm } from "./edit-forms";
+import { LocationForm, PhotosForm, PromptsForm, VoiceIntroForm } from "./edit-forms";
 import { DeleteForm, NotificationForm, PauseForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Profile" };
@@ -103,6 +103,14 @@ export default async function ProfilePage() {
 
       <Section title="Your voice">
         <VoiceIntroForm url={voiceIntroUrl} hasIntro={Boolean(identity.voiceIntroPath)} />
+      </Section>
+
+      <Section title="Where you are">
+        <LocationForm
+          lat={identity.lat}
+          lng={identity.lng}
+          travelRadiusKm={identity.travelRadiusKm}
+        />
       </Section>
 
       <Section title="What we're allowed to send you">

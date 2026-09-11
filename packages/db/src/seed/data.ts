@@ -1,4 +1,4 @@
-import { BRAND, INTEREST_TAGS, NEIGHBORHOODS, SEASON_DEFAULTS } from "@noghost/config";
+import { BRAND, INTEREST_TAGS, SEASON_DEFAULTS } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import { hashSeed, seededRandom } from "@noghost/logic";
 import type { Gender, Profile, Season } from "@noghost/types";
@@ -65,6 +65,46 @@ const FIRST_NAMES = [
   "Aaliyah", "Nico", "Tessa", "Malik", "Junie", "Ravi", "Cleo", "Owen",
   "Sade", "Bennett", "Yara", "Cyrus", "Delia", "Amos", "Noor", "Reggie",
   "Fionna", "Damon", "Perla", "Silas", "Adaeze", "Gus", "Lark", "Emmett",
+] as const;
+
+/*
+ * Place names for the fixtures, and nothing more.
+ *
+ * These used to live in `@noghost/config` as clustered pick-lists, and the drop
+ * scorer matched on the cluster — which meant the second city needed a second
+ * list and a code change. Matching is arithmetic on a coordinate now, so the
+ * only thing left that wants Atlanta place names is seed data that pretends to
+ * be Atlanta people. A fixture list belongs in the fixtures.
+ */
+const SEED_NEIGHBORHOODS = [
+  "Old Fourth Ward",
+  "Inman Park",
+  "Grant Park",
+  "Midtown",
+  "Virginia-Highland",
+  "West End",
+  "East Atlanta",
+  "Kirkwood",
+  "Cabbagetown",
+  "Downtown",
+  "Westside / Howell Mill",
+  "Buckhead",
+  "Reynoldstown",
+  "Summerhill",
+  "Poncey-Highland",
+  "Candler Park",
+  "Ormewood Park",
+  "Sandy Springs",
+  "Dunwoody",
+  "Brookhaven",
+  "Chamblee",
+  "Decatur",
+  "Avondale Estates",
+  "East Point",
+  "College Park",
+  "Tucker",
+  "Smyrna",
+  "Vinings",
 ] as const;
 
 const OCCUPATIONS = [
@@ -148,6 +188,24 @@ export function generateSeedProfiles(count = 40): Profile[] {
   const random = seededRandom(hashSeed("noghost-atlanta-season-one"));
   const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)] as T;
 
+  /*
+   * Coordinates draw from their OWN stream, and that is not tidiness.
+   *
+   * Every profile is generated from one shared sequence, so a field added in
+   * the middle shifts every draw after it — including the next profile's
+   * birthdate. The database refuses that: `freeze_identity_after_admission`
+   * locks first_name, birthdate and gender once an application is admitted, and
+   * it binds the service role too. A re-seed after adding a field therefore
+   * fails outright rather than quietly reshuffling forty identities, which is
+   * the trigger doing its job.
+   *
+   * A separate stream means the geo fields can change, or be removed, without
+   * moving anybody's birthday. The next field added here should get one too.
+   */
+  const geoRandom = seededRandom(hashSeed("noghost-geography"));
+  const geoPick = <T>(items: readonly T[]): T =>
+    items[Math.floor(geoRandom() * items.length)] as T;
+
   return Array.from({ length: count }, (_, i) => {
     const gender = GENDERS[i % 3] as Gender;
 
@@ -186,7 +244,15 @@ export function generateSeedProfiles(count = 40): Profile[] {
       age_min: ageMin,
       age_max: ageMax,
       interests,
-      neighborhood: pick(NEIGHBORHOODS),
+      neighborhood: pick(SEED_NEIGHBORHOODS),
+      /*
+       * Scattered around Atlanta rather than stacked on one point: identical
+       * coordinates would give every seeded pair the full proximity bonus and
+       * make the scorer look like it was doing nothing.
+       */
+      lat: Math.round((33.75 + (geoRandom() - 0.5) * 0.34) * 1000) / 1000,
+      lng: Math.round((-84.39 + (geoRandom() - 0.5) * 0.44) * 1000) / 1000,
+      travel_radius_km: geoPick([10, 25, 25, 50]),
       height_cm: 155 + Math.floor(random() * 35),
       occupation: pick(OCCUPATIONS),
       // Photos are intentionally empty: Phase 4 of the LuxWeb workflow sources

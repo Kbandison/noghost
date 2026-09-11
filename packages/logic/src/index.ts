@@ -14,6 +14,7 @@
 export * from "./time";
 export * from "./random";
 export * from "./drop";
+export * from "./geo";
 export * from "./drop-schedule";
 export * from "./fuse";
 export * from "./connect";

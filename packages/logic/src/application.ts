@@ -2,13 +2,13 @@ import {
   INTEREST_MAX,
   INTEREST_MIN,
   MIN_AGE,
-  NEIGHBORHOODS,
   PHOTO_MAX,
   PHOTO_MIN,
   PROMPT_COUNT,
 } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { Gender } from "@noghost/types";
+import { TRAVEL_RADII_KM, isUsablePoint } from "./geo";
 import { ageOn } from "./time";
 
 /**
@@ -52,6 +52,15 @@ export interface ApplicationDraft {
   prompts?: { prompt_id: string; answer: string }[];
   /** Receipts and lifecycle mail (§7.4). Never a sign-in credential. */
   email?: string;
+  /** Rounded to ~110m in the browser before it ever leaves it (0028). */
+  point?: { lat: number; lng: number };
+  /**
+   * What to show back — "Atlanta, GA". Draft-only: it exists so a returning
+   * applicant sees where they said they were rather than a bare tick, and it is
+   * never stored on the profile. `neighborhood` is the field members read.
+   */
+  placeLabel?: string;
+  travelRadiusKm?: number;
   /** Optional 30s intro (§7.2). A storage path, never audio bytes. */
   voiceIntroPath?: string;
   /**
@@ -140,8 +149,24 @@ export function validateAbout(draft: ApplicationDraft, now: string): StepResult 
 export function validatePreferences(draft: ApplicationDraft, now: string): StepResult {
   const errors: FieldErrors = {};
 
-  if (!draft.neighborhood || !NEIGHBORHOODS.includes(draft.neighborhood)) {
-    errors.neighborhood = "Pick the area you actually spend your time in.";
+  /*
+   * A point, not a name from a list. "Old Fourth Ward" is not a thing to say in
+   * Lisbon, and the drop scores on distance now (0028) rather than on sharing
+   * one of three hardcoded Atlanta clusters.
+   */
+  if (!isUsablePoint(draft.point)) {
+    errors.location = "We need a rough location so we know who's near you.";
+  }
+  if (draft.travelRadiusKm !== undefined && !TRAVEL_RADII_KM.includes(draft.travelRadiusKm as never)) {
+    errors.travelRadiusKm = "Pick how far you're willing to travel.";
+  }
+  /*
+   * The neighbourhood is now free text and optional — it is the line on the
+   * card that reads as somebody describing themselves, not a location the
+   * product uses. Length is the only rule.
+   */
+  if (draft.neighborhood && draft.neighborhood.trim().length > 60) {
+    errors.neighborhood = "Keep it short — it sits under your name on the card.";
   }
 
   const min = draft.ageMin;

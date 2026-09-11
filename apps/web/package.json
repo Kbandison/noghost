@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
+    "@aws-sdk/client-location": "^3.1130.0",
     "@gsap/react": "^2.1.2",
     "@noghost/config": "workspace:*",
     "@noghost/db": "workspace:*",

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServiceClient } from "@noghost/db/service";
 import { PHOTO_MAX, PHOTO_MIN, PROMPT_COUNT } from "@noghost/config";
+import { TRAVEL_RADII_KM, isUsablePoint, roundForStorage } from "@noghost/logic";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import { requireMember } from "@/lib/member";
 import { supabaseServer } from "@/lib/supabase";
@@ -270,6 +271,59 @@ export async function savePrompts(
 
   if (error) {
     console.error(`[settings] prompts ${member.id}: ${error.message}`);
+    return { error: "That didn't save. Try again." };
+  }
+
+  revalidatePath("/profile");
+  return { saved: true };
+}
+
+/**
+ * Moving house.
+ *
+ * §7.2's edit list does not mention location, and every other field on it is
+ * something people *look* at. This one is different: since 0028 the point and
+ * the radius are what decide whose card you are ever shown and who is ever
+ * shown yours. Captured once in the funnel and then frozen, a member who moves
+ * across town — or across the country — keeps being matched against a place
+ * they no longer live, with no screen anywhere that admits it.
+ *
+ * "Identity fields are locked" is about first name, birthdate and gender, and
+ * the database enforces exactly those three. Where you live is not identity; it
+ * is a fact that changes, and a season that cannot be told is a season quietly
+ * serving the wrong people.
+ *
+ * Rounded again here even though the browser already rounded it. The client is
+ * where the promise is kept for the honest path, and this is where it is kept
+ * for a request that skipped the client entirely.
+ */
+export async function saveLocation(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const member = await requireMember();
+
+  const lat = Number(formData.get("lat"));
+  const lng = Number(formData.get("lng"));
+  const radius = Number(formData.get("travelRadiusKm"));
+
+  const point = { lat, lng };
+  if (!isUsablePoint(point)) {
+    return { error: "Pick where you are — the button, or type a postcode." };
+  }
+  if (!TRAVEL_RADII_KM.includes(radius as never)) {
+    return { error: "Choose how far you'd travel." };
+  }
+
+  const rounded = roundForStorage(point);
+  const supabase = await supabaseServer();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ lat: rounded.lat, lng: rounded.lng, travel_radius_km: radius })
+    .eq("id", member.id);
+
+  if (error) {
+    console.error(`[settings] location ${member.id}: ${error.message}`);
     return { error: "That didn't save. Try again." };
   }
 

@@ -102,12 +102,17 @@ export async function loadSeasonPool(
     age_min: number;
     age_max: number;
     neighborhood: string | null;
+    lat: number | null;
+    lng: number | null;
+    travel_radius_km: number | null;
     interests: string[] | null;
     status: MemberStatus;
   }>("profiles", (from, to) =>
     db
       .from("profiles")
-      .select("id,gender,seeking,birthdate,age_min,age_max,neighborhood,interests,status")
+      .select(
+        "id,gender,seeking,birthdate,age_min,age_max,neighborhood,lat,lng,travel_radius_km,interests,status",
+      )
       .order("id", { ascending: true })
       .range(from, to),
   );
@@ -237,6 +242,16 @@ export async function loadSeasonPool(
       ageMin: profile.age_min,
       ageMax: profile.age_max,
       neighborhood: profile.neighborhood,
+      /*
+       * Null unless both halves are present — 0028's `profiles_point_whole`
+       * constraint guarantees that at the database, and the scorer treats a
+       * missing point as "cannot judge" rather than as far away.
+       */
+      point:
+        profile.lat !== null && profile.lng !== null
+          ? { lat: Number(profile.lat), lng: Number(profile.lng) }
+          : null,
+      travelRadiusKm: profile.travel_radius_km,
       interests: profile.interests ?? [],
       status: profile.status,
       incomingConnectsThisWeek: incoming.get(profile.id) ?? 0,

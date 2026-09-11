@@ -45,7 +45,13 @@ export interface Profile {
   age_min: number;
   age_max: number;
   interests: string[];
+  /** Free text on the card. Not a location — see `lat`/`lng` (0028). */
   neighborhood: string | null;
+  /** Rounded to ~110m in the browser. Both halves or neither. */
+  lat: number | null;
+  lng: number | null;
+  /** How far they will travel, in km. Null means they have not said. */
+  travel_radius_km: number | null;
   height_cm: number | null;
   occupation: string | null;
   photos: ProfilePhoto[];

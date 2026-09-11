@@ -7,6 +7,8 @@ import {
   ageRangeMatches,
   type BuildDropInput,
   type PoolProfile,
+  reachMatches,
+  scoreCandidate,
 } from "./drop";
 
 const NOW = "2026-09-14T20:00:00.000Z";
@@ -23,6 +25,13 @@ function profile(id: string, overrides: Partial<PoolProfile> = {}): PoolProfile 
     ageMin: 21,
     ageMax: 99,
     neighborhood: "Midtown",
+    /*
+     * No point by default, so scoring tests measure the thing they name.
+     * Giving every fixture the same coordinates silently added +3 proximity to
+     * every score and made the interest-cap test read 6.
+     */
+    point: null,
+    travelRadiusKm: null,
     interests: [],
     status: "active",
     incomingConnectsThisWeek: 0,
@@ -339,5 +348,49 @@ describe("orientation asymmetry", () => {
     const viewer = profile("v", { gender: "man", seeking: ["man"] });
     const result = buildDrop(input({ viewer, pool: menSeekingWomen }));
     expect(result.quietNight).toBe(true);
+  });
+});
+
+describe("geography in the drop", () => {
+  const MIDTOWN = { lat: 33.782, lng: -84.384 };
+  const DECATUR = { lat: 33.775, lng: -84.296 };   // ~8km
+  const NASHVILLE = { lat: 36.163, lng: -86.782 }; // ~340km
+
+  it("does not exclude a member who has no coordinates", () => {
+    // Everyone admitted before 0028 has none. Filtering them out would empty
+    // the pool for everyone who does have one — silently, worst on day one.
+    const viewer = profile("v", { point: MIDTOWN, travelRadiusKm: 5, seeking: ["man"] });
+    const legacy = profile("m", { point: null, gender: "man", seeking: ["woman"] });
+    expect(reachMatches(viewer, legacy)).toBe(true);
+  });
+
+  it("keeps somebody both are willing to travel to", () => {
+    const a = profile("a", { point: MIDTOWN, travelRadiusKm: 25, seeking: ["man"] });
+    const b = profile("b", { point: DECATUR, travelRadiusKm: 25, gender: "man", seeking: ["woman"] });
+    expect(reachMatches(a, b)).toBe(true);
+  });
+
+  it("uses the smaller radius, so neither person is overruled", () => {
+    const willing = profile("a", { point: MIDTOWN, travelRadiusKm: 50, seeking: ["man"] });
+    const homebody = profile("b", { point: DECATUR, travelRadiusKm: 5, gender: "man", seeking: ["woman"] });
+    expect(reachMatches(willing, homebody)).toBe(false);
+    expect(reachMatches(homebody, willing)).toBe(false);
+  });
+
+  it("drops somebody in another city", () => {
+    const a = profile("a", { point: MIDTOWN, travelRadiusKm: 50, seeking: ["man"] });
+    const far = profile("b", { point: NASHVILLE, travelRadiusKm: 50, gender: "man", seeking: ["woman"] });
+    expect(reachMatches(a, far)).toBe(false);
+  });
+
+  it("scores nearness without letting it dominate", () => {
+    const viewer = profile("v", { point: MIDTOWN, interests: ["film", "running", "coffee"] });
+    const near = profile("near", { point: MIDTOWN, interests: [] });
+    const farButShared = profile("far", { point: NASHVILLE, interests: ["film", "running", "coffee"] });
+
+    const nearScore = scoreCandidate(viewer, near, 0).score;
+    const sharedScore = scoreCandidate(viewer, farButShared, 0).score;
+    // Having something to say is the pitch; being nearby is a nudge.
+    expect(sharedScore).toBeGreaterThanOrEqual(nearScore);
   });
 });

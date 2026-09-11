@@ -11,7 +11,8 @@ import { publicPhotoUrl } from "@/lib/photos";
 import { uploadImage, uploadVoiceIntro } from "@/lib/upload";
 import { VOICE_INTRO_MAX_MS } from "@/lib/voice";
 import type { ProfilePhotoRow } from "@/lib/settings";
-import { savePhotos, savePrompts, saveVoiceIntro, type SettingsState } from "./actions";
+import { LocationField } from "@/components/ui/location-field";
+import { saveLocation, savePhotos, savePrompts, saveVoiceIntro, type SettingsState } from "./actions";
 
 const initial: SettingsState = {};
 
@@ -96,6 +97,56 @@ export function PromptsForm({
 
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save answers"}
+      </Button>
+    </form>
+  );
+}
+
+/**
+ * Changing where you are — 0028.
+ *
+ * The same field the funnel uses, because the promise has to be the same in
+ * both places: the coordinate is rounded in the browser, and what comes back
+ * on screen is a place name rather than a number. A settings page that showed
+ * the stored latitude would undo, in one line of text, the reason the column is
+ * only three decimals wide.
+ *
+ * Seeded with what is already stored so somebody who only wants to widen their
+ * radius does not have to re-answer where they live.
+ */
+export function LocationForm({
+  lat,
+  lng,
+  travelRadiusKm,
+}: {
+  lat: number | null;
+  lng: number | null;
+  travelRadiusKm: number | null;
+}) {
+  const [state, action, pending] = useActionState(saveLocation, initial);
+
+  return (
+    <form action={action} className="space-y-5">
+      <LocationField
+        defaultLat={lat ?? undefined}
+        defaultLng={lng ?? undefined}
+        defaultLabel={lat === null ? undefined : "Where you told us"}
+        defaultRadiusKm={travelRadiusKm ?? undefined}
+      />
+
+      {state.error && (
+        <p role="alert" className="text-[15px] text-[var(--error)]">
+          {state.error}
+        </p>
+      )}
+      {state.saved && !state.error && (
+        <p role="status" className="text-[15px] text-[var(--success)]">
+          Saved.
+        </p>
+      )}
+
+      <Button type="submit" disabled={pending}>
+        {pending ? "Saving…" : "Save location"}
       </Button>
     </form>
   );
