@@ -296,6 +296,12 @@ When something is wrong it names the variable rather than the symptom —
 an unknown access key, a bad secret, a refused action and a dead endpoint
 all produce the same unhelpful stack trace otherwise.
 
+**If you dropped the `development` subject** from the trust policy in
+step 3, this will not pass on your laptop — the token `vercel env pull`
+gives you is a development token, so STS refuses it with
+`IDPRejectedClaim`. That is the policy working. Verify on a deployment
+instead, or add the line back.
+
 Then, for the real thing end to end: `pnpm dev`, walk `/apply/start` to
 step 3 and do the pose sequence with an actual face, then check the row.
 

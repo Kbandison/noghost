@@ -812,6 +812,13 @@ Amazon Location Places
         <i>doesn’t exist</i>, not that the policy refused it, which is an hour
         in the wrong console if you take it at face value.
       </p>
+      <div class="watch">
+        <b>If you dropped the <code>development</code> subject</b> from the
+        trust policy in step 3, this will not pass on your laptop — the token
+        <code>vercel env pull</code> gives you is a development token, so STS
+        refuses it with <code>IDPRejectedClaim</code>. That is the policy
+        working. Verify on a deployment instead, or add the line back.
+      </div>
       <p class="note">
         Then, for the real thing end to end: <code>pnpm dev</code>, walk
         <code>/apply/start</code> to step 3, and do the pose sequence with an
