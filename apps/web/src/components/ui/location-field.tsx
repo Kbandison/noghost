@@ -6,6 +6,7 @@ import {
   formatRadius,
   radiiFor,
   roundForStorage,
+  nearestRadius,
   unitForCountry,
   unitForLocale,
   type DistanceUnit,
@@ -91,17 +92,16 @@ export function LocationField({
   const radius = pickedRadius ?? defaultRadiusFor(unit);
 
   /*
-   * A radius picked in the other unit still has to be selectable. 40km is
-   * "25 miles" to an American and simply 40 to everyone else — so if the value
-   * they already have is not one of this unit's round numbers, show the list it
-   * did come from rather than silently dropping their choice.
+   * Always this unit's own list — never the other one's numbers with this
+   * one's label. Showing the list a stored value came from meant an American
+   * whose radius was set in kilometres saw "3 | 6 | 16 | 31 | 62 miles", which
+   * is kilometres wearing a costume and reads as broken because it is.
+   *
+   * A value that is not on this list snaps to the nearest option at or above
+   * it, and only persists if they save.
    */
-  const other: DistanceUnit = unit === "mi" ? "km" : "mi";
-  const options = radiiFor(unit).includes(radius)
-    ? radiiFor(unit)
-    : radiiFor(other).includes(radius)
-      ? radiiFor(other)
-      : radiiFor(unit);
+  const options = radiiFor(unit);
+  const selected = options.includes(radius) ? radius : nearestRadius(radius, options);
 
   /** A country beats the browser's locale — see `localeUnit` above. */
   function adoptUnit(country: string | null | undefined) {
@@ -283,7 +283,7 @@ export function LocationField({
               type="radio"
               value={String(km)}
               label={formatRadius(km, unit)}
-              checked={radius === km}
+              checked={selected === km}
               onChange={() => setPickedRadius(km)}
             />
           ))}

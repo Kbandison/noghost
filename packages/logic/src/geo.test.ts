@@ -6,6 +6,7 @@ import {
   distanceLabel,
   formatRadius,
   isUsablePoint,
+  nearestRadius,
   placeLabel,
   proximityScore,
   radiiFor,
@@ -228,5 +229,38 @@ describe("distance units — stored in km, read in whatever you think in", () =>
     expect(withinReach(atlanta, 40, decatur, 40)).toBe(true);
     expect(formatRadius(40, "mi")).toBe("25 miles");
     expect(formatRadius(40, "km")).toBe("40 km");
+  });
+});
+
+describe("nearestRadius — a stored value from the other unit", () => {
+  it("never shows one unit's numbers under the other unit's label", () => {
+    // The bug: an American whose radius was set in kilometres saw
+    // "3 | 6 | 16 | 31 | 62 miles". Whatever is selected, the options shown are
+    // always this unit's own round numbers.
+    for (const stored of [5, 10, 25, 50, 100, 8, 16, 40, 80, 161, 37]) {
+      const labels = radiiFor("mi").map((km) => formatRadius(km, "mi"));
+      expect(labels).toEqual(["5 miles", "10 miles", "25 miles", "50 miles", "100+ miles"]);
+      // And something is always selected, so the form always posts a radius.
+      expect(radiiFor("mi")).toContain(nearestRadius(stored, radiiFor("mi")));
+    }
+  });
+
+  it("rounds up, so nobody's reach silently narrows", () => {
+    // 25km is nearer to 16 than to 40, and picking 16 would quietly remove
+    // people from their drops without anybody choosing that.
+    expect(nearestRadius(25, radiiFor("mi"))).toBe(40);
+    expect(nearestRadius(9, radiiFor("mi"))).toBe(16);
+    expect(nearestRadius(8, radiiFor("mi"))).toBe(8);
+  });
+
+  it("falls back to the largest when the stored value is beyond every option", () => {
+    expect(nearestRadius(500, radiiFor("mi"))).toBe(161);
+    expect(nearestRadius(500, radiiFor("km"))).toBe(100);
+  });
+
+  it("leaves a value that is already on the list alone", () => {
+    for (const unit of ["km", "mi"] as const) {
+      for (const km of radiiFor(unit)) expect(nearestRadius(km, radiiFor(unit))).toBe(km);
+    }
   });
 });

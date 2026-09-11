@@ -127,6 +127,27 @@ export const defaultRadiusFor = (unit: DistanceUnit): number =>
   unit === "mi" ? DEFAULT_TRAVEL_RADIUS_MI_AS_KM : DEFAULT_TRAVEL_RADIUS_KM;
 
 /**
+ * The option to select when somebody's stored radius is not one of this unit's.
+ *
+ * Happens to anybody whose radius was chosen in the other unit — 25km is not on
+ * the mile list, because the mile list is round miles. The obvious fix was to
+ * show the list their value *did* come from, and that produced the bug this
+ * function exists to replace: the km numbers rendered with mile labels, so an
+ * American saw "3 | 6 | 16 | 31 | 62 miles" and correctly read it as kilometres
+ * in a costume.
+ *
+ * Rounds **up**. The nearest option to 25km is 16km, and silently narrowing
+ * somebody's reach is the one direction this must not fail in — it would quietly
+ * remove people from their drops without anybody choosing that. Widening shows
+ * them more, and `withinReach` still uses the smaller of the two radii, so it
+ * cannot force them on anybody unwilling.
+ */
+export function nearestRadius(km: number, options: readonly number[]): number {
+  const sorted = [...options].sort((a, b) => a - b);
+  return sorted.find((option) => option >= km) ?? sorted[sorted.length - 1]!;
+}
+
+/**
  * A stored kilometre figure, written the way its owner picked it.
  *
  * Rounded, because these only ever came from the lists above: 161 km is the
