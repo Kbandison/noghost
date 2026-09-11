@@ -175,6 +175,8 @@ export function Chip({
   label,
   type = "checkbox",
   defaultChecked,
+  checked,
+  onChange,
   disabled,
 }: {
   name: string;
@@ -182,18 +184,36 @@ export function Chip({
   label: string;
   type?: "checkbox" | "radio";
   defaultChecked?: boolean;
+  /** Controlled, for a set with a maximum — see `InterestsStep`. */
+  checked?: boolean;
+  onChange?: () => void;
   disabled?: boolean;
 }) {
   const id = useId();
 
   return (
-    <div className="contents">
+    /*
+     * `relative`, not `contents`.
+     *
+     * The input is `sr-only`, which is `position: absolute`. Under
+     * `display: contents` this div generates no box, so the input had no
+     * positioned ancestor and resolved against something far up the tree —
+     * usually the top of the page. Clicking the label focuses the input, the
+     * browser scrolls the focused element into view, and the page jumped to the
+     * top every time somebody picked an interest.
+     *
+     * Giving the wrapper a position puts the hidden input inside the chip you
+     * just clicked, which is already on screen, so focusing it scrolls nowhere.
+     */
+    <div className="relative">
       <input
         type={type}
         id={id}
         name={name}
         value={value}
-        defaultChecked={defaultChecked}
+        {...(checked === undefined
+          ? { defaultChecked }
+          : { checked, onChange: onChange ?? (() => {}) })}
         disabled={disabled}
         className="peer sr-only"
       />

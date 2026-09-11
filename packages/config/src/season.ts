@@ -170,6 +170,13 @@ export const MIN_AGE = 21;
 export const PHOTO_MIN = 3;
 export const PHOTO_MAX = 6;
 export const PROMPT_COUNT = 3;
+/**
+ * The top of the age slider. 99 is not a number anyone drags to — the control
+ * reads "65+" at the end, and the value stored is the real ceiling so the drop
+ * matcher keeps working on exact numbers.
+ */
+export const AGE_RANGE_TOP = 65;
+
 export const INTEREST_MIN = 5;
 export const INTEREST_MAX = 10;
 export const VOICE_INTRO_MAX_MS = 30_000;

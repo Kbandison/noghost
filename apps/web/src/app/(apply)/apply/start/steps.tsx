@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  AGE_RANGE_TOP,
   GENDERS,
   GENDER_LABELS,
   INTEREST_MAX,
@@ -19,6 +20,8 @@ import { CONSENT, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationDraft, FieldErrors } from "@noghost/logic";
 import { Chip, CheckboxRow, SelectField, TextArea, TextField } from "@/components/ui/field";
 import { FieldError } from "@/components/ui/field";
+import { AgeRange } from "@/components/ui/age-range";
+import { cn } from "@/lib/utils";
 import { publicPhotoUrl, uploadImage, uploadVoiceIntro } from "@/lib/upload";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
@@ -196,27 +199,12 @@ export function PreferencesStep({ draft, errors }: StepProps) {
         <legend className="mb-3 text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
           Age range you&rsquo;re open to
         </legend>
-        <div className="flex items-center gap-4">
-          <TextField
-            label="From"
-            name="ageMin"
-            type="number"
-            min={MIN_AGE}
-            max={99}
-            defaultValue={draft.ageMin ?? MIN_AGE}
-          />
-          <span aria-hidden="true" className="mt-7 text-[var(--text-dim)]">
-            &mdash;
-          </span>
-          <TextField
-            label="To"
-            name="ageMax"
-            type="number"
-            min={MIN_AGE}
-            max={99}
-            defaultValue={draft.ageMax ?? 45}
-          />
-        </div>
+        <AgeRange
+          min={MIN_AGE}
+          max={AGE_RANGE_TOP}
+          defaultMin={draft.ageMin ?? MIN_AGE}
+          defaultMax={draft.ageMax ?? 45}
+        />
         <FieldError id="range-error">{errors.ageRange}</FieldError>
       </fieldset>
 
@@ -229,38 +217,50 @@ export function PreferencesStep({ draft, errors }: StepProps) {
 }
 
 export function InterestsStep({ draft, errors }: StepProps) {
-  const [count, setCount] = useState(draft.interests?.length ?? 0);
+  /*
+   * Controlled, where it used to count checked inputs after the fact. Counting
+   * cannot stop an eleventh from being checked — the validator caught it two
+   * screens later, which is the worst moment to learn you picked too many.
+   */
+  const [chosen, setChosen] = useState<string[]>(draft.interests ?? []);
+  const full = chosen.length >= INTEREST_MAX;
+
+  const toggle = (tag: string) =>
+    setChosen((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : prev.length >= INTEREST_MAX ? prev : [...prev, tag],
+    );
 
   return (
     <div className="space-y-6">
-      <div
-        className="flex flex-wrap gap-2"
-        onChange={(e) => {
-          const form = (e.currentTarget as HTMLElement).querySelectorAll<HTMLInputElement>(
-            'input[name="interests"]:checked',
-          );
-          setCount(form.length);
-        }}
-      >
+      <div className="flex flex-wrap gap-2">
         {INTEREST_TAGS.map((tag) => (
           <Chip
             key={tag}
             name="interests"
             value={tag}
             label={tag}
-            defaultChecked={draft.interests?.includes(tag)}
+            checked={chosen.includes(tag)}
+            onChange={() => toggle(tag)}
+            // Already-picked tags stay clickable so the only way out of a full
+            // set is not "start again".
+            disabled={full && !chosen.includes(tag)}
           />
         ))}
       </div>
 
       <p
+        aria-live="polite"
         className={
-          count >= INTEREST_MIN && count <= INTEREST_MAX
+          chosen.length >= INTEREST_MIN
             ? "text-[15px] text-[var(--sage-text)]"
             : "text-[15px] text-[var(--text-dim)]"
         }
       >
-        {count} of {INTEREST_MIN}&ndash;{INTEREST_MAX} chosen
+        {chosen.length < INTEREST_MIN
+          ? `${chosen.length} chosen \u2014 ${INTEREST_MIN - chosen.length} more to go`
+          : full
+            ? `${INTEREST_MAX} of ${INTEREST_MAX} \u2014 that's the lot`
+            : `${chosen.length} of up to ${INTEREST_MAX}`}
       </p>
       <FieldError id="interests-error">{errors.interests}</FieldError>
     </div>
@@ -410,9 +410,16 @@ export function PhotosStep({ draft, errors }: StepProps) {
       </div>
 
       <p aria-live="polite" className="text-[15px] text-[var(--text-dim)]">
+        {/*
+          "3 of 6", not "3 of 3–6". A range in a progress counter reads as two
+          numbers to hit rather than one; the minimum belongs in the prompt
+          below, not in the tally.
+        */}
         {uploading > 0
-          ? `${stored} of ${PHOTO_MIN}–${PHOTO_MAX}. ${uploading} still uploading…`
-          : `${stored} of ${PHOTO_MIN}–${PHOTO_MAX}. The first one leads your card.`}
+          ? `${stored} of ${PHOTO_MAX}. ${uploading} still uploading…`
+          : stored < PHOTO_MIN
+            ? `${stored} of ${PHOTO_MAX} — ${PHOTO_MIN - stored} more needed.`
+            : `${stored} of ${PHOTO_MAX}. The first one leads your card.`}
       </p>
       <FieldError id="photos-error">{errors.photos}</FieldError>
     </div>
@@ -424,79 +431,77 @@ export function PromptsStep({ draft, errors }: StepProps) {
     draft.prompts?.map((p) => p.prompt_id) ?? [],
   );
 
-  function toggle(id: string) {
+  const toggle = (id: string) =>
     setChosen((prev) =>
       prev.includes(id)
         ? prev.filter((p) => p !== id)
-        : prev.length < PROMPT_COUNT
-          ? [...prev, id]
-          : prev,
+        : prev.length >= PROMPT_COUNT
+          ? prev
+          : [...prev, id],
     );
-  }
 
   const answerFor = (id: string) => draft.prompts?.find((p) => p.prompt_id === id)?.answer ?? "";
+  const full = chosen.length >= PROMPT_COUNT;
 
   return (
-    <div className="space-y-7">
-      <div className="flex flex-wrap gap-2">
+    <div className="space-y-5">
+      {/*
+       * One question per row, with its answer opening underneath it.
+       *
+       * The first version put every prompt in a wrapped grid and collected the
+       * three answer boxes in a block at the bottom. That asks somebody to hold
+       * "which one was the third one again" in their head while they type, and
+       * on a phone the question they are answering is off the top of the screen
+       * by the second line.
+       */}
+      <ul className="space-y-2">
         {PROMPT_LIBRARY.map((prompt) => {
           const active = chosen.includes(prompt.id);
           return (
-            <button
-              key={prompt.id}
-              type="button"
-              onClick={() => toggle(prompt.id)}
-              aria-pressed={active}
-              disabled={!active && chosen.length >= PROMPT_COUNT}
-              className={
-                active
-                  ? "rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3.5 py-2 text-left text-[14px] text-[var(--on-accent)]"
-                  : "rounded-md border border-[var(--border)] px-3.5 py-2 text-left text-[14px] transition-colors hover:border-[var(--text-dim)] disabled:cursor-not-allowed disabled:opacity-40"
-              }
-            >
-              {prompt.text}
-            </button>
+            <li key={prompt.id}>
+              <button
+                type="button"
+                onClick={() => toggle(prompt.id)}
+                aria-pressed={active}
+                aria-controls={active ? `answer_${prompt.id}` : undefined}
+                disabled={!active && full}
+                className={cn(
+                  "w-full rounded-md border px-4 py-3 text-left text-[15px] transition-colors",
+                  active
+                    ? "border-[var(--accent)] bg-[var(--accent)]/8 font-medium text-[var(--text-primary)]"
+                    : "border-[var(--border)] hover:border-[var(--text-dim)] disabled:cursor-not-allowed disabled:opacity-40",
+                )}
+              >
+                {prompt.text}
+              </button>
+
+              {active && (
+                <div id={`answer_${prompt.id}`} className="mt-2 pl-4">
+                  <input type="hidden" name="promptId" value={prompt.id} />
+                  <TextArea
+                    label="Your answer"
+                    name={`answer_${prompt.id}`}
+                    maxLength={280}
+                    defaultValue={answerFor(prompt.id)}
+                    error={errors[prompt.id]}
+                    placeholder="Something only you would say."
+                    rows={3}
+                  />
+                </div>
+              )}
+            </li>
           );
         })}
-      </div>
+      </ul>
 
-      <p className="text-[15px] text-[var(--text-dim)]">
+      <p aria-live="polite" className="text-[15px] text-[var(--text-dim)]">
         {chosen.length} of {PROMPT_COUNT} chosen
       </p>
       <FieldError id="prompts-error">{errors.prompts}</FieldError>
-
-      <div className="space-y-6">
-        {chosen.map((id) => {
-          const prompt = PROMPT_LIBRARY.find((p) => p.id === id);
-          if (!prompt) return null;
-          return (
-            <div key={id}>
-              <input type="hidden" name="promptId" value={id} />
-              <TextArea
-                label={prompt.text}
-                name={`answer_${id}`}
-                maxLength={280}
-                defaultValue={answerFor(id)}
-                error={errors[id]}
-                placeholder="Something only you would say."
-              />
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
 
-/**
- * Selfie.
- *
- * Note the asymmetry with photos: a selfie restored from the draft shows a
- * confirmation, never a thumbnail. `verification-selfies` is private and has
- * no member SELECT policy at all — spec §9.8, "review-team eyes only" — so
- * there is no URL to render even for the person who uploaded it. That's the
- * promise working, not a gap.
- */
 export function SelfieStep({ draft, errors }: StepProps) {
   const [selfie, setSelfie] = useState<{ label: string; preview: string } | null>(
     draft.selfiePath ? { label: "Selfie on file", preview: "" } : null,
