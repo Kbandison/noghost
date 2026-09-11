@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MIN_AGE } from "@noghost/config";
 import {
   APPLICATION_STEPS,
   FINAL_STEP,
@@ -20,6 +21,20 @@ import {
 } from "./application";
 
 const NOW = "2026-08-01T12:00:00.000Z";
+
+/** The birthdate of somebody who turns exactly `age` on NOW. */
+function birthdateForAge(age: number): string {
+  const now = new Date(NOW);
+  return `${now.getUTCFullYear() - age}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    now.getUTCDate(),
+  ).padStart(2, "0")}`;
+}
+
+const dayAfter = (iso: string): string => {
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+};
 
 /** The minimum that satisfies each step, so the walkthrough can advance. */
 const satisfy: Record<string, Partial<ApplicationDraft>> = {
@@ -124,15 +139,23 @@ describe("about", () => {
     expect(validateAbout(complete(), NOW)).toEqual({ ok: true });
   });
 
-  it("turns away under-21s with a route to the waitlist, not a dead end", () => {
-    const result = validateAbout(complete({ birthdate: "2008-01-01" }), NOW);
+  it("turns away anyone under the floor with a route to the waitlist, not a dead end", () => {
+    // Dated from MIN_AGE rather than written as 2008. The floor moved from 21
+    // to 18 and three tests kept asserting 21 — a hardcoded date is how an
+    // age check stops testing the age it is supposed to.
+    const dayBefore = birthdateForAge(MIN_AGE - 1);
+    const result = validateAbout(complete({ birthdate: dayBefore }), NOW);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors.birthdate).toMatch(/waitlist/);
   });
 
-  it("admits someone on their 21st birthday", () => {
-    expect(validateAbout(complete({ birthdate: "2005-08-01" }), NOW)).toEqual({ ok: true });
-    expect(validateAbout(complete({ birthdate: "2005-08-02" }), NOW).ok).toBe(false);
+  it("admits somebody on the birthday that makes them eligible", () => {
+    expect(validateAbout(complete({ birthdate: birthdateForAge(MIN_AGE) }), NOW))
+      .toEqual({ ok: true });
+    // One day younger: still a day short.
+    expect(
+      validateAbout(complete({ birthdate: dayAfter(birthdateForAge(MIN_AGE)) }), NOW).ok,
+    ).toBe(false);
   });
 
   it("requires a name, a gender, and at least one seeking option", () => {
@@ -165,9 +188,10 @@ describe("preferences", () => {
     expect(validatePreferences(complete({ travelRadiusKm: 23 }), NOW).ok).toBe(false);
   });
 
-  it("rejects an inverted or under-21 range", () => {
+  it("rejects an inverted range, or one below the floor", () => {
     expect(validatePreferences(complete({ ageMin: 40, ageMax: 30 }), NOW).ok).toBe(false);
-    expect(validatePreferences(complete({ ageMin: 18 }), NOW).ok).toBe(false);
+    expect(validatePreferences(complete({ ageMin: MIN_AGE - 1 }), NOW).ok).toBe(false);
+    expect(validatePreferences(complete({ ageMin: MIN_AGE, ageMax: 40 }), NOW).ok).toBe(true);
   });
 
   it("warns when the range excludes the applicant's own age", () => {

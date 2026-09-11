@@ -6,7 +6,13 @@
  * has to read naturally inside that sentence.
  */
 export const PROMPT_LIBRARY = [
-  { id: "prompt_01", text: "The most Atlanta thing about me is…", topic: "the most Atlanta thing about you" },
+  /*
+   * Was "The most Atlanta thing about me is…". A prompt naming the city was
+   * unanswerable for anybody in the next one, and the id is load-bearing —
+   * `profiles.prompts` stores `prompt_id`, so renaming the text keeps every
+   * answer already written to it attached.
+   */
+  { id: "prompt_01", text: "The most me thing about my week is…", topic: "the most you thing about your week" },
   { id: "prompt_02", text: "A perfect first date ends with…", topic: "a perfect first date" },
   { id: "prompt_03", text: "I'll talk your ear off about…", topic: "what you'll talk anyone's ear off about" },
   { id: "prompt_04", text: "The green flag I bring is…", topic: "your green flag" },

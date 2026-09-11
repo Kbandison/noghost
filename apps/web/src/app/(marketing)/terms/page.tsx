@@ -41,7 +41,7 @@ export default function TermsPage() {
         {
           heading: "Age and location",
           body: [
-            "Season One is limited to people 21 and over who live in metro Atlanta. This is a curation choice for the first cohort, not a legal minimum.",
+            "Season One is limited to people 18 and over.",
           ],
         },
         {

@@ -92,8 +92,18 @@ export const GENDER_LABELS: Record<Gender, string> = {
   nonbinary: "Nonbinary",
 };
 
-/** Season One is 21+ — a curation choice, not a legal minimum (spec §9.8). */
-export const MIN_AGE = 21;
+/**
+ * The floor for applying.
+ *
+ * Was 21 — a Season One curation choice rather than a legal minimum, and §12
+ * listed opening it to 18–20 as a Season Two decision. Brought forward.
+ *
+ * Not a number to change casually in either direction: it is repeated in the
+ * consent line somebody ticks, in the Terms, and in a database check on
+ * `profiles.age_min`, so all four have to move together or the product promises
+ * one thing and enforces another.
+ */
+export const MIN_AGE = 18;
 
 /** Photo and prompt counts enforced by the profile builder (spec §5, §7.2). */
 export const PHOTO_MIN = 3;

@@ -8,7 +8,7 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Waitlist",
-  description: "Other cities, and the next season in Atlanta.",
+  description: "Other cities, and the next season here.",
 };
 
 export default async function WaitlistPage() {
@@ -21,7 +21,7 @@ export default async function WaitlistPage() {
         <div className="lg:col-span-6">
           <Eyebrow className="mb-6">Waitlist</Eyebrow>
           <h1 className="font-[family-name:var(--font-display)] text-[clamp(2.25rem,5vw,3.5rem)] font-extrabold leading-[1.05] tracking-[-0.03em]">
-            {full ? "This season is full." : "Not in Atlanta?"}
+            {full ? "This season is full." : "Not where we are yet?"}
           </h1>
           <p className="prose-measure mt-7 text-[18px] leading-[1.65] text-[var(--text-secondary)]">
             {full
@@ -34,7 +34,7 @@ export default async function WaitlistPage() {
         </div>
 
         <div className="lg:col-span-6 lg:pl-8">
-          <WaitlistForm defaultCity={BRAND.CITY_S1} />
+          <WaitlistForm />
         </div>
       </div>
     </Section>

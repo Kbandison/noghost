@@ -18,8 +18,15 @@ export const BRAND = {
   APP_URL: "https://noghostdating.app",
   ADMIN_URL: "https://admin.noghostdating.app",
   SUPPORT_EMAIL: "hello@noghostdating.app",
+  /*
+   * The city a season runs in is still real — `seasons.city` drives the admin
+   * console and the per-city model the whole product rests on. What changed is
+   * that it stopped appearing in anything a member reads. A season named after
+   * one city reads as a local product, and this one is built to open in the
+   * next one without a release.
+   */
   CITY_S1: "Atlanta",
-  SEASON_S1_NAME: "Atlanta Season One",
+  SEASON_S1_NAME: "Season One",
 } as const;
 
 export type Brand = typeof BRAND;

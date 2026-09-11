@@ -72,7 +72,7 @@ export function Footer({ seasonName }: { seasonName: string }) {
 
         <div className="mt-14 flex flex-col gap-3 border-t border-[var(--border-subtle)] pt-8 text-[14px] text-[var(--text-dim)] md:flex-row md:items-center md:justify-between">
           <p>
-            © {new Date().getFullYear()} {BRAND.APP_NAME}. Built in {BRAND.CITY_S1}.
+            © {new Date().getFullYear()} {BRAND.APP_NAME}.
           </p>
           <p>{BRAND.TAGLINE}</p>
         </div>

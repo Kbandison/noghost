@@ -11,7 +11,14 @@ const initial: WaitlistState = { status: "idle" };
  * (LUXWEB quality gate — loading, empty, error, success for all dynamic
  * content). Errors render inline and are announced.
  */
-export function WaitlistForm({ defaultCity }: { defaultCity: string }) {
+/*
+ * No default city.
+ *
+ * It used to prefill "Atlanta", which is the one answer this form does not want:
+ * the whole question is where somebody is when it is somewhere we are not yet,
+ * and a prefilled field is the field most people leave alone.
+ */
+export function WaitlistForm() {
   const [state, formAction, isPending] = useActionState(joinWaitlist, initial);
 
   if (state.status === "success") {
@@ -43,7 +50,6 @@ export function WaitlistForm({ defaultCity }: { defaultCity: string }) {
           name="city"
           type="text"
           autoComplete="address-level2"
-          defaultValue={defaultCity}
           required
         />
       </div>

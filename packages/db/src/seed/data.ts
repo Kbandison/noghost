@@ -1,4 +1,4 @@
-import { BRAND, INTEREST_TAGS, SEASON_DEFAULTS } from "@noghost/config";
+import { BRAND, INTEREST_TAGS, MIN_AGE, SEASON_DEFAULTS } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import { hashSeed, seededRandom } from "@noghost/logic";
 import type { Gender, Profile, Season } from "@noghost/types";
@@ -236,7 +236,9 @@ export function generateSeedProfiles(count = 40): Profile[] {
       .sort(() => random() - 0.5)
       .slice(0, interestCount);
 
-    const ageMin = Math.max(21, age - 4 - Math.floor(random() * 5));
+    // MIN_AGE, not a literal — 0036 moved the floor and a hardcoded 21 here
+    // would generate fixtures the funnel would no longer produce.
+    const ageMin = Math.max(MIN_AGE, age - 4 - Math.floor(random() * 5));
     const ageMax = age + 3 + Math.floor(random() * 8);
 
     return {
