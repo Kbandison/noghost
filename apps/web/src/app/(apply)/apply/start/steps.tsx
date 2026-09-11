@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 import { useEffect, useState } from "react";
 import {
   AGE_RANGE_TOP,
@@ -28,6 +26,7 @@ import { publicPhotoUrl, screeningThumbnail, uploadImage, uploadVoiceIntro } fro
 import { screenBeforeUpload, screenPhoto } from "./photo-actions";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { LivenessCapture } from "@/components/ui/liveness-capture";
+import { PolicyDialog } from "@/components/ui/policy-dialog";
 import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
 import { VOICE_INTRO_MAX_MS } from "@/lib/voice";
 
@@ -697,20 +696,29 @@ export function AgreeStep({ draft, errors }: StepProps) {
         {interpolate(CONSENT.application, { MIN_AGE })}
       </CheckboxRow>
 
-      <p className="text-[14px] leading-relaxed text-[var(--text-dim)]">
+      {/*
+        * Opened here rather than in a new tab.
+        *
+        * A link asked somebody mid-application to leave, read, find their way
+        * back, and trust that their half-finished form survived — which is the
+        * version where nobody reads them. If we are going to ask for
+        * agreement, the thing being agreed to belongs within reach of the box.
+        */}
+      {/*
+        * A div, not a p. `PolicyDialog` renders a `<dialog>` beside its button,
+        * and a `<p>` cannot contain one — the browser closes the paragraph
+        * early and rebuilds the tree, which React sees as a hydration mismatch
+        * and re-renders the whole branch on the client.
+        */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] leading-relaxed text-[var(--text-dim)]">
+        <span>Read them:</span>
         {LEGAL_LINKS.map((link, index) => (
-          <span key={link.href}>
-            {index > 0 && <span aria-hidden="true"> &middot; </span>}
-            <Link
-              href={link.href}
-              target="_blank"
-              className="underline decoration-[1.5px] underline-offset-4 hover:text-[var(--text-secondary)]"
-            >
-              {link.label}
-            </Link>
+          <span key={link.href} className="flex items-center gap-x-2">
+            {index > 0 && <span aria-hidden="true">&middot;</span>}
+            <PolicyDialog slug={link.href.replace("/", "")} label={link.label} />
           </span>
         ))}
-      </p>
+      </div>
     </div>
   );
 }
