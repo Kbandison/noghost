@@ -24,6 +24,7 @@ export * from "./tone-check";
 export * from "./application";
 export * from "./claim";
 export * from "./pricing";
+export * from "./cohort-metrics";
 export * from "./notifications";
 export * from "./notify-copy";
 export * from "./notify-email";
