@@ -284,7 +284,8 @@ look identical to a presence check.
 
 Rekognition
   ✓ DetectFaces is allowed  0 faces in a 1×1 test image
-  ✓ CompareFaces is allowed  service rejected the faceless test image, which is the point
+  ✓ CompareFaces is allowed
+      refused the faceless 1×1 test image — which means the call itself got through
 
 Amazon Location Places
   ✓ Geocode is allowed, with IntendedUse: Storage  30308 → Atlanta, GA (lng -84.38, lat 33.77)

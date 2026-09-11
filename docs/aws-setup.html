@@ -796,7 +796,8 @@ AWS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/noghost-app</code></pre>
 
 Rekognition
 <span class="ok">  ✓</span> DetectFaces is allowed  <span class="lbl">0 faces in a 1×1 test image</span>
-<span class="ok">  ✓</span> CompareFaces is allowed  <span class="lbl">service rejected the faceless test image, which is the point</span>
+<span class="ok">  ✓</span> CompareFaces is allowed
+      <span class="lbl">refused the faceless 1×1 test image — which means the call itself got through</span>
 
 Amazon Location Places
 <span class="ok">  ✓</span> Geocode is allowed, with IntendedUse: Storage

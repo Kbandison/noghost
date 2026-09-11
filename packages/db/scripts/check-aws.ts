@@ -4,7 +4,7 @@
  *   pnpm aws:check
  *
  * Answers the question the setup guide ends on, and answers it by *spending
- * money* — two real calls, a fraction of a cent, rather than checking that
+ * money* — three real calls, a fraction of a cent, rather than checking that
  * three environment variables are non-empty. A key with the wrong permissions,
  * a region that carries neither service, a policy typo in the provider ARN:
  * all three look identical to a presence check and identical to each other in
@@ -86,14 +86,14 @@ function explain(cause: unknown): string {
   if (/AccessDenied|not authorized|is not authorized to perform/i.test(both)) {
     return `${message}\n      → the IAM policy. The key is real and AWS refused this action — check the policy is attached and names this action.`;
   }
-  if (/getaddrinfo|ENOTFOUND|EAI_AGAIN|Inaccessible host|endpoint/i.test(message)) {
+  if (/getaddrinfo|ENOTFOUND|EAI_AGAIN|Inaccessible host|UnknownEndpoint|endpoint/i.test(both)) {
     return `${message}\n      → AWS_REGION. That endpoint does not exist.`;
   }
   return message;
 }
 
 async function main() {
-  console.log("\nAWS — two real calls, not three non-empty variables.\n");
+  console.log("\nAWS — three real calls, not three non-empty variables.\n");
 
   const region = process.env.AWS_REGION;
   const roleArn = process.env.AWS_ROLE_ARN;
@@ -186,9 +186,24 @@ async function main() {
     );
     ok("CompareFaces is allowed", `${out.FaceMatches?.length ?? 0} matches`);
   } catch (cause) {
+    /*
+     * Matched against the error's NAME as well as its message, and that is not
+     * belt-and-braces — it is the whole thing working.
+     *
+     * The AWS SDK puts the error code on `name` (`InvalidParameterException`)
+     * and prose on `message` ("Request has invalid parameters"). Testing the
+     * message alone therefore never matches, and this check reported a loud
+     * red failure for the exact response it was written to treat as a pass —
+     * sending somebody off to debug image formats when their credentials had
+     * just been proven to work.
+     */
+    const name = cause instanceof Error ? cause.name : "";
     const message = cause instanceof Error ? cause.message : String(cause);
-    if (/InvalidParameter|no faces|NoFace/i.test(message)) {
-      ok("CompareFaces is allowed", "service rejected the faceless test image, which is the point");
+    if (/InvalidParameter|no faces|NoFace/i.test(`${name} ${message}`)) {
+      ok(
+        "CompareFaces is allowed",
+        "refused the faceless 1×1 test image — which means the call itself got through",
+      );
     } else {
       bad("CompareFaces failed", explain(cause));
     }
