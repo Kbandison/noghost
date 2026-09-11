@@ -227,7 +227,7 @@
   }
   .service-without b { color: var(--muted); font-weight: 600; }
 
-  /* ---- the three verified findings ---- */
+  /* ---- what was checked, and what each finding changed ---- */
   .findings { display: flex; flex-direction: column; gap: 0.75rem; }
 
   .finding {
@@ -380,6 +380,29 @@
   .costs .rate { color: var(--ink); white-space: nowrap; }
   .table-wrap { overflow-x: auto; }
 
+  /* Same bones as .costs, but these values are long identifiers rather than
+     numbers: they wrap instead of forcing the page into a sideways scroll. */
+  .values { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .values td {
+    padding: 0.6rem 0.7rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    text-align: left;
+  }
+  .values td:first-child {
+    white-space: nowrap;
+    color: var(--dim);
+    font-size: 0.82rem;
+    width: 1%;
+  }
+  .values .v {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+
   .divider { height: 1px; background: var(--rule); border: 0; }
 
   .footnote {
@@ -397,8 +420,9 @@
     <div class="eyebrow">Setup runbook</div>
     <h1>Wiring NoGhost to AWS</h1>
     <p class="lead">
-      Two services, nothing to provision, one IAM user and three environment
-      variables. About fifteen minutes, most of it in the IAM console.
+      Two services, nothing to provision, one IAM role and two environment
+      variables — neither of them a secret. About twenty minutes, most of it in
+      the IAM console.
     </p>
   </header>
 
@@ -472,6 +496,15 @@
       </div>
 
       <div class="finding">
+        <h3>OIDC is already switched on for <code>noghost-web</code></h3>
+        <p>
+          Enabled, in <b>team</b> issuer mode. So there is nothing to toggle on
+          the Vercel side, and every placeholder in AWS’s documentation has a
+          real value below rather than a <code>[TEAM_SLUG]</code>.
+        </p>
+      </div>
+
+      <div class="finding">
         <h3><code>AWS_REGION</code> is preset by Vercel</h3>
         <p>
           A function in <code>sfo1</code> arrives with
@@ -480,7 +513,9 @@
           variable therefore looks exactly like setting it, and the symptom is
           an endpoint error rather than “AWS isn’t configured”.
           <code>lib/aws.ts</code> now refuses a region that cannot serve us and
-          says so.
+          says so. Vercel’s own documentation goes further: with multi-region
+          routing the value “can change depending on which region your function
+          runs in”.
         </p>
       </div>
     </div>
@@ -564,63 +599,127 @@
     </section>
 
     <section class="step">
-      <h2>Create the user and the key</h2>
-      <p>IAM → <b>Users</b> → <b>Create user</b>.</p>
-      <ol>
-        <li>
-          Name it <code>noghost-app</code>. Leave <b>“Provide user access to
-          the AWS Management Console”</b> unchecked — this identity is for the
-          app, and a machine identity that can also log in is one somebody can
-          phish.
-        </li>
-        <li>Permissions → <b>Attach policies directly</b> → tick <code>noghost-app</code>.</li>
-        <li>
-          Create the user, open it, then <b>Security credentials</b> →
-          <b>Create access key</b>.
-        </li>
-        <li>
-          Use case: <b>Application running outside AWS</b>. Acknowledge the
-          warning — it is a real recommendation, and there’s a note at the
-          bottom about doing better later.
-        </li>
-      </ol>
-      <div class="watch">
-        <b>Copy both values before you leave that screen.</b> The secret is
-        shown exactly once. If you lose it there is no recovery — you delete
-        the key and create another.
-      </div>
-    </section>
+      <h2>Trust Vercel, and make a role</h2>
+      <p>
+        No access key. Vercel signs a short-lived token on every invocation,
+        AWS trusts that issuer, and it is exchanged for credentials that expire
+        in an hour. There is nothing persistent to leak and nothing to rotate.
+      </p>
 
-    <section class="step">
-      <h2>Put them in <code>.env.local</code></h2>
-      <p>One file, at the repo root. There is no per-app env file.</p>
-      <pre><code>AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=...</code></pre>
+      <table class="values">
+        <tbody>
+          <tr><td>Team slug</td><td class="v">kevin-bandisons-projects</td></tr>
+          <tr><td>Provider URL</td><td class="v">https://oidc.vercel.com/kevin-bandisons-projects</td></tr>
+          <tr><td>Audience</td><td class="v">https://vercel.com/kevin-bandisons-projects</td></tr>
+          <tr><td>Subject</td><td class="v">owner:kevin-bandisons-projects:project:noghost-web:environment:production</td></tr>
+        </tbody>
+      </table>
       <p class="note">
-        All three or none. A partial set is treated as unconfigured and logged
-        loudly, because a key with no region fails at call time in a way that
-        reads like an outage.
+        AWS’s documentation writes every one of those as
+        <code>[TEAM_SLUG]</code>. These are yours.
+      </p>
+
+      <h3>a. Add the identity provider</h3>
+      <p>
+        IAM → <b>Identity providers</b> → <b>Add provider</b> →
+        <b>OpenID Connect</b>, with the provider URL and audience above.
+      </p>
+
+      <h3>b. Create the role</h3>
+      <p>
+        IAM → <b>Roles</b> → <b>Create role</b> → <b>Web identity</b>, choosing
+        the provider you just made. Skip the permissions screen, name it
+        <code>noghost-app</code>, create it — then open it and fix both halves.
+      </p>
+      <p>
+        <b>Trust relationships</b> → <b>Edit trust policy</b>, replacing
+        <code>YOUR_ACCOUNT_ID</code> with your twelve-digit AWS account number:
+      </p>
+      <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/oidc.vercel.com/kevin-bandisons-projects"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.vercel.com/kevin-bandisons-projects:aud":
+            "https://vercel.com/kevin-bandisons-projects"
+        },
+        "StringLike": {
+          "oidc.vercel.com/kevin-bandisons-projects:sub": [
+            "owner:kevin-bandisons-projects:project:noghost-web:environment:production",
+            "owner:kevin-bandisons-projects:project:noghost-web:environment:preview",
+            "owner:kevin-bandisons-projects:project:noghost-web:environment:development"
+          ]
+        }
+      }
+    }
+  ]
+}</code></pre>
+      <p class="note">
+        Three subjects, named one at a time rather than with a wildcard. Only
+        <code>noghost-web</code> calls AWS — <code>noghost-admin</code> has no
+        reason to, and nine other projects share this team.
+        <code>development</code> is there so the same role works from your
+        laptop; drop that line if you would rather local development had no AWS
+        at all.
+      </p>
+      <p>
+        Then <b>Permissions</b> → <b>Add permissions</b> → <b>Attach
+        policies</b> → tick <code>noghost-app</code>, the policy from step 2.
+        Copy the role ARN.
       </p>
     </section>
 
     <section class="step">
-      <h2>Put them in Vercel</h2>
+      <h2>Put two variables in Vercel</h2>
       <pre><code>vercel env add AWS_REGION production
-vercel env add AWS_ACCESS_KEY_ID production
-vercel env add AWS_SECRET_ACCESS_KEY production</code></pre>
-      <p class="note">
-        Or Project → Settings → Environment Variables.
+vercel env add AWS_ROLE_ARN production</code></pre>
+      <p>
+        Repeat for <code>preview</code> if you want previews to have it. That
+        is the whole secret story: <b>there isn’t one.</b>
+        <code>AWS_ROLE_ARN</code> only names a role, and only Vercel-signed
+        tokens for this project can assume it.
       </p>
       <div class="watch">
         <b>Set <code>AWS_REGION</code> explicitly.</b> It’s the one people skip,
         on the reasonable assumption that AWS defaults it sensibly. Vercel does
-        default it — to its own function’s region, which is wrong for us.
+        default it — to its own function’s region, which is wrong for us and
+        can change between invocations.
       </div>
       <p class="note">
-        All three are already in <code>turbo.json</code>’s <code>globalEnv</code>.
-        They weren’t before: Turbo strips variables it doesn’t declare, and a
+        Both are in <code>turbo.json</code>’s <code>globalEnv</code>. They
+        weren’t before: Turbo strips variables it doesn’t declare, and a
         stripped variable is indistinguishable from an unset one.
+      </p>
+    </section>
+
+    <section class="step">
+      <h2>Get a token locally</h2>
+      <p>
+        The role needs no help on Vercel. Locally there is no invocation to
+        carry a token, so pull one:
+      </p>
+      <pre><code>vercel link          # if this repo isn't linked yet
+vercel env pull .env.local --yes</code></pre>
+      <p>Then add to the root <code>.env.local</code>:</p>
+      <pre><code>AWS_REGION=us-east-1
+AWS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/noghost-app</code></pre>
+      <div class="watch">
+        Two things that have bitten this repo before.
+        <b>Pull to the repo root</b> — there is one <code>.env.local</code> and
+        it lives at the top; <code>vercel link</code> has previously recreated
+        <code>apps/web/.env.local</code>, which nothing reads. And
+        <b>check which team you linked</b>: it has picked the wrong team’s
+        <code>noghost-web</code> before.
+      </div>
+      <p class="note">
+        <code>VERCEL_OIDC_TOKEN</code> is short-lived — a couple of hours. When
+        <code>aws:check</code> says the token is unreadable, pull again.
       </p>
     </section>
 
@@ -635,7 +734,7 @@ vercel env add AWS_SECRET_ACCESS_KEY production</code></pre>
       </p>
       <div class="terminal">
 <pre><span class="ok">  ✓</span> AWS_REGION carries both services  <span class="lbl">us-east-1</span>
-<span class="ok">  ✓</span> credentials present  <span class="lbl">AKIAIOSF… / secret 40 chars</span>
+<span class="ok">  ✓</span> assuming a role over OIDC  <span class="lbl">noghost-app — nothing persistent stored</span>
 
 Rekognition
 <span class="ok">  ✓</span> DetectFaces is allowed  <span class="lbl">0 faces in a 1×1 test image</span>
@@ -718,19 +817,28 @@ Amazon Location Places
   <hr class="divider" />
 
   <section class="section">
-    <h2>Later: drop the long-lived key</h2>
+    <h2>If you’d rather use an access key</h2>
     <p class="footnote">
-      An access key in an environment variable never expires and works from
-      anywhere. AWS’s own documentation opens by telling you to use temporary
-      credentials instead, and Vercel supports OIDC federation to an IAM role —
-      the function exchanges a short-lived token for a role, and there is no
-      secret to leak.
+      The role is better and not much harder, but the key path still works and
+      <code>lib/aws.ts</code> still supports it — <code>AWS_ROLE_ARN</code>
+      simply wins when both are set, which is what makes switching safe in
+      either direction.
     </p>
     <p class="footnote">
-      It needs a role, a trust policy, and a credential-provider change in
-      <code>lib/aws.ts</code>. <strong>Worth doing before there is real member
-      data behind it</strong>; not worth blocking on now, given this key can
-      only read faces and look up postcodes.
+      IAM → <strong>Users</strong> → <strong>Create user</strong>, named
+      <code>noghost-app</code>, console access unchecked, with the policy from
+      step 2 attached. Then <strong>Security credentials</strong> →
+      <strong>Create access key</strong> → <strong>Application running outside
+      AWS</strong>. Copy both values; the secret is shown exactly once. Set
+      <code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code>
+      instead of <code>AWS_ROLE_ARN</code>.
+    </p>
+    <p class="footnote">
+      <strong>Going from key to role later:</strong> add
+      <code>AWS_ROLE_ARN</code>, run <code>aws:check</code> — it will say the
+      key is being ignored — and once that is green, delete the key in IAM and
+      drop both variables. There is no moment in between where the app cannot
+      authenticate.
     </p>
   </section>
 

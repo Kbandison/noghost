@@ -13,6 +13,7 @@
  * Reports what is wrong in the terms of the fix. AccessDenied means the policy;
  * an endpoint or credential error means the region or the key.
  */
+import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { DetectFacesCommand, RekognitionClient } from "@aws-sdk/client-rekognition";
 import { GeoPlacesClient, GeocodeCommand } from "@aws-sdk/client-geo-places";
 import { ENV_PATH, loadRepoEnv } from "./env";
@@ -64,6 +65,18 @@ function explain(cause: unknown): string {
    * fix a mistyped key costs an hour. AccessDenied is the opposite — the key is
    * real, the action is not allowed.
    */
+  /*
+   * The OIDC failures, first, because they are the ones that come back looking
+   * like nothing at all. A token Vercel issued an hour ago is the single most
+   * likely thing to be wrong locally, and STS reports it as a parse error or a
+   * bare InvalidIdentityToken rather than "your token expired".
+   */
+  if (/InvalidIdentityToken|IDPRejectedClaim|ExpiredToken|not authorized to perform: sts:AssumeRoleWithWebIdentity/i.test(both)) {
+    return `${message}\n      → the OIDC token or the role's trust policy. Re-run \`vercel env pull\` for a fresh token; if that does not fix it, the trust policy's sub/aud conditions do not match this project and environment.`;
+  }
+  if (/is not valid JSON|Unexpected token/i.test(message) && process.env.AWS_ROLE_ARN) {
+    return `${message}\n      → VERCEL_OIDC_TOKEN is not a token STS could read. Re-run \`vercel env pull\`.`;
+  }
   if (/UnrecognizedClient|security token included in the request is invalid/i.test(both)) {
     return `${message}\n      → AWS_ACCESS_KEY_ID. This account has no such key — check for a typo, or a key that was deleted.`;
   }
@@ -83,19 +96,18 @@ async function main() {
   console.log("\nAWS — two real calls, not three non-empty variables.\n");
 
   const region = process.env.AWS_REGION;
+  const roleArn = process.env.AWS_ROLE_ARN;
   const keyId = process.env.AWS_ACCESS_KEY_ID;
   const secret = process.env.AWS_SECRET_ACCESS_KEY;
+  const hasKeys = Boolean(keyId && secret);
 
-  if (!region || !keyId || !secret) {
-    const missing = [
-      !region && "AWS_REGION",
-      !keyId && "AWS_ACCESS_KEY_ID",
-      !secret && "AWS_SECRET_ACCESS_KEY",
-    ].filter(Boolean);
-    console.log(`  ${Y}–${X} not set: ${missing.join(", ")}`);
-    console.log(`\n  ${D}Add them to ${ENV_PATH}. Both features degrade without them:${X}`);
-    console.log(`  ${D}the postcode lookup says so and the location button still works;${X}`);
-    console.log(`  ${D}every applicant records liveness_passed = NULL and a person reviews them.${X}\n`);
+  if (!region || !(roleArn || hasKeys)) {
+    console.log(`  ${Y}–${X} AWS is not set up here.`);
+    console.log(`\n  ${D}Needs AWS_REGION, plus EITHER AWS_ROLE_ARN (OIDC, no stored secret)${X}`);
+    console.log(`  ${D}OR AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY. In ${ENV_PATH}.${X}`);
+    console.log(`\n  ${D}Both features degrade without them: the postcode lookup says so and${X}`);
+    console.log(`  ${D}the location button still works; every applicant records${X}`);
+    console.log(`  ${D}liveness_passed = NULL and a person reviews them.${X}\n`);
     process.exit(1);
   }
 
@@ -109,14 +121,49 @@ async function main() {
     process.exit(1);
   }
   ok("AWS_REGION carries both services", region);
-  ok("credentials present", `${keyId.slice(0, 8)}… / secret ${secret.length} chars`);
+
+  /*
+   * The same precedence `apps/web/src/lib/aws.ts` uses — role first, keys as
+   * the fallback. A check that tested the keys while production assumed a role
+   * would be green for the wrong reason, which is worse than no check.
+   */
+  let credentials:
+    | ReturnType<typeof awsCredentialsProvider>
+    | { accessKeyId: string; secretAccessKey: string };
+
+  if (roleArn) {
+    if (!process.env.VERCEL_OIDC_TOKEN) {
+      bad(
+        "AWS_ROLE_ARN is set but there is no OIDC token here",
+        "OIDC tokens come from Vercel. Locally: `vercel link` then `vercel env pull`\n" +
+          "      — and pull to the REPO ROOT .env.local, not into apps/web.\n" +
+          "      The token is short-lived; re-pull when this reappears.",
+      );
+      console.log(`\n${R}Stopping — nothing below could authenticate.${X}\n`);
+      process.exit(1);
+    }
+    credentials = awsCredentialsProvider({ roleArn });
+    ok("assuming a role over OIDC", `${roleArn.split("/").pop()} — nothing persistent stored`);
+    if (hasKeys) {
+      console.log(
+        `  ${Y}!${X} AWS_ACCESS_KEY_ID is also set and is being ignored.` +
+          `\n      ${D}Once this run is green, delete the key in IAM and drop both variables.${X}`,
+      );
+    }
+  } else {
+    credentials = { accessKeyId: keyId!, secretAccessKey: secret! };
+    ok("using a long-lived access key", `${keyId!.slice(0, 8)}… / secret ${secret!.length} chars`);
+    console.log(
+      `  ${Y}!${X} ${D}This credential never expires and works from anywhere.` +
+        ` See docs/aws-setup.md for the role.${X}`,
+    );
+  }
 
   console.log("\nRekognition");
   try {
-    const out = await new RekognitionClient({
-      region,
-      credentials: { accessKeyId: keyId, secretAccessKey: secret },
-    }).send(new DetectFacesCommand({ Image: { Bytes: TINY_JPEG }, Attributes: ["ALL"] }));
+    const out = await new RekognitionClient({ region, credentials }).send(
+      new DetectFacesCommand({ Image: { Bytes: TINY_JPEG }, Attributes: ["ALL"] }),
+    );
     // Zero faces in a 1×1 image is the right answer. What is being proved is
     // that the call was allowed and the image decoded — a face would only add
     // a way for this to fail that has nothing to do with setup.
@@ -126,10 +173,7 @@ async function main() {
   }
 
   try {
-    const out = await new RekognitionClient({
-      region,
-      credentials: { accessKeyId: keyId, secretAccessKey: secret },
-    }).send(
+    const out = await new RekognitionClient({ region, credentials }).send(
       // CompareFaces is a separate IAM action and a separate pricing group, so
       // DetectFaces passing says nothing about it. An image with no face gives
       // InvalidParameterException — which is the service answering, and that is
@@ -152,10 +196,7 @@ async function main() {
 
   console.log("\nAmazon Location Places");
   try {
-    const out = await new GeoPlacesClient({
-      region,
-      credentials: { accessKeyId: keyId, secretAccessKey: secret },
-    }).send(
+    const out = await new GeoPlacesClient({ region, credentials }).send(
       new GeocodeCommand({
         QueryText: "30308",
         // The same value the app sends. `SingleUse` would pass here and fail

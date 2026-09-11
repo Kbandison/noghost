@@ -19,6 +19,7 @@
     "@noghost/logic": "workspace:*",
     "@noghost/types": "workspace:*",
     "@noghost/ui-tokens": "workspace:*",
+    "@vercel/oidc-aws-credentials-provider": "^3.3.7",
     "botid": "^1.5.11",
     "clsx": "^2.1.1",
     "gsap": "^3.13.0",

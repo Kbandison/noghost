@@ -1,7 +1,8 @@
 # Wiring NoGhost to AWS
 
-Two services, no resources to create, one IAM user, three environment
-variables. Fifteen minutes.
+Two services, nothing to provision, one IAM role and two environment
+variables — neither of them a secret. About twenty minutes, most of it in
+the IAM console.
 
 | Service | What it does | Without it |
 | --- | --- | --- |
@@ -99,53 +100,125 @@ Two details worth knowing rather than wondering about:
 This policy grants three read actions and nothing else. It cannot create,
 delete, or spend beyond those calls.
 
-## 3. Create the user and the key
+## 3. Trust Vercel, and make a role
 
-IAM → **Users** → **Create user**.
+OIDC is already switched on for `noghost-web` (team issuer mode) — I
+checked, so there is nothing to toggle on the Vercel side.
 
-1. Name it **`noghost-app`**. Leave "Provide user access to the AWS
-   Management Console" **unchecked** — this identity is for the app, and
-   a machine identity that can also log in is a machine identity someone
-   can phish.
-2. Permissions → **Attach policies directly** → tick `noghost-app`.
-3. Create the user, then open it → **Security credentials** →
-   **Create access key**.
-4. Use case: **Application running outside AWS**. Acknowledge the
-   warning — it is the real recommendation, and see *Later* at the bottom.
-5. **Copy both values now.** The secret is shown exactly once. If you
-   lose it you delete the key and make another; there is no recovery.
+Your concrete values, which the docs write as placeholders:
 
-## 4. Put them in `.env.local`
+| | |
+| --- | --- |
+| Team slug | `kevin-bandisons-projects` |
+| Provider URL | `https://oidc.vercel.com/kevin-bandisons-projects` |
+| Audience | `https://vercel.com/kevin-bandisons-projects` |
+| Subject (production) | `owner:kevin-bandisons-projects:project:noghost-web:environment:production` |
 
-One file, at the repo root. There is no per-app env file.
+### 3a. Add the identity provider
 
-```bash
-AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=...
+IAM → **Identity providers** → **Add provider** → **OpenID Connect**.
+
+- Provider URL: `https://oidc.vercel.com/kevin-bandisons-projects`
+- Audience: `https://vercel.com/kevin-bandisons-projects`
+
+### 3b. Create the role
+
+IAM → **Roles** → **Create role** → **Web identity**, pick the provider
+you just made. Skip the permissions screen for now, name it
+**`noghost-app`**, create it — then open it and fix both halves:
+
+**Trust relationships** → **Edit trust policy**. Replace
+`YOUR_ACCOUNT_ID` with your twelve-digit AWS account number:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/oidc.vercel.com/kevin-bandisons-projects"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.vercel.com/kevin-bandisons-projects:aud": "https://vercel.com/kevin-bandisons-projects"
+        },
+        "StringLike": {
+          "oidc.vercel.com/kevin-bandisons-projects:sub": [
+            "owner:kevin-bandisons-projects:project:noghost-web:environment:production",
+            "owner:kevin-bandisons-projects:project:noghost-web:environment:preview",
+            "owner:kevin-bandisons-projects:project:noghost-web:environment:development"
+          ]
+        }
+      }
+    }
+  ]
+}
 ```
 
-All three or none. A partial set is treated as unconfigured and logged
-loudly, because a key with no region fails at call time in a way that
-reads like an outage.
+Three subjects, named one at a time rather than with a wildcard. Only
+`noghost-web` calls AWS — `noghost-admin` has no reason to, and nine
+other projects share this team. `development` is in the list so the same
+role works from your laptop; drop that line if you would rather local
+development had no AWS at all.
 
-## 5. Put them in Vercel
+**Permissions** → **Add permissions** → **Attach policies** → tick
+`noghost-app` (the policy from step 2).
+
+Copy the role ARN. It looks like
+`arn:aws:iam::123456789012:role/noghost-app`.
+
+## 4. Put two variables in Vercel
 
 ```bash
 vercel env add AWS_REGION production
-vercel env add AWS_ACCESS_KEY_ID production
-vercel env add AWS_SECRET_ACCESS_KEY production
+vercel env add AWS_ROLE_ARN production
 ```
 
-Or Project → Settings → Environment Variables.
+Repeat for `preview` if you want previews to have it. Or Project →
+Settings → Environment Variables.
 
-`AWS_REGION` is the one people skip, on the reasonable assumption that
-AWS defaults it sensibly. Vercel does default it — to its own function's
-region, which is wrong for us. **Set it explicitly.**
+That is the whole secret story: **there isn't one.** `AWS_ROLE_ARN` is
+not sensitive — it names a role that only Vercel-signed tokens for this
+project can assume.
 
-All three are already in `turbo.json`'s `globalEnv`. They were not
-before; Turbo strips variables it does not declare, and a stripped
-variable is indistinguishable from an unset one.
+`AWS_REGION` is the one people skip, on the reasonable assumption AWS
+defaults it sensibly. Vercel does default it — to its own function's
+region — and Vercel's own docs warn it "can change depending on which
+region your function runs in". **Set it explicitly.**
+
+Both are in `turbo.json`'s `globalEnv`. They were not before; Turbo
+strips variables it does not declare, and a stripped variable is
+indistinguishable from an unset one.
+
+## 5. Get a token locally
+
+The role works on Vercel with no help. Locally there is no invocation to
+carry a token, so pull one:
+
+```bash
+vercel link          # if this repo isn't linked yet
+vercel env pull .env.local --yes
+```
+
+Then add to the root `.env.local`:
+
+```bash
+AWS_REGION=us-east-1
+AWS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/noghost-app
+```
+
+Two things to watch here, both of which have bitten this repo before:
+
+- **Pull to the repo root.** There is one `.env.local` and it lives at
+  the top. `vercel link` has previously recreated `apps/web/.env.local`,
+  which nothing reads.
+- **Check which team you linked.** It has linked to the wrong team's
+  `noghost-web` before. It should be `kevin-bandisons-projects`.
+
+`VERCEL_OIDC_TOKEN` is short-lived — a couple of hours. When
+`aws:check` says the token is unreadable, pull again.
 
 ## 6. Check it
 
@@ -160,7 +233,7 @@ look identical to a presence check.
 
 ```
   ✓ AWS_REGION carries both services  us-east-1
-  ✓ credentials present  AKIAIOSF… / secret 40 chars
+  ✓ assuming a role over OIDC  noghost-app — nothing persistent stored
 
 Rekognition
   ✓ DetectFaces is allowed  0 faces in a 1×1 test image
@@ -203,15 +276,29 @@ Set a **billing alarm** anyway. Not because these numbers are frightening
 but because a loop that retries a failing call is how a fraction of a
 cent becomes a bill.
 
-## Later: drop the long-lived key
+## If you'd rather use an access key
 
-An access key in an environment variable is a credential that never
-expires and works from anywhere. AWS's own documentation opens by telling
-you to use temporary credentials instead, and Vercel supports OIDC
-federation to an AWS IAM role — the function exchanges a short-lived
-token for a role, and there is no secret to leak.
+The role above is better and not much harder, but the key path still
+works and `lib/aws.ts` still supports it — `AWS_ROLE_ARN` simply wins
+when both are set, which is what makes switching safe in either
+direction.
 
-It needs a role, a trust policy, and a credential-provider change in
-`lib/aws.ts`. Worth doing before there is real member data behind it; not
-worth blocking on now, given this key can only read faces and look up
-postcodes.
+IAM → **Users** → **Create user** → name it `noghost-app`, leave console
+access unchecked, attach the `noghost-app` policy from step 2. Then
+**Security credentials** → **Create access key** → **Application running
+outside AWS**. Copy both values; the secret is shown exactly once.
+
+```bash
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+```
+
+`pnpm aws:check` will run green and then tell you this credential never
+expires and works from anywhere — which is true, and is the reason to
+move to the role when you get a moment.
+
+**Going from key to role:** add `AWS_ROLE_ARN`, run `aws:check` — it will
+say the key is being ignored — and once that is green, delete the key in
+IAM and drop both variables. There is no moment in between where the app
+cannot authenticate.
