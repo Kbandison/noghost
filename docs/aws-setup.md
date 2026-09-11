@@ -6,7 +6,7 @@ the IAM console.
 
 | Service | What it does | Without it |
 | --- | --- | --- |
-| **Rekognition** | Reads the pose frames on funnel step 3, compares the live face to the first profile photo at filing | Every applicant records `liveness_passed = NULL` — "no check ran" — and a person reviews them, which is where they were going anyway |
+| **Rekognition** | Runs a Face Liveness video check on funnel step 3, compares the frame it returns to the first profile photo at filing | Every applicant records `liveness_passed = NULL` — "no check ran" — and a person reviews them, which is where they were going anyway |
 | **Amazon Location Places v2** | Turns a typed postcode into a coordinate on funnel step 5 | The field says so, and the "Use my location" button still works |
 
 Neither one breaks the app. Both make it stop doing work by hand.
@@ -47,13 +47,19 @@ serve us and says why.
 
 Use **`us-east-1`** unless you have a reason not to.
 
-It has to be a region carrying *both* services. There are fifteen:
+Rekognition **Face Liveness is in five regions only** — far fewer than the
+rest of AWS, and since it's now the identity check rather than an extra,
+it sets the constraint:
 
 ```
-ap-northeast-1  ap-south-1     ap-southeast-1  ap-southeast-2  ap-southeast-5
-ca-central-1    eu-central-1   eu-south-2      eu-west-1       eu-west-2
-sa-east-1       us-east-1      us-east-2       us-gov-west-1   us-west-2
+us-east-1   us-west-2   eu-west-1   ap-northeast-1   ap-south-1
 ```
+
+Amazon Location Places covers all five, so the intersection is just that
+list. Anywhere else — including `us-east-2`, which is fine for everything
+else — reaches the liveness call and finds no endpoint.
+`apps/web/src/lib/aws.ts` refuses those up front rather than letting them
+fail mid-funnel.
 
 Note what is missing: `us-west-1`, which is what Vercel hands you by
 default from `sfo1`.
@@ -79,7 +85,9 @@ replacing the region in the ARN if you did not pick `us-east-1`:
       "Sid": "ReadFacesForVerification",
       "Effect": "Allow",
       "Action": [
-        "rekognition:DetectFaces",
+        "rekognition:CreateFaceLivenessSession",
+        "rekognition:StartFaceLivenessSession",
+        "rekognition:GetFaceLivenessSessionResults",
         "rekognition:CompareFaces"
       ],
       "Resource": "*"
@@ -248,8 +256,8 @@ AWS_REGION=us-east-1
 AWS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/noghost-app
 ```
 
-`us-east-1` is a recommendation, not a requirement — any of the fifteen
-in step 1 works, and nothing needs to already exist there. Neither
+`us-east-1` is a recommendation, not a requirement — any of the five in
+step 1 works, and nothing needs to already exist there. Neither
 service has resources that could be in the wrong region; the region only
 decides which endpoint gets called. Use the same one here as in the
 policy ARN and on Vercel.

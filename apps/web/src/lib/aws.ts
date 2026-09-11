@@ -33,7 +33,13 @@ import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
  */
 
 /*
- * The regions that carry BOTH Amazon Location Places and Rekognition.
+ * The regions that carry everything this app needs.
+ *
+ * Narrowed from fifteen to five by 0031. Amazon Location Places and the
+ * Rekognition image APIs are nearly everywhere; **Face Liveness is in five
+ * regions only**, and it is now the identity check rather than an extra. So the
+ * intersection is the constraint, and a deployment in us-east-2 — fine for
+ * everything else — would reach the liveness call and find no endpoint.
  *
  * Here because of a trap specific to this deployment. **Vercel presets
  * `AWS_REGION`** to the AWS region its own function runs in — a deployment in
@@ -50,9 +56,7 @@ import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
  * a line here; refresh it from the regional services table if that happens.
  */
 const SUPPORTED_REGIONS = new Set([
-  "ap-northeast-1", "ap-south-1", "ap-southeast-1", "ap-southeast-2", "ap-southeast-5",
-  "ca-central-1", "eu-central-1", "eu-south-2", "eu-west-1", "eu-west-2",
-  "sa-east-1", "us-east-1", "us-east-2", "us-gov-west-1", "us-west-2",
+  "us-east-1", "us-west-2", "eu-west-1", "ap-northeast-1", "ap-south-1",
 ]);
 
 /*
@@ -106,8 +110,8 @@ export function awsConfig(): AwsConfig | null {
     // Loud, and always: this is the shape a forgotten `AWS_REGION` takes on
     // Vercel, where the variable is never actually missing.
     console.error(
-      `[aws] AWS_REGION is "${region}", which does not carry Amazon Location Places and ` +
-        "Rekognition. On Vercel this variable is preset to the function's own region unless " +
+      `[aws] AWS_REGION is "${region}", which does not carry Rekognition Face Liveness and ` +
+        "Amazon Location Places. On Vercel this variable is preset to the function's own region unless " +
         "you set it — set it explicitly (us-east-1 is the usual answer). Treating AWS as " +
         "unavailable rather than calling an endpoint that is not there.",
     );
@@ -136,3 +140,56 @@ export function awsConfig(): AwsConfig | null {
 }
 
 export const awsConfigured = (): boolean => awsConfig() !== null;
+
+/**
+ * Temporary credentials for the browser, able to do exactly one thing.
+ *
+ * Face Liveness streams video from the device straight to Rekognition, so the
+ * browser has to sign those requests itself. There is no version of this where
+ * a long-lived access key is acceptable in a page — so this path requires the
+ * OIDC role, and returns null without it. Verification then stays entirely
+ * human, which is the same way every other missing credential degrades here.
+ *
+ * The session policy is the point. A session policy can only ever *narrow* what
+ * the role may do, so what reaches the page can start a liveness stream and
+ * nothing else: it cannot read a face, compare one, geocode, or see the results
+ * of its own session. Fifteen minutes is the floor STS allows and far more than
+ * a capture needs.
+ */
+export async function livenessBrowserCredentials(): Promise<{
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+  expiration?: Date;
+} | null> {
+  const config = awsConfig();
+  const roleArn = process.env.AWS_ROLE_ARN;
+  if (!config || config.source !== "oidc" || !roleArn) return null;
+
+  try {
+    const provider = awsCredentialsProvider({
+      roleArn,
+      durationSeconds: 900,
+      policy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Effect: "Allow",
+            Action: "rekognition:StartFaceLivenessSession",
+            Resource: "*",
+          },
+        ],
+      }),
+    });
+    const credentials = await provider();
+    return {
+      accessKeyId: credentials.accessKeyId,
+      secretAccessKey: credentials.secretAccessKey,
+      sessionToken: credentials.sessionToken,
+      expiration: credentials.expiration,
+    };
+  } catch (cause) {
+    console.error(`[aws] liveness credentials: ${cause instanceof Error ? cause.message : cause}`);
+    return null;
+  }
+}

@@ -2,40 +2,44 @@
 
 import { createServiceClient } from "@noghost/db/service";
 import { usingSeedData } from "@noghost/config/env";
-import {
-  CHALLENGE_LENGTH,
-  buildChallenge,
-  challengePassed,
-  type ChallengePose,
-  type FaceReading,
-} from "@noghost/logic";
 import { allowRequest } from "@/lib/rate-limit";
-import { readFace, faceChecksConfigured } from "@/lib/rekognition";
+import { livenessBrowserCredentials } from "@/lib/aws";
+import { createLivenessSession, livenessResult, faceChecksConfigured } from "@/lib/rekognition";
 import { supabaseServer } from "@/lib/supabase";
 
 /**
- * The two halves of the pose challenge — issuing it, and judging the answer.
+ * The two halves of a Face Liveness check — opening a session, and collecting
+ * what it found.
  *
- * Both run on the server with the service key, and neither is reachable as an
- * RPC from an applicant's own session. That is the point: `verification_challenges`
- * has RLS on and no policies, so a member cannot read the sequence they are
- * about to be asked for, and cannot write the verdict on their own row.
- * Everything an applicant can do here is send frames and be told yes or no.
+ * Both run on the server. `verification_challenges` has RLS on and no policies
+ * at all, so an applicant can neither read the row nor write a verdict onto it;
+ * everything they can do is stream video to AWS and be told a photo was taken.
+ *
+ * The video itself never touches us. The browser streams it straight to
+ * Rekognition, which is faster and means there is no point in our
+ * infrastructure where a recording of somebody's face sits. What comes back is
+ * a confidence score and a handful of stills, and those we do keep — in the
+ * private bucket, for the reviewer.
  */
 
-/** Long enough to read three instructions and do them; short enough to matter. */
-const CHALLENGE_TTL_SECONDS = 180;
-
-export interface ChallengeState {
-  id?: string;
-  poses?: ChallengePose[];
+export interface LivenessStart {
+  sessionId?: string;
+  region?: string;
+  credentials?: {
+    accessKeyId: string;
+    secretAccessKey: string;
+    sessionToken?: string;
+    expiration?: string;
+  };
+  /** True when AWS is not wired up here — the step says so and moves on. */
+  unavailable?: boolean;
   error?: string;
 }
 
-export interface CaptureState {
+export interface LivenessFinish {
   ok?: boolean;
-  /** Paths of the frames that were accepted, centered frame first. */
-  framePaths?: string[];
+  /** The reference frame's storage path — what `validateSelfie` looks for. */
+  selfiePath?: string;
   error?: string;
 }
 
@@ -48,155 +52,177 @@ async function currentUser() {
 }
 
 /**
- * Hand out a sequence.
+ * Open a session and hand the browser what it needs to stream.
  *
- * Rate-limited per applicant rather than per address, because the attack is one
- * account asking repeatedly until it draws a sequence it already has frames
- * for. Six in ten minutes is more retries than an honest person needs after a
- * camera mishap, and far fewer than fishing requires.
+ * Rate-limited per applicant rather than per address, because the shape of an
+ * attack here is one account retrying until something gets through. Six in ten
+ * minutes is more than an honest person needs after a camera mishap and far
+ * fewer than fishing requires. Each attempt also costs real money, which is its
+ * own reason to bound it.
  */
-export async function issueChallenge(): Promise<ChallengeState> {
+export async function startLiveness(): Promise<LivenessStart> {
   const user = await currentUser();
   if (!user) return { error: "Your session expired. Go back to the code step and verify again." };
 
-  if (usingSeedData()) {
-    // Seed mode keeps the funnel walkable with nothing provisioned. A real
-    // sequence, no row behind it — `submitCapture` short-circuits to match.
-    return { id: "seed", poses: buildChallenge(Math.random) };
-  }
+  // Seed mode keeps the funnel walkable with nothing provisioned.
+  if (usingSeedData() || !faceChecksConfigured()) return { unavailable: true };
 
   if (!(await allowRequest("verify-challenge", { limit: 6, windowSeconds: 600 }, user.id))) {
     return { error: "That's a lot of attempts. Wait a few minutes and try again." };
   }
 
-  const poses = buildChallenge(Math.random);
-  const service = createServiceClient();
-  const { data, error } = await service
+  /*
+   * Credentials first, session second. Creating the session is the call that
+   * costs money and starts a three-minute clock; there is no sense starting
+   * either if the browser was never going to be able to stream.
+   */
+  const credentials = await livenessBrowserCredentials();
+  if (!credentials) return { unavailable: true };
+
+  const sessionId = await createLivenessSession();
+  if (!sessionId) {
+    /*
+     * Unavailable, not an error, and this distinction is the whole point.
+     *
+     * An error leaves the applicant on a screen they cannot get past. Whatever
+     * stopped the session — a policy missing `CreateFaceLivenessSession`, a
+     * Rekognition outage, a throttle — is a problem on our side, and none of
+     * them is a reason to refuse to take somebody's application. A reviewer was
+     * always the backstop; this is the state that falls back to them.
+     *
+     * `createLivenessSession` has already logged the real cause loudly, so the
+     * failure is visible to us without being fatal to them.
+     */
+    return { unavailable: true };
+  }
+
+  const { error } = await createServiceClient()
     .from("verification_challenges")
     .insert({
       user_id: user.id,
-      poses,
-      expires_at: new Date(Date.now() + CHALLENGE_TTL_SECONDS * 1000).toISOString(),
-    })
-    .select("id")
-    .single();
+      liveness_session_id: sessionId,
+      // AWS expires the session in three minutes and takes the images with it.
+      // Matching that here means a row can never outlive the evidence behind it.
+      expires_at: new Date(Date.now() + 180_000).toISOString(),
+    });
 
-  if (error || !data) {
-    console.error(`[verify] issue for ${user.id}: ${error?.message}`);
-    return { error: "We couldn't start the check. Try again in a moment." };
+  if (error) {
+    // Same reasoning: logged, not fatal. Without this row the result can never
+    // be claimed, so the check cannot silently half-happen either.
+    console.error(`[verify] open session for ${user.id}: ${error.message}`);
+    return { unavailable: true };
   }
 
-  return { id: data.id, poses };
+  return {
+    sessionId,
+    region: process.env.AWS_REGION!,
+    credentials: {
+      ...credentials,
+      expiration: credentials.expiration?.toISOString(),
+    },
+  };
 }
 
-/** Pull a frame back out of the private bucket so AWS can be shown the bytes. */
-async function frameBytes(
+/** Put one image in the private bucket and hand back its path. */
+async function store(
   service: ReturnType<typeof createServiceClient>,
-  path: string,
-): Promise<Uint8Array | null> {
-  const { data, error } = await service.storage.from("verification-selfies").download(path);
-  if (error || !data) {
-    console.error(`[verify] download ${path}: ${error?.message}`);
+  userId: string,
+  bytes: Uint8Array,
+  kind: string,
+): Promise<string | null> {
+  const path = `${userId}/${kind}-${crypto.randomUUID()}.jpg`;
+  const { error } = await service.storage
+    .from("verification-selfies")
+    // A fresh uuid every time and no upsert, matching the storage policy: the
+    // bucket has insert, admin-read and admin-delete, and nothing else.
+    .upload(path, bytes, { contentType: "image/jpeg", upsert: false });
+
+  if (error) {
+    console.error(`[verify] store ${kind} for ${userId}: ${error.message}`);
     return null;
   }
-  return new Uint8Array(await data.arrayBuffer());
+  return path;
 }
 
 /**
- * Judge the answer.
+ * Collect the result, before AWS throws it away.
  *
- * The frames were uploaded by the browser straight to `verification-selfies`,
- * which is folder-scoped to the applicant's own id and has no read policy for
- * anybody but an admin. This reads them back with the service key, shows each
- * one to Rekognition, and writes the verdict.
+ * The session, the confidence and every image expire three minutes after the
+ * session was created. So this reads them once and copies them into storage
+ * immediately — a reviewer looking at this application tomorrow needs a
+ * photograph, and "we had one for three minutes" is not a review process.
  *
- * **The verdict is never sent by the client.** The client sends paths; what
- * those frames contain is decided here. A `passed: true` in a form field would
- * make the whole sequence theatre.
+ * **The verdict is never sent by the client.** It sends a session id; what that
+ * session found is asked of AWS here. A confidence score in a form field would
+ * make the whole thing theatre.
  *
- * Failing the sequence does not fail the application. The row records what
+ * Failing the check does not fail the application. The row records what
  * happened and the funnel continues — §7.3's reviewer is the backstop, and a
  * camera that will not focus is not grounds for turning somebody away.
  */
-export async function submitCapture(
-  _prev: CaptureState,
-  formData: FormData,
-): Promise<CaptureState> {
+export async function finishLiveness(sessionId: string): Promise<LivenessFinish> {
   const user = await currentUser();
   if (!user) return { error: "Your session expired. Go back to the code step and verify again." };
 
-  const challengeId = String(formData.get("challengeId") ?? "");
-  const paths = formData.getAll("framePaths").map((p) => String(p));
-
-  if (paths.length !== CHALLENGE_LENGTH) {
-    return { error: "Some frames didn't upload. Start the check again." };
-  }
-
-  if (usingSeedData()) return { ok: true, framePaths: paths };
+  if (usingSeedData()) return { ok: true, selfiePath: `${user.id}/seed.jpg` };
 
   const service = createServiceClient();
 
   /*
-   * Claimed before it is judged, and claimed by UPDATE rather than by reading
-   * then writing. A sequence that could be answered twice is a sequence an
-   * attacker gets unlimited attempts at with the poses already in hand — the
-   * row's own `consumed_at is null` is what makes the claim atomic under two
-   * simultaneous submissions.
+   * Claimed by UPDATE rather than read-then-write, and only a row that is
+   * unconsumed, unexpired, and this applicant's own. A session that could be
+   * collected twice is one an attacker can attach to a second application.
    */
   const { data: claimed, error: claimError } = await service
     .from("verification_challenges")
     .update({ consumed_at: new Date().toISOString() })
-    .eq("id", challengeId)
+    .eq("liveness_session_id", sessionId)
     .eq("user_id", user.id)
     .is("consumed_at", null)
     .gt("expires_at", new Date().toISOString())
-    .select("poses")
+    .select("id")
     .maybeSingle();
 
   if (claimError) {
-    console.error(`[verify] claim ${challengeId}: ${claimError.message}`);
-    return { error: "We couldn't run the check. Try again in a moment." };
+    console.error(`[verify] claim ${sessionId}: ${claimError.message}`);
+    return { error: "We couldn't finish the check. Try again in a moment." };
   }
-  if (!claimed) {
-    return { error: "That check expired. Start it again." };
-  }
+  if (!claimed) return { error: "That check expired. Start it again." };
 
-  const poses = claimed.poses as ChallengePose[];
-
-  /*
-   * Read the frames whatever happens, because `selfie_path` and `frame_paths`
-   * have to be stored even when no automated check can run — a reviewer with no
-   * photograph to look at has nothing to review.
-   */
-  let outcome: boolean | null = null;
-
-  if (faceChecksConfigured()) {
-    const readings: (FaceReading | null)[] = [];
-    for (const path of paths) {
-      const bytes = await frameBytes(service, path);
-      readings.push(bytes ? await readFace(bytes) : null);
-    }
-
-    // `readFace` returns null for an AWS failure and a zero-face reading for a
-    // frame with nobody in it. Only the first is "we could not check".
-    outcome = readings.some((r) => r === null) ? null : challengePassed(poses, readings);
+  const result = await livenessResult(sessionId);
+  if (!result) {
+    // No answer is not a failure. The row keeps `passed` null, which every
+    // reader downstream is built to treat as "nobody checked".
+    return { error: "We couldn't read the result. Start the check again." };
   }
 
-  /*
-   * Written to the challenge row, not to `verifications`.
-   *
-   * `verifications.user_id` references `profiles.id`, and there is no profile
-   * row yet — the name, birthdate and gender it requires are collected on the
-   * step after this one. Moving the selfie forward is what created that gap;
-   * this is where the result waits until `fileApplication` has somewhere to
-   * put it. The row is server-only (RLS on, no policies), so it is no less
-   * protected here.
-   */
+  const reference = result.reference ? await store(service, user.id, result.reference, "ref") : null;
+  const audit: string[] = [];
+  for (const [index, bytes] of result.audit.entries()) {
+    const path = await store(service, user.id, bytes, `audit-${index}`);
+    if (path) audit.push(path);
+  }
+
+  if (!reference) {
+    /*
+     * AWS's own guidance: when the reference image is missing, retry. Without
+     * it there is nothing to compare against the profile photos and nothing for
+     * a reviewer to look at, so an application filed now would reach them as an
+     * empty frame.
+     */
+    return { error: "That didn't produce a usable photo. Start the check again." };
+  }
+
   const { error: writeError } = await service
     .from("verification_challenges")
-    .update({ passed: outcome, frame_paths: paths })
-    .eq("id", challengeId)
-    .eq("user_id", user.id);
+    .update({
+      confidence: result.confidence,
+      // Judged in `decideVerification` at filing, against the same threshold
+      // the reviewer's screen explains. Stored raw here so a changed threshold
+      // re-reads history correctly rather than being baked into the row.
+      frame_paths: [reference, ...audit],
+    })
+    .eq("id", claimed.id);
 
   if (writeError) {
     console.error(`[verify] write for ${user.id}: ${writeError.message}`);
@@ -206,11 +232,11 @@ export async function submitCapture(
   /*
    * `ok` is about the capture, not the verdict.
    *
-   * Somebody who failed the sequence still continues, and is not told they
-   * failed — an applicant who learns which frame was rejected learns how to
-   * aim the next attempt, and an honest applicant told "you failed a liveness
-   * check" reads it as an accusation. The reviewer sees everything; the
-   * applicant sees that their photo was taken.
+   * Somebody whose liveness score came back low still continues, and is not
+   * told — an applicant who learns the number learns what to aim at, and an
+   * honest applicant told "you failed a liveness check" reads it as an
+   * accusation. The reviewer sees everything; the applicant sees that their
+   * photo was taken.
    */
-  return { ok: true, framePaths: paths };
+  return { ok: true, selfiePath: reference };
 }

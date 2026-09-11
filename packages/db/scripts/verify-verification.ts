@@ -105,30 +105,37 @@ async function setup() {
 }
 
 /** Issue a sequence the way the server action does. */
+let sessionCounter = 0;
+
+/** Open an attempt the way `startLiveness` does — minus the AWS call. */
 async function issue(userId: string, ttlSeconds = 180) {
+  sessionCounter += 1;
   const { data, error } = await service
     .from("verification_challenges")
     .insert({
       user_id: userId,
-      poses: ["center", "left", "right"],
+      // A real session id is a 36-char uuid from AWS. This is the same shape,
+      // generated locally, because what is being tested here is the row's
+      // single-use and expiry rules rather than Rekognition.
+      liveness_session_id: `${crypto.randomUUID()}`,
       expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
     })
-    .select("id")
+    .select("id,liveness_session_id")
     .single();
   if (error) throw new Error(`issue: ${error.message}`);
-  return data.id as string;
+  return data as { id: string; liveness_session_id: string };
 }
 
-/** The atomic claim from `submitCapture`, run against the real row. */
-async function claim(id: string, userId: string) {
+/** The atomic claim from `finishLiveness`, run against the real row. */
+async function claim(sessionId: string, userId: string) {
   const { data } = await service
     .from("verification_challenges")
     .update({ consumed_at: new Date().toISOString() })
-    .eq("id", id)
+    .eq("liveness_session_id", sessionId)
     .eq("user_id", userId)
     .is("consumed_at", null)
     .gt("expires_at", new Date().toISOString())
-    .select("poses")
+    .select("id")
     .maybeSingle();
   return data;
 }
@@ -146,71 +153,88 @@ async function main() {
     const member = await signIn(M.email);
     const admin = await signIn(A.email);
 
-    section("The applicant cannot read the sequence they are about to answer");
+    section("The applicant cannot read or write their own attempt");
     if (!applied) {
       skip("apply 0029_a_face_that_answers.sql");
     } else {
-      const id = await issue(M.id);
+      const attempt = await issue(M.id);
       {
         const { data, error } = await member
-          .from("verification_challenges").select("poses").eq("id", id);
+          .from("verification_challenges").select("id").eq("id", attempt.id);
         // RLS on with no policies: rows are invisible rather than the query
         // erroring. Either shape is a pass; a row coming back is not.
         check((data?.length ?? 0) === 0,
-          "their own challenge row is invisible to them",
+          "their own attempt row is invisible to them",
           error ? `refused: ${error.code}` : `${data?.length ?? 0} row(s)`);
       }
       {
         const { error } = await member
           .from("verification_challenges")
-          .update({ passed: true })
-          .eq("id", id)
+          .update({ confidence: 100 })
+          .eq("id", attempt.id)
           .select("id");
         const { data: after } = await service
-          .from("verification_challenges").select("passed").eq("id", id).single();
-        check(after?.passed !== true,
-          "and they cannot write their own verdict onto it",
-          error ? `refused: ${error.code}` : `passed = ${after?.passed}`);
+          .from("verification_challenges").select("confidence").eq("id", attempt.id).single();
+        check(Number(after?.confidence ?? 0) !== 100,
+          "and they cannot write their own score onto it",
+          error ? `refused: ${error.code}` : `confidence = ${after?.confidence}`);
       }
       {
-        const { data: mine } = await service
-          .from("verification_challenges").select("poses").eq("id", id).single();
-        check(Array.isArray(mine?.poses) && mine.poses[0] === "center",
-          "the centered frame leads the sequence — it is what gets compared",
-          `${mine?.poses?.join(" → ")}`);
+        // 0031 loosened `poses` to nullable for Face Liveness rows. The
+        // constraint has to still bind the rows that do carry one, or the rule
+        // 0029 wrote has quietly stopped existing.
+        const { error } = await service
+          .from("verification_challenges")
+          .update({ poses: ["center"] })
+          .eq("id", attempt.id);
+        check(Boolean(error),
+          "a one-step pose sequence is still refused on rows that have one",
+          error ? "refused" : "ALLOWED");
       }
     }
 
-    section("A sequence is answered once");
+    section("A session is collected once");
     if (!applied) {
       skip("apply 0029_a_face_that_answers.sql");
     } else {
       {
-        const id = await issue(M.id);
-        const first = await claim(id, M.id);
-        const second = await claim(id, M.id);
+        const { liveness_session_id: sid } = await issue(M.id);
+        const first = await claim(sid, M.id);
+        const second = await claim(sid, M.id);
         check(Boolean(first) && second === null,
-          "the second attempt at the same sequence is refused",
+          "the second attempt at the same session is refused",
           `first ${first ? "claimed" : "refused"}, second ${second ? "CLAIMED" : "refused"}`);
       }
       {
         // Backdated rather than waited out — the claim compares against the
         // server's clock, so an expired row is the same shape either way.
-        const id = await issue(M.id, 60);
+        const attempt = await issue(M.id, 60);
         await service
           .from("verification_challenges")
           .update({
             issued_at: new Date(Date.now() - 600_000).toISOString(),
             expires_at: new Date(Date.now() - 300_000).toISOString(),
           })
-          .eq("id", id);
-        check((await claim(id, M.id)) === null, "an expired sequence is refused");
+          .eq("id", attempt.id);
+        check((await claim(attempt.liveness_session_id, M.id)) === null,
+          "an expired session is refused — AWS drops the images after three minutes anyway");
       }
       {
-        const id = await issue(M.id);
-        check((await claim(id, A.id)) === null,
-          "and somebody else's sequence cannot be claimed",
-          "bound to the user it was issued to");
+        const attempt = await issue(M.id);
+        check((await claim(attempt.liveness_session_id, A.id)) === null,
+          "and somebody else's session cannot be claimed",
+          "bound to the user it was opened for");
+      }
+      {
+        const attempt = await issue(M.id);
+        const { error } = await service.from("verification_challenges").insert({
+          user_id: A.id,
+          liveness_session_id: attempt.liveness_session_id,
+          expires_at: new Date(Date.now() + 180_000).toISOString(),
+        });
+        check(Boolean(error),
+          "one session id cannot be attached to two applicants",
+          error ? "refused by the unique index" : "ALLOWED");
       }
     }
 
@@ -225,7 +249,7 @@ async function main() {
           liveness_score: 71,
           liveness_passed: false,
           challenge_passed: false,
-          auto_reason: "Matched at 71, under 92.",
+          auto_reason: "Live at 96, matched at 71, under 92.",
         },
         { onConflict: "user_id" },
       );
@@ -297,10 +321,12 @@ async function main() {
       // The policy is pure, so this is exhaustive rather than a sample: every
       // reachable combination of inputs, and the set of outcomes they produce.
       const outcomes = new Set<string>();
-      for (const challengeOk of [true, false, null]) {
+      for (const livenessConfidence of [null, 0, 50, 84.9, 85, 100]) {
         for (const similarity of [null, 0, 50, 91.9, 92, 100]) {
           for (const autoAdmitEnabled of [true, false]) {
-            outcomes.add(decideVerification({ challengeOk, similarity, autoAdmitEnabled }).outcome);
+            outcomes.add(
+              decideVerification({ livenessConfidence, similarity, autoAdmitEnabled }).outcome,
+            );
           }
         }
       }
@@ -325,7 +351,7 @@ async function main() {
       // Not a pass. The pose reading and the face comparison are the half of
       // this that spends money and the half that has never run — saying so is
       // the only honest thing to print.
-      skip("no AWS credentials — DetectFaces and CompareFaces have NOT been verified");
+      skip("no AWS credentials — Face Liveness and CompareFaces have NOT been verified");
     } else {
       check(true, "AWS is configured — run the funnel end to end to exercise it",
         process.env.AWS_REGION);

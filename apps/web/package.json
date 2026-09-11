@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
+    "@aws-amplify/ui-react-liveness": "^3.6.9",
     "@aws-sdk/client-geo-places": "^3.1130.0",
     "@aws-sdk/client-rekognition": "^3.1130.0",
     "@gsap/react": "^2.1.2",
@@ -20,6 +21,7 @@
     "@noghost/types": "workspace:*",
     "@noghost/ui-tokens": "workspace:*",
     "@vercel/oidc-aws-credentials-provider": "^3.3.7",
+    "aws-amplify": "^6.20.0",
     "botid": "^1.5.11",
     "clsx": "^2.1.1",
     "gsap": "^3.13.0",

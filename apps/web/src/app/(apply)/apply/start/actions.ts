@@ -14,6 +14,7 @@ import {
 import {
   FINAL_STEP,
   FORM_ERROR,
+  LIVENESS_CONFIDENCE,
   decideVerification,
   normalizePhone,
   roundForStorage,
@@ -447,17 +448,18 @@ async function runIdentityMatch(
   const service = createServiceClient();
 
   /*
-   * The pose result has been sitting on the challenge row since step three,
-   * because `verifications.user_id` references `profiles.id` and no profile
-   * existed then. It does now — `fileApplication` upserted it a few lines
-   * ago — so this is the first moment the two halves can be put together.
+   * The liveness confidence has been sitting on the challenge row since step
+   * three, because `verifications.user_id` references `profiles.id` and no
+   * profile existed then. It does now — `fileApplication` upserted it a few
+   * lines ago — so this is the first moment the two numbers can be put
+   * together: was somebody live, and are they the person in these photographs.
    *
    * Most recent first: a retake issues a new challenge, and the one that
    * counts is the last one they actually answered.
    */
   const { data: challenge } = await service
     .from("verification_challenges")
-    .select("id,passed,frame_paths")
+    .select("id,confidence,frame_paths")
     .eq("user_id", userId)
     .not("consumed_at", "is", null)
     .order("issued_at", { ascending: false })
@@ -505,8 +507,13 @@ async function runIdentityMatch(
     .eq("id", seasonId)
     .maybeSingle();
 
+  const confidence =
+    challenge?.confidence === null || challenge?.confidence === undefined
+      ? null
+      : Number(challenge.confidence);
+
   const decision = decideVerification({
-    challengeOk: challenge?.passed ?? null,
+    livenessConfidence: confidence,
     similarity,
     autoAdmitEnabled: season?.auto_admit ?? false,
   });
@@ -515,7 +522,10 @@ async function runIdentityMatch(
     .from("verifications")
     .update({
       challenge_id: challenge?.id ?? null,
-      challenge_passed: challenge?.passed ?? null,
+      // Derived at filing rather than stored at capture, so that moving the
+      // threshold re-reads history correctly instead of leaving rows judged by
+      // a number nobody can look up any more.
+      challenge_passed: confidence === null ? null : confidence >= LIVENESS_CONFIDENCE,
       frame_paths: challenge?.frame_paths ?? null,
       liveness_score: similarity,
       liveness_passed: decision.livenessPassed,

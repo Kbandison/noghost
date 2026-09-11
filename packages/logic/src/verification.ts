@@ -1,165 +1,54 @@
 /**
  * Proving there is a person there — spec §7.2's "selfie liveness".
  *
- * What was shipped before this file was a `<input type="file" capture="user">`.
- * On a phone that opens the camera, which reads as a liveness check and is not
- * one: `capture` is a hint about which app to open, and any image in the roll
- * satisfies it. On a desktop it is an ordinary file picker. So the product's
- * strongest identity claim — "every member is phone-verified and
- * selfie-verified before day one" — rested on somebody choosing to cooperate.
+ * Three things have stood on this screen. A `<input type="file" capture="user">`,
+ * which reads as a liveness check and is not one: `capture` is a hint about
+ * which app to open, and any image in the roll satisfies it. Then a pose
+ * challenge — three stills answering a server-issued sequence, which genuinely
+ * defeats a stolen photograph and was honest that it defeated nothing beyond
+ * it. Now Amazon Rekognition Face Liveness.
+ *
+ * The pose challenge's own comments said that catching a screen, a mask or
+ * injected video "is what a liveness vendor sells". They did not notice that
+ * AWS is one, and that Face Liveness is part of the same service the pose check
+ * was already calling. It takes a short video, returns a 0-100 confidence, and
+ * is built for exactly the tier the pose sequence conceded.
  *
  * ---------------------------------------------------------------------------
- * What this actually proves, and what it does not
+ * Two numbers, and they answer different questions
  * ---------------------------------------------------------------------------
  *
- * The applicant is given a short sequence of poses, chosen server-side at the
- * moment they ask for it, and has to produce a frame for each. A face that
- * answers a sequence it could not have known in advance is a face that was in
- * front of the camera while the sequence was being read.
+ *   confidence   Was a live human in front of the camera? Rekognition's
+ *                judgement about the video, and nothing to do with identity —
+ *                a convincing stranger scores well here.
+ *   similarity   Is that human the person in these photographs? The face
+ *                comparison, which cannot run until there are photographs, two
+ *                steps later in the funnel.
  *
- * That defeats the attack this is for: one stolen photograph, or a stranger's
- * whole album. It does NOT defeat somebody who injects video into the camera
- * stream, or who holds a phone playing a responsive deepfake up to the lens.
- * Defeating those is what a liveness vendor sells, and the honest statement of
- * this file's ceiling is: it raises the cost of a casual impersonation from
- * "save an image" to "render a convincing face on demand". Anything stronger
- * would be a claim the code cannot back.
- *
- * ---------------------------------------------------------------------------
- * Why the direction of a turn is never trusted on its own
- * ---------------------------------------------------------------------------
- *
- * Rekognition's `Pose.Yaw` is documented as a float from -180 to 180 and
- * nothing else — AWS does not state whether a positive yaw means the head
- * turned to the subject's left or the viewer's left. Writing `yaw < -18` for
- * "turned left" would be a coin flip encoded as a threshold, and a wrong guess
- * fails every honest applicant while passing nobody extra.
- *
- * So direction is checked as a *relationship*, never as a sign: when the
- * sequence contains both turns, the two frames must have yaw of opposite signs
- * and both beyond the magnitude threshold. That is true under either
- * convention, and it is the part that carries the security weight — one
- * profile photograph cannot produce two opposite turns.
+ * Both have to be convincing before anything is automatic. Conflating them is
+ * how a product ends up admitting a real person who is not the applicant.
  */
-
-/** One thing an applicant can be asked to do in front of the camera. */
-export type ChallengePose = "center" | "left" | "right" | "smile";
 
 /**
- * What a face-detection result has to tell us, in our own shape.
+ * How sure Rekognition has to be that somebody live was there.
  *
- * Deliberately not Rekognition's type. The thresholds below are the product's
- * policy and should not move because a vendor renamed a field, and a smaller
- * surface is what makes the whole decision testable without an AWS account.
+ * AWS returns a probability, not a verdict, and leaves the threshold to the
+ * caller — which is the right way round, because the cost of the two mistakes
+ * depends entirely on what is behind the door. Here a false pass admits an
+ * impersonator into a product whose whole premise is that the person is real,
+ * and a false fail costs a reviewer thirty seconds. So this sits well above the
+ * middle, and every case under it goes to a human rather than being refused.
  */
-export interface FaceReading {
-  /** How many faces were in the frame. More than one is not a selfie. */
-  faceCount: number;
-  yaw: number;
-  pitch: number;
-  /** Rekognition reports these as value + confidence; both must be convincing. */
-  eyesOpen: boolean;
-  smiling: boolean;
-  /** Confidence that the detected thing is a face at all, 0–100. */
-  confidence: number;
-}
-
-/** A turn has to be unmistakable, not a glance. */
-export const TURN_YAW_DEGREES = 18;
-/** "Facing the camera" for the frame that gets compared against the photos. */
-export const CENTER_YAW_DEGREES = 12;
-export const CENTER_PITCH_DEGREES = 18;
-/** Below this, we are not confident enough that there is a face at all. */
-export const FACE_CONFIDENCE = 95;
+export const LIVENESS_CONFIDENCE = 85;
 
 /**
  * How alike two faces have to be before nobody looks.
  *
- * 92 is deliberately above AWS's own suggested 80 for general matching. The
- * cost of the two mistakes is not symmetric: a false match admits an
- * impersonator into a product whose entire premise is that the person is real,
- * while a false non-match costs a reviewer thirty seconds. When in doubt this
- * system is supposed to ask a person, and this number is where the doubt
- * starts.
+ * 92 is deliberately above AWS's own suggested 80 for general matching, for the
+ * same asymmetry. When in doubt this system asks a person, and this number is
+ * where the doubt starts.
  */
 export const MATCH_SIMILARITY = 92;
-
-export const CHALLENGE_LENGTH = 3;
-
-/**
- * Build a sequence. Always starts centered, then two more.
- *
- * The centered frame is not a challenge — it is the one that gets compared
- * against the profile photos, and a comparison against a face turned 40 degrees
- * away is a comparison that fails for the wrong reason.
- *
- * At least one turn is always included, because "smile" alone is satisfiable
- * with two photographs of the same cooperative afternoon.
- */
-export function buildChallenge(random: () => number): ChallengePose[] {
-  const turns: ChallengePose[] = ["left", "right"];
-  const first = turns[Math.floor(random() * turns.length)] as ChallengePose;
-
-  // The partner is the other turn, or a smile. Three options rather than two
-  // so the order is not guessable from a single previous attempt.
-  const others: ChallengePose[] = [first === "left" ? "right" : "left", "smile", "smile"];
-  const second = others[Math.floor(random() * others.length)] as ChallengePose;
-
-  // Which of the two comes first is part of what has to be answered live.
-  const rest = random() < 0.5 ? [first, second] : [second, first];
-  return ["center", ...rest];
-}
-
-/** Does one frame answer the pose it was asked for? */
-export function poseSatisfied(pose: ChallengePose, face: FaceReading | null): boolean {
-  if (!face) return false;
-  // Two faces in a verification frame is somebody holding up a photograph of
-  // someone else, or a bystander. Either way it is not a selfie.
-  if (face.faceCount !== 1) return false;
-  if (face.confidence < FACE_CONFIDENCE) return false;
-
-  switch (pose) {
-    case "center":
-      return (
-        Math.abs(face.yaw) < CENTER_YAW_DEGREES &&
-        Math.abs(face.pitch) < CENTER_PITCH_DEGREES &&
-        face.eyesOpen
-      );
-    // Magnitude only. See the note at the top: the sign convention is not
-    // documented, and the direction is verified by `turnsOppose` instead.
-    case "left":
-    case "right":
-      return Math.abs(face.yaw) >= TURN_YAW_DEGREES;
-    case "smile":
-      return face.smiling;
-  }
-}
-
-/**
- * When both turns were asked for, they must go opposite ways.
- *
- * This is the check a single photograph cannot pass, and it holds whichever
- * way round AWS's yaw happens to run. Absent both turns there is nothing to
- * compare, and the answer is vacuously true rather than false — refusing a
- * sequence we never asked for would fail honest applicants.
- */
-export function turnsOppose(poses: ChallengePose[], faces: (FaceReading | null)[]): boolean {
-  const left = faces[poses.indexOf("left")];
-  const right = faces[poses.indexOf("right")];
-  if (!poses.includes("left") || !poses.includes("right")) return true;
-  if (!left || !right) return false;
-  return Math.sign(left.yaw) !== Math.sign(right.yaw) && left.yaw !== 0 && right.yaw !== 0;
-}
-
-/** Every frame answers its pose, and the turns disagree with each other. */
-export function challengePassed(
-  poses: ChallengePose[],
-  faces: (FaceReading | null)[],
-): boolean {
-  if (poses.length !== faces.length || poses.length === 0) return false;
-  if (!poses.every((pose, i) => poseSatisfied(pose, faces[i] ?? null))) return false;
-  return turnsOppose(poses, faces);
-}
 
 export type VerificationOutcome = "auto-admit" | "needs-a-person";
 
@@ -186,16 +75,16 @@ export interface VerificationDecision {
  * everything else to a human, which is what it would have been anyway.
  */
 export function decideVerification(input: {
-  /** False when the checks ran and failed; null when they could not run. */
-  challengeOk: boolean | null;
+  /** 0–100 from Face Liveness, or null when no check ran at all. */
+  livenessConfidence: number | null;
   /** 0–100, or null when no comparison was possible (no AWS, no photo). */
   similarity: number | null;
   /** The season's switch. Off means a person reviews everything. */
   autoAdmitEnabled: boolean;
 }): VerificationDecision {
-  const { challengeOk, similarity, autoAdmitEnabled } = input;
+  const { livenessConfidence, similarity, autoAdmitEnabled } = input;
 
-  if (challengeOk === null || similarity === null) {
+  if (livenessConfidence === null || similarity === null) {
     return {
       outcome: "needs-a-person",
       // Null, not false. "We could not check" and "we checked and it failed"
@@ -204,17 +93,19 @@ export function decideVerification(input: {
       // than the one in front of them.
       livenessPassed: null,
       reason:
-        challengeOk === null
-          ? "No automated check ran — nothing to go on."
+        livenessConfidence === null
+          ? "No liveness check ran — nothing to go on."
           : "No face comparison was possible — no usable photo to compare against.",
     };
   }
 
-  if (!challengeOk) {
+  if (livenessConfidence < LIVENESS_CONFIDENCE) {
     return {
       outcome: "needs-a-person",
       livenessPassed: false,
-      reason: "The pose sequence was not answered. Could be a bad camera; could be a photograph.",
+      reason:
+        `Liveness came back at ${livenessConfidence.toFixed(0)}, under ${LIVENESS_CONFIDENCE}. ` +
+        "Could be a poor camera or bad light; could be a screen held up to one.",
     };
   }
 
@@ -222,7 +113,9 @@ export function decideVerification(input: {
     return {
       outcome: "needs-a-person",
       livenessPassed: false,
-      reason: `Live face and photos matched at ${similarity.toFixed(0)}, under ${MATCH_SIMILARITY}.`,
+      reason:
+        `Live person confirmed at ${livenessConfidence.toFixed(0)}, but their face matched the ` +
+        `photos at only ${similarity.toFixed(0)}, under ${MATCH_SIMILARITY}.`,
     };
   }
 
@@ -230,14 +123,17 @@ export function decideVerification(input: {
     return {
       outcome: "needs-a-person",
       livenessPassed: true,
-      reason: `Matched at ${similarity.toFixed(0)}, but auto-admit is off for this season.`,
+      reason:
+        `Live at ${livenessConfidence.toFixed(0)}, matched at ${similarity.toFixed(0)} — but ` +
+        "auto-admit is off for this season.",
     };
   }
 
   return {
     outcome: "auto-admit",
     livenessPassed: true,
-    reason: `Live sequence answered and matched at ${similarity.toFixed(0)}.`,
+    reason:
+      `Live at ${livenessConfidence.toFixed(0)}, matched at ${similarity.toFixed(0)}.`,
   };
 }
 
@@ -289,7 +185,7 @@ export function reviewVerdict(row: {
   return {
     label:
       row.challengePassed === false
-        ? "Sequence not answered"
+        ? "Liveness not convincing"
         : `Weak match${score ? ` ${score}` : ""}`,
     tone: "warn",
     detail: row.autoReason ?? "The automated check was not confident. Your call.",

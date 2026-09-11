@@ -127,9 +127,15 @@ export interface Season {
 export interface VerificationChallenge {
   id: UUID;
   user_id: UUID;
-  poses: string[];
-  /** Whether the sequence was answered. Null means no check could run. */
+  /** The pose sequence, for attempts made before 0031. Null since. */
+  poses: string[] | null;
+  /** 0031. The Face Liveness session. Expires three minutes after it opens. */
+  liveness_session_id: string | null;
+  /** 0031. Face Liveness confidence, 0–100. Null means no check could run. */
+  confidence: number | null;
+  /** Pre-0031 pose verdict. Null means no check could run. */
   passed: boolean | null;
+  /** Reference frame first, then up to four audit frames. */
   frame_paths: string[] | null;
   issued_at: Timestamp;
   expires_at: Timestamp;

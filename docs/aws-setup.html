@@ -431,8 +431,9 @@
       <div class="service">
         <div class="service-name">Rekognition</div>
         <div class="service-does">
-          Reads the pose frames on funnel step&nbsp;3, then compares the live
-          face to the first profile photo when the application is filed.
+          Runs a <b>Face Liveness</b> video check on funnel step&nbsp;3, then
+          compares the frame it returns to the first profile photo when the
+          application is filed.
         </div>
         <div class="service-without">
           <b>Without it:</b> every applicant records <code>liveness_passed = NULL</code>
@@ -528,31 +529,26 @@
     <section class="step">
       <h2>Pick a region</h2>
       <p>
-        Use <code>us-east-1</code> unless you have a reason not to. It has to
-        be one of the fifteen regions carrying <i>both</i> services:
+        Use <code>us-east-1</code> unless you have a reason not to. Rekognition
+        <b>Face Liveness is in five regions only</b> — far fewer than the rest
+        of AWS, and since it is now the identity check rather than an extra, it
+        sets the constraint:
       </p>
       <div class="regions">
         <div class="region pick">us-east-1</div>
-        <div class="region">us-east-2</div>
         <div class="region">us-west-2</div>
-        <div class="region out">us-west-1</div>
-        <div class="region">ca-central-1</div>
         <div class="region">eu-west-1</div>
-        <div class="region">eu-west-2</div>
-        <div class="region">eu-central-1</div>
-        <div class="region">eu-south-2</div>
-        <div class="region">sa-east-1</div>
-        <div class="region">ap-south-1</div>
         <div class="region">ap-northeast-1</div>
-        <div class="region">ap-southeast-1</div>
-        <div class="region">ap-southeast-2</div>
-        <div class="region">ap-southeast-5</div>
-        <div class="region">us-gov-west-1</div>
+        <div class="region">ap-south-1</div>
+        <div class="region out">us-west-1</div>
       </div>
       <p class="note">
-        The struck-through one is not a typo. <code>us-west-1</code> is exactly
-        what Vercel hands you by default from <code>sfo1</code>, and it is the
-        one region in this neighbourhood that has neither service.
+        Amazon Location Places covers all five, so the intersection is just that
+        list. Anywhere else — including <code>us-east-2</code>, which is fine
+        for everything else — reaches the liveness call and finds no endpoint.
+        <code>lib/aws.ts</code> refuses those up front rather than letting them
+        fail mid-funnel. The struck-through one is what Vercel hands you by
+        default from <code>sfo1</code>.
       </p>
       <div class="watch">
         <b>This is not the region picker in the AWS console.</b> Every step
@@ -579,7 +575,9 @@
       "Sid": "ReadFacesForVerification",
       "Effect": "Allow",
       "Action": [
-        "rekognition:DetectFaces",
+        "rekognition:CreateFaceLivenessSession",
+        "rekognition:StartFaceLivenessSession",
+        "rekognition:GetFaceLivenessSessionResults",
         "rekognition:CompareFaces"
       ],
       "Resource": "*"
@@ -760,7 +758,7 @@ vercel env pull .env.local --yes</code></pre>
 AWS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/noghost-app</code></pre>
       <p class="note">
         <code>us-east-1</code> is a recommendation, not a requirement — any of
-        the fifteen in step 1 works, and nothing needs to already exist there.
+        the five in step 1 works, and nothing needs to already exist there.
         Neither service has resources to be in the wrong region; the region
         only decides which endpoint gets called. Use the same one here as in
         the policy ARN and on Vercel.

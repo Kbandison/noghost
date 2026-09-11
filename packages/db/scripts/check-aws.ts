@@ -4,8 +4,8 @@
  *   pnpm aws:check
  *
  * Answers the question the setup guide ends on, and answers it by *spending
- * money* — three real calls, a fraction of a cent, rather than checking that
- * three environment variables are non-empty. A key with the wrong permissions,
+ * money* — real calls, a fraction of a cent, rather than checking that a few
+ * environment variables are non-empty. A key with the wrong permissions,
  * a region that carries neither service, a policy typo in the provider ARN:
  * all three look identical to a presence check and identical to each other in
  * a runtime stack trace.
@@ -14,7 +14,11 @@
  * an endpoint or credential error means the region or the key.
  */
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
-import { DetectFacesCommand, RekognitionClient } from "@aws-sdk/client-rekognition";
+import {
+  CreateFaceLivenessSessionCommand,
+  GetFaceLivenessSessionResultsCommand,
+  RekognitionClient,
+} from "@aws-sdk/client-rekognition";
 import { GeoPlacesClient, GeocodeCommand } from "@aws-sdk/client-geo-places";
 import { ENV_PATH, loadRepoEnv } from "./env";
 
@@ -29,17 +33,20 @@ const bad = (label: string, detail = "") => {
   failures += 1;
   console.log(`  ${R}✗${X} ${label}${detail ? `\n      ${D}${detail}${X}` : ""}`);
 };
+/* Not a pass and not a failure: a thing that could not be exercised here. */
+const skip = (why: string) => console.log(`  ${Y}–${X} ${D}${why}${X}`);
 
 /*
- * The fifteen regions that carry both services. Kept in step with
+ * The five regions that carry everything. Kept in step with
  * `apps/web/src/lib/aws.ts` — the point of repeating it is that this script
  * runs *before* anybody trusts the app, so it cannot import from the app and
  * inherit a bug it is supposed to catch.
+ *
+ * Five, not fifteen: Face Liveness has far narrower regional coverage than the
+ * rest, and since 0031 it is the identity check rather than an extra.
  */
 const SUPPORTED = new Set([
-  "ap-northeast-1", "ap-south-1", "ap-southeast-1", "ap-southeast-2", "ap-southeast-5",
-  "ca-central-1", "eu-central-1", "eu-south-2", "eu-west-1", "eu-west-2",
-  "sa-east-1", "us-east-1", "us-east-2", "us-gov-west-1", "us-west-2",
+  "us-east-1", "us-west-2", "eu-west-1", "ap-northeast-1", "ap-south-1",
 ]);
 
 /** A 1×1 JPEG. Rekognition needs a decodable image, not a face. */
@@ -93,7 +100,7 @@ function explain(cause: unknown): string {
 }
 
 async function main() {
-  console.log("\nAWS — three real calls, not three non-empty variables.\n");
+  console.log("\nAWS — real calls, not non-empty variables.\n");
 
   const region = process.env.AWS_REGION;
   const roleArn = process.env.AWS_ROLE_ARN;
@@ -113,9 +120,10 @@ async function main() {
 
   if (!SUPPORTED.has(region)) {
     bad(
-      `AWS_REGION is "${region}", which carries neither service`,
+      `AWS_REGION is "${region}", which does not carry Face Liveness`,
       "On Vercel this variable is preset to the function's own region unless you set it,\n" +
-        "      so forgetting it looks like setting it. us-east-1 is the usual answer.",
+        "      so forgetting it looks like setting it. Face Liveness is in five regions only:\n" +
+        "      us-east-1, us-west-2, eu-west-1, ap-northeast-1, ap-south-1.",
     );
     console.log(`\n${R}Stopping — every call below would fail for this one reason.${X}\n`);
     process.exit(1);
@@ -159,54 +167,75 @@ async function main() {
     );
   }
 
-  console.log("\nRekognition");
+  console.log("\nRekognition — Face Liveness");
+  const rekog = new RekognitionClient({ region, credentials });
+
+  /*
+   * Create a session, then immediately ask for its result.
+   *
+   * Two permissions proved in two calls with no video and nothing to clean up:
+   * the session is never streamed to, so it expires unused after three minutes.
+   * Asking for its result straight away should come back CREATED — the status
+   * meaning "opened, nothing sent yet", which is exactly true.
+   */
+  let sessionId: string | null = null;
   try {
-    const out = await new RekognitionClient({ region, credentials }).send(
-      new DetectFacesCommand({ Image: { Bytes: TINY_JPEG }, Attributes: ["ALL"] }),
+    const out = await rekog.send(
+      new CreateFaceLivenessSessionCommand({ Settings: { AuditImagesLimit: 4 } }),
     );
-    // Zero faces in a 1×1 image is the right answer. What is being proved is
-    // that the call was allowed and the image decoded — a face would only add
-    // a way for this to fail that has nothing to do with setup.
-    ok("DetectFaces is allowed", `${out.FaceDetails?.length ?? 0} faces in a 1×1 test image`);
+    sessionId = out.SessionId ?? null;
+    ok("CreateFaceLivenessSession is allowed", `session ${sessionId?.slice(0, 8)}…, left unused`);
   } catch (cause) {
-    bad("DetectFaces failed", explain(cause));
+    bad("CreateFaceLivenessSession failed", explain(cause));
   }
 
   try {
-    const out = await new RekognitionClient({ region, credentials }).send(
-      // CompareFaces is a separate IAM action and a separate pricing group, so
-      // DetectFaces passing says nothing about it. An image with no face gives
-      // InvalidParameterException — which is the service answering, and that is
-      // the thing being tested.
-      new (await import("@aws-sdk/client-rekognition")).CompareFacesCommand({
-        SourceImage: { Bytes: TINY_JPEG },
-        TargetImage: { Bytes: TINY_JPEG },
-        SimilarityThreshold: 0,
+    const out = await rekog.send(
+      new GetFaceLivenessSessionResultsCommand({
+        SessionId: sessionId ?? "00000000-0000-4000-8000-000000000000",
       }),
     );
-    ok("CompareFaces is allowed", `${out.FaceMatches?.length ?? 0} matches`);
+    ok("GetFaceLivenessSessionResults is allowed", `status ${out.Status}`);
   } catch (cause) {
-    /*
-     * Matched against the error's NAME as well as its message, and that is not
-     * belt-and-braces — it is the whole thing working.
-     *
-     * The AWS SDK puts the error code on `name` (`InvalidParameterException`)
-     * and prose on `message` ("Request has invalid parameters"). Testing the
-     * message alone therefore never matches, and this check reported a loud
-     * red failure for the exact response it was written to treat as a pass —
-     * sending somebody off to debug image formats when their credentials had
-     * just been proven to work.
-     */
     const name = cause instanceof Error ? cause.name : "";
     const message = cause instanceof Error ? cause.message : String(cause);
-    if (/InvalidParameter|no faces|NoFace/i.test(`${name} ${message}`)) {
-      ok(
-        "CompareFaces is allowed",
-        "refused the faceless 1×1 test image — which means the call itself got through",
-      );
+    // A session id AWS has never seen is the service answering, which is the
+    // thing being tested. Only a refusal is a failure.
+    if (/SessionNotFound/i.test(`${name} ${message}`)) {
+      ok("GetFaceLivenessSessionResults is allowed", "unknown session id rejected by the service");
     } else {
-      bad("CompareFaces failed", explain(cause));
+      bad("GetFaceLivenessSessionResults failed", explain(cause));
     }
+  }
+
+  /*
+   * The browser's half. Face Liveness streams video from the device straight to
+   * Rekognition, so the page signs its own requests with credentials narrowed
+   * by a session policy to StartFaceLivenessSession. That narrowing only works
+   * from a role — there is no way to scope a raw access key down — so an
+   * access-key deployment can do everything above and still not run liveness.
+   */
+  if (roleArn) {
+    try {
+      const scoped = await awsCredentialsProvider({
+        roleArn,
+        durationSeconds: 900,
+        policy: JSON.stringify({
+          Version: "2012-10-17",
+          Statement: [
+            { Effect: "Allow", Action: "rekognition:StartFaceLivenessSession", Resource: "*" },
+          ],
+        }),
+      })();
+      ok(
+        "the browser's scoped credentials mint",
+        `${scoped.accessKeyId.slice(0, 8)}…, StartFaceLivenessSession only, 15 min`,
+      );
+    } catch (cause) {
+      bad("scoped browser credentials failed", explain(cause));
+    }
+  } else {
+    skip("no AWS_ROLE_ARN — Face Liveness needs a role, because an access key cannot be scoped down for the browser");
   }
 
   console.log("\nAmazon Location Places");

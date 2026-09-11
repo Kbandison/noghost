@@ -52,11 +52,7 @@ const COPY: Record<
    */
   selfie: {
     statement: "Now prove you're you.",
-    // "Three", not "a few". CHALLENGE_LENGTH is fixed at three, and the first
-    // person to walk this step said they had not realised it was taking
-    // photographs at all — vagueness in the one line that sets the expectation
-    // is where that started.
-    sub: "Three photos, taken here, in an order we pick. Review team only — never shown to another member.",
+    sub: "A few seconds of video, checked on the spot. Review team only — never shown to another member.",
     cta: "Continue",
     component: SelfieStep,
   },
@@ -80,7 +76,7 @@ const COPY: Record<
   },
   photos: {
     statement: "Let people see you.",
-    sub: "Recent, and actually of you. These get compared against the photos you just took.",
+    sub: "Recent, and actually of you. These get compared against the video check you just did.",
     cta: "Continue",
     component: PhotosStep,
   },
