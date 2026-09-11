@@ -24,11 +24,20 @@ const SEED = process.env.NEXT_PUBLIC_USE_SEED_DATA === "true";
 
 export type Bucket = "photos" | "verification-selfies" | "voice-intros";
 
+/** Matches the `photos` and `verification-selfies` ceilings set in 0008. */
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+/*
+ * What may be stored, matching `allowed_mime_types` after 0035. WebP and AVIF
+ * came off that list because Rekognition reads neither, and a photo it cannot
+ * read fails every check silently.
+ *
+ * `prepareImage` produces JPEG from anything the browser can decode, so this is
+ * a backstop for the fallback path rather than the gate it used to be.
+ */
 const EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
-  "image/webp": "webp",
-  "image/avif": "avif",
 };
 
 /** Returns the storage path to submit, or throws with something readable. */
@@ -37,11 +46,31 @@ export async function uploadImage(bucket: Bucket, file: File): Promise<string> {
   // stands in for a path; nothing is stored anywhere.
   if (SEED) return file.name;
 
-  const extension = EXTENSIONS[file.type];
+  /*
+   * Converted first, so the checks below are about what will actually be
+   * stored rather than what came off the camera. A HEIC from an iPhone and a
+   * twelve-megabyte JPEG both arrive here as a WebP of a few hundred kilobytes,
+   * which is why neither is refused any more.
+   */
+  const prepared = await prepareImage(file);
+
+  const extension = EXTENSIONS[prepared.type];
   if (!extension) {
-    // Matches `allowed_mime_types` on the bucket. Better to say so here than
-    // let Storage reject it with a code.
-    throw new Error("That file type isn't supported. Use a JPEG, PNG or WebP.");
+    /*
+     * Only reachable when the conversion could not run — a browser that cannot
+     * decode this particular format, so `prepareImage` handed back the original
+     * untouched. Naming the formats is useful here precisely because the usual
+     * escape hatch has already been tried.
+     */
+    throw new Error(
+      "We couldn't read that image. Try a JPEG or PNG, or a screenshot of it.",
+    );
+  }
+
+  if (prepared.size > MAX_UPLOAD_BYTES) {
+    // Also only reachable unconverted: anything re-encoded at 2000px is far
+    // under this.
+    throw new Error("That image is too large. Try a JPEG or PNG under 8MB.");
   }
 
   const supabase = createClient();
@@ -63,8 +92,8 @@ export async function uploadImage(bucket: Bucket, file: File): Promise<string> {
    * database, not the client.
    */
   const path = `${user.id}/${crypto.randomUUID()}.${extension}`;
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    contentType: file.type,
+  const { error } = await supabase.storage.from(bucket).upload(path, prepared, {
+    contentType: prepared.type,
     upsert: false,
   });
 
@@ -138,19 +167,36 @@ export async function uploadVoiceIntro(blob: Blob): Promise<string> {
 }
 
 /**
- * A small copy of an image, for asking what is in it.
+ * Decode, rotate, shrink and re-encode — in the browser, before anything is
+ * uploaded.
  *
- * Moderation needs the scene, not the detail — so sending a 1024px JPEG instead
- * of an eight-megabyte photograph makes the answer arrive in about a second
- * rather than several, and means the original never leaves the device until it
- * has been allowed to.
+ * Three problems this solves at once, all of which people hit immediately.
  *
- * Falls back to the original file if anything goes wrong. A browser that cannot
- * make a canvas should still be able to apply.
+ * **Format.** The bucket accepted JPEG, PNG, WebP and AVIF, and nothing else.
+ * A photo straight off an iPhone is HEIC, which is not on that list, so it was
+ * refused with a message about supported types most people cannot act on.
+ * Anything the browser can decode now becomes a JPEG on the way out — JPEG
+ * specifically, because Rekognition reads only that and PNG.
+ *
+ * **Size.** A modern phone camera produces eight to twelve megabytes. The
+ * bucket's ceiling is eight, so perfectly ordinary photos were rejected as too
+ * large. Two thousand pixels on the long edge is more than a profile card or a
+ * face comparison can use, and it lands around a fifth of a megabyte.
+ *
+ * **Orientation.** Phones record rotation as EXIF metadata rather than rotating
+ * the pixels. Drawing to a canvas discards metadata, so without
+ * `imageOrientation: "from-image"` every portrait photo would arrive on its
+ * side — and silently, because the original looks fine everywhere else.
  */
-export async function screeningThumbnail(file: File, maxEdge = 1024): Promise<File> {
+const MAX_EDGE = 2000;
+
+async function reencode(file: File, maxEdge: number, quality: number): Promise<File | null> {
   try {
-    const bitmap = await createImageBitmap(file);
+    // `from-image` applies the EXIF rotation while decoding. Without it the
+    // canvas gets the raw pixels and the rotation is lost.
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+
+    // Never upscale: a small photo stays exactly as large as it was.
     const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -159,16 +205,55 @@ export async function screeningThumbnail(file: File, maxEdge = 1024): Promise<Fi
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext("2d");
-    if (!context) return file;
+    if (!context) return null;
     context.drawImage(bitmap, 0, 0, width, height);
     bitmap.close();
 
+    /*
+     * JPEG, and not WebP, which would be about a third smaller.
+     *
+     * Rekognition reads PNG and JPEG and nothing else — its own SDK says so for
+     * both `CompareFaces` and `DetectModerationLabels`. A WebP profile photo
+     * would upload happily, look right everywhere, and then fail every check
+     * silently: `compareFaces` returns null, which this system reads as "no
+     * comparison was possible" and routes to a human. Nobody would ever see an
+     * error; the face comparison would simply never work for that member.
+     *
+     * A third of a few hundred kilobytes is not worth a whole class of
+     * invisible failure.
+     */
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.8),
+      canvas.toBlob(resolve, "image/jpeg", quality),
     );
-    if (!blob) return file;
-    return new File([blob], "screening.jpg", { type: "image/jpeg" });
+    if (!blob || blob.type !== "image/jpeg") return null;
+
+    return new File([blob], "photo.jpg", { type: "image/jpeg" });
   } catch {
-    return file;
+    // A format this browser cannot decode. The caller decides what to say.
+    return null;
   }
+}
+
+/**
+ * What actually gets stored: re-encoded when possible, the original when not.
+ *
+ * Falling back rather than refusing matters. A browser without
+ * `createImageBitmap`, or one that cannot decode this particular file, should
+ * still be able to upload a JPEG — the conversion is an improvement on the
+ * common path, not a new requirement.
+ */
+export async function prepareImage(file: File): Promise<File> {
+  return (await reencode(file, MAX_EDGE, 0.85)) ?? file;
+}
+
+/**
+ * A small copy of an image, for asking what is in it.
+ *
+ * Moderation needs the scene, not the detail — so sending a 1024px copy instead
+ * of a full photograph makes the answer arrive in about a second rather than
+ * several, and means the original never leaves the device until it has been
+ * allowed to.
+ */
+export async function screeningThumbnail(file: File, maxEdge = 1024): Promise<File> {
+  return (await reencode(file, maxEdge, 0.8)) ?? file;
 }

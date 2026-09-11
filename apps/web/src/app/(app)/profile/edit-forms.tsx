@@ -306,7 +306,10 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
         </span>
         <input
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/avif"
+          // Anything the browser can decode. `uploadImage` re-encodes to JPEG
+          // before upload, so a HEIC straight off a phone is fine here — it
+          // was not, and the refusal named formats people cannot convert to.
+          accept="image/*"
           multiple
           disabled={rows.length >= PHOTO_MAX || busy}
           onChange={(event) => {
