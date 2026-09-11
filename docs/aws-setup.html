@@ -1,0 +1,737 @@
+<title>Wiring NoGhost to AWS</title>
+
+<style>
+  /* ------------------------------------------------------------------
+     Palette lifted from packages/ui-tokens/src/tokens.css — NoGhost's
+     own "Editorial Refined / Warm Serif Magazine" set. The neutrals carry
+     an ochre bias so they sit under the accent rather than beside it.
+     ------------------------------------------------------------------ */
+  :root {
+    --ground: #faf7f2;
+    --raised: #f4f0e8;
+    --card: #ffffff;
+    --rule: #e8e2d6;
+    --rule-strong: #d6cec0;
+
+    --ink: #1a1815;
+    --muted: #5c564c;
+    --dim: #6e675b;
+
+    --accent: #b8741a;
+    --accent-text: #8a5412;
+    --accent-wash: #f7ecdc;
+
+    --good: #5f7057;
+    --good-wash: #eef1ea;
+    --alarm: #8f2c1e;
+    --alarm-wash: #f9ebe8;
+
+    --code-bg: #f4f0e8;
+    --shadow: 0 1px 2px rgba(26, 24, 21, 0.05), 0 8px 24px -12px rgba(26, 24, 21, 0.12);
+
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #16140f;
+      --raised: #201d17;
+      --card: #262218;
+      --rule: #35301f;
+      --rule-strong: #453f2d;
+
+      --ink: #f3eee4;
+      --muted: #c2baab;
+      --dim: #a09889;
+
+      --accent: #d9903a;
+      --accent-text: #e6a95f;
+      --accent-wash: #2c2315;
+
+      --good: #9fb494;
+      --good-wash: #1e241b;
+      --alarm: #e4907b;
+      --alarm-wash: #2e1a16;
+
+      --code-bg: #1d1a14;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #16140f;
+    --raised: #201d17;
+    --card: #262218;
+    --rule: #35301f;
+    --rule-strong: #453f2d;
+
+    --ink: #f3eee4;
+    --muted: #c2baab;
+    --dim: #a09889;
+
+    --accent: #d9903a;
+    --accent-text: #e6a95f;
+    --accent-wash: #2c2315;
+
+    --good: #9fb494;
+    --good-wash: #1e241b;
+    --alarm: #e4907b;
+    --alarm-wash: #2e1a16;
+
+    --code-bg: #1d1a14;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 47rem;
+    margin: 0 auto;
+    padding: clamp(2.5rem, 6vw, 5rem) clamp(1.15rem, 4vw, 2rem) 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3.25rem;
+  }
+
+  /* ---- masthead ---- */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+    margin-bottom: 0.9rem;
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(2.2rem, 6vw, 3.1rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    font-weight: 400;
+    text-wrap: balance;
+    margin-bottom: 0.85rem;
+  }
+
+  .lead {
+    font-family: var(--serif);
+    font-size: clamp(1.08rem, 2.4vw, 1.22rem);
+    line-height: 1.55;
+    color: var(--muted);
+    max-width: 34rem;
+  }
+
+  /* ---- generic blocks ---- */
+  h2 {
+    font-family: var(--serif);
+    font-size: 1.55rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    font-weight: 650;
+    letter-spacing: -0.005em;
+    line-height: 1.35;
+  }
+
+  p { max-width: 38rem; }
+  .section { display: flex; flex-direction: column; gap: 1.1rem; }
+
+  a {
+    color: var(--accent-text);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  a:hover { color: var(--accent); }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-text);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 0.1em 0.34em;
+    word-break: break-word;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  pre code {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: inherit;
+    word-break: normal;
+  }
+
+  /* ---- what each service does ---- */
+  .services { display: grid; gap: 0.9rem; }
+  @media (min-width: 40rem) {
+    .services { grid-template-columns: 1fr 1fr; }
+  }
+
+  .service {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 1.15rem 1.25rem;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .service-name {
+    font-family: var(--mono);
+    font-size: 0.73rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+  }
+  .service-does { font-size: 0.95rem; line-height: 1.55; }
+  .service-without {
+    font-size: 0.86rem;
+    line-height: 1.55;
+    color: var(--dim);
+    border-top: 1px solid var(--rule);
+    padding-top: 0.6rem;
+    margin-top: auto;
+  }
+  .service-without b { color: var(--muted); font-weight: 600; }
+
+  /* ---- the three verified findings ---- */
+  .findings { display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .finding {
+    background: var(--accent-wash);
+    border: 1px solid var(--rule-strong);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 4px 4px 0;
+    padding: 0.95rem 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .finding p { max-width: none; font-size: 0.93rem; line-height: 1.6; color: var(--muted); }
+  .finding h3 { color: var(--ink); }
+
+  /* ---- numbered steps: the order is real, so the numbers are too ---- */
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 2.6rem;
+    counter-reset: step;
+  }
+
+  .step {
+    position: relative;
+    padding-left: 3.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    counter-increment: step;
+  }
+  .step::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: -0.15rem;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--accent-text);
+    background: var(--ground);
+    border: 1px solid var(--rule-strong);
+    border-radius: 50%;
+  }
+  /* The hairline that makes six boxes read as one sequence. */
+  .step::after {
+    content: "";
+    position: absolute;
+    left: 1rem;
+    top: 2.1rem;
+    bottom: -2.6rem;
+    width: 1px;
+    background: var(--rule);
+  }
+  .step:last-child::after { display: none; }
+
+  .step ol, .step ul { padding-left: 1.15rem; max-width: 38rem; }
+  .step li { margin-bottom: 0.5rem; line-height: 1.6; }
+  .step li::marker { color: var(--dim); }
+
+  /* ---- region grid ---- */
+  .regions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.4rem, 1fr));
+    gap: 0.35rem;
+  }
+  .region {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    padding: 0.42rem 0.55rem;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    background: var(--raised);
+    color: var(--muted);
+    text-align: center;
+  }
+  .region.pick {
+    border-color: var(--accent);
+    background: var(--accent-wash);
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+  .region.out {
+    border-style: dashed;
+    border-color: var(--alarm);
+    background: var(--alarm-wash);
+    color: var(--alarm);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
+  .note {
+    font-size: 0.88rem;
+    line-height: 1.6;
+    color: var(--dim);
+    max-width: 38rem;
+  }
+
+  /* ---- callout for the one genuine "don't skip this" ---- */
+  .watch {
+    background: var(--alarm-wash);
+    border: 1px solid var(--alarm);
+    border-radius: 4px;
+    padding: 0.9rem 1.1rem;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    color: var(--ink);
+    max-width: 38rem;
+  }
+  .watch b { color: var(--alarm); }
+
+  /* ---- terminal sample ---- */
+  .terminal {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow-x: auto;
+  }
+  .terminal pre { border: 0; border-radius: 0; background: none; }
+  .terminal .ok { color: var(--good); }
+  .terminal .lbl { color: var(--dim); }
+
+  /* ---- costs ---- */
+  .costs {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .costs th, .costs td {
+    text-align: left;
+    padding: 0.65rem 0.7rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  .costs th {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 500;
+    border-bottom-color: var(--rule-strong);
+  }
+  .costs td:first-child { font-family: var(--mono); font-size: 0.82rem; }
+  .costs .rate { color: var(--ink); white-space: nowrap; }
+  .table-wrap { overflow-x: auto; }
+
+  .divider { height: 1px; background: var(--rule); border: 0; }
+
+  .footnote {
+    font-size: 0.88rem;
+    line-height: 1.65;
+    color: var(--dim);
+    max-width: 38rem;
+  }
+  .footnote strong { color: var(--muted); }
+</style>
+
+<div class="page">
+
+  <header>
+    <div class="eyebrow">Setup runbook</div>
+    <h1>Wiring NoGhost to AWS</h1>
+    <p class="lead">
+      Two services, nothing to provision, one IAM user and three environment
+      variables. About fifteen minutes, most of it in the IAM console.
+    </p>
+  </header>
+
+  <section class="section">
+    <div class="services">
+      <div class="service">
+        <div class="service-name">Rekognition</div>
+        <div class="service-does">
+          Reads the pose frames on funnel step&nbsp;3, then compares the live
+          face to the first profile photo when the application is filed.
+        </div>
+        <div class="service-without">
+          <b>Without it:</b> every applicant records <code>liveness_passed = NULL</code>
+          — “no check ran” — and a person reviews them, which is where they
+          were going anyway.
+        </div>
+      </div>
+      <div class="service">
+        <div class="service-name">Location Places v2</div>
+        <div class="service-does">
+          Turns a typed postcode into a coordinate on funnel step&nbsp;5, for
+          anyone who declines the browser location prompt.
+        </div>
+        <div class="service-without">
+          <b>Without it:</b> the field says the lookup isn’t switched on, and
+          the “Use my location” button still works.
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      Neither service is load-bearing. Both stop work being done by hand.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <section class="section">
+    <h2>Three things I checked, and what each one changed</h2>
+    <p>
+      You asked me to verify the steps before handing them over. These are
+      the three that came back different from what I would have written from
+      memory — each one changed the code, so the guide below is shorter than
+      it would have been.
+    </p>
+
+    <div class="findings">
+      <div class="finding">
+        <h3>There is no <code>AWS_PLACE_INDEX</code> any more</h3>
+        <p>
+          The geocoder used <code>SearchPlaceIndexForText</code>, which is the
+          <b>v1</b> Places API. AWS files its reference under
+          <code>/location/previous/</code>, states it “is no longer current and
+          may be deprecated in the future”, and recommends <code>Geocode</code>
+          instead. v1 also required standing up a <i>place index</i> resource
+          before a single lookup could run. v2 has no resource at all — which
+          is why step 2 below creates a policy and nothing else.
+        </p>
+      </div>
+
+      <div class="finding">
+        <h3><code>IntendedUse</code> has to be <code>Storage</code></h3>
+        <p>
+          It defaults to <code>SingleUse</code>, meaning “show this on a map and
+          throw it away”. NoGhost writes the coordinate to
+          <code>profiles.lat/lng</code> and keeps it, and AWS is explicit that
+          storing a response without this flag breaks the terms of service. It
+          bills at roughly eight times the single-use rate, which is the right
+          trade against geocoding the same person on every screen that needs to
+          know where they are.
+        </p>
+      </div>
+
+      <div class="finding">
+        <h3><code>AWS_REGION</code> is preset by Vercel</h3>
+        <p>
+          A function in <code>sfo1</code> arrives with
+          <code>AWS_REGION=us-west-1</code> whether or not you set it — and
+          <code>us-west-1</code> carries neither service. Forgetting this
+          variable therefore looks exactly like setting it, and the symptom is
+          an endpoint error rather than “AWS isn’t configured”.
+          <code>lib/aws.ts</code> now refuses a region that cannot serve us and
+          says so.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <div class="steps">
+
+    <section class="step">
+      <h2>Pick a region</h2>
+      <p>
+        Use <code>us-east-1</code> unless you have a reason not to. It has to
+        be one of the fifteen regions carrying <i>both</i> services:
+      </p>
+      <div class="regions">
+        <div class="region pick">us-east-1</div>
+        <div class="region">us-east-2</div>
+        <div class="region">us-west-2</div>
+        <div class="region out">us-west-1</div>
+        <div class="region">ca-central-1</div>
+        <div class="region">eu-west-1</div>
+        <div class="region">eu-west-2</div>
+        <div class="region">eu-central-1</div>
+        <div class="region">eu-south-2</div>
+        <div class="region">sa-east-1</div>
+        <div class="region">ap-south-1</div>
+        <div class="region">ap-northeast-1</div>
+        <div class="region">ap-southeast-1</div>
+        <div class="region">ap-southeast-2</div>
+        <div class="region">ap-southeast-5</div>
+        <div class="region">us-gov-west-1</div>
+      </div>
+      <p class="note">
+        The struck-through one is not a typo. <code>us-west-1</code> is exactly
+        what Vercel hands you by default from <code>sfo1</code>, and it is the
+        one region in this neighbourhood that has neither service.
+      </p>
+    </section>
+
+    <section class="step">
+      <h2>Create the policy</h2>
+      <p>
+        IAM → <b>Policies</b> → <b>Create policy</b> → <b>JSON</b> tab. Paste
+        this, changing the region in the ARN if you didn’t pick
+        <code>us-east-1</code>. Name it <code>noghost-app</code>.
+      </p>
+      <pre><code>{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadFacesForVerification",
+      "Effect": "Allow",
+      "Action": [
+        "rekognition:DetectFaces",
+        "rekognition:CompareFaces"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "GeocodeTypedPlaces",
+      "Effect": "Allow",
+      "Action": "geo-places:Geocode",
+      "Resource": "arn:aws:geo-places:us-east-1::provider/default"
+    }
+  ]
+}</code></pre>
+      <p class="note">
+        Two details worth knowing rather than wondering about. The Rekognition
+        actions take <code>"*"</code> because they have no resource type —
+        there is nothing to scope them to. And the geo-places ARN really does
+        have <b>two colons</b> before <code>provider</code>: the account-id
+        segment is empty. If that gives you trouble, <code>"Resource": "*"</code>
+        works and is barely less specific, since <code>default</code> is the
+        only provider there is.
+      </p>
+      <p class="note">
+        This policy grants three read actions and nothing else. It cannot
+        create, delete, or spend beyond those calls.
+      </p>
+    </section>
+
+    <section class="step">
+      <h2>Create the user and the key</h2>
+      <p>IAM → <b>Users</b> → <b>Create user</b>.</p>
+      <ol>
+        <li>
+          Name it <code>noghost-app</code>. Leave <b>“Provide user access to
+          the AWS Management Console”</b> unchecked — this identity is for the
+          app, and a machine identity that can also log in is one somebody can
+          phish.
+        </li>
+        <li>Permissions → <b>Attach policies directly</b> → tick <code>noghost-app</code>.</li>
+        <li>
+          Create the user, open it, then <b>Security credentials</b> →
+          <b>Create access key</b>.
+        </li>
+        <li>
+          Use case: <b>Application running outside AWS</b>. Acknowledge the
+          warning — it is a real recommendation, and there’s a note at the
+          bottom about doing better later.
+        </li>
+      </ol>
+      <div class="watch">
+        <b>Copy both values before you leave that screen.</b> The secret is
+        shown exactly once. If you lose it there is no recovery — you delete
+        the key and create another.
+      </div>
+    </section>
+
+    <section class="step">
+      <h2>Put them in <code>.env.local</code></h2>
+      <p>One file, at the repo root. There is no per-app env file.</p>
+      <pre><code>AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...</code></pre>
+      <p class="note">
+        All three or none. A partial set is treated as unconfigured and logged
+        loudly, because a key with no region fails at call time in a way that
+        reads like an outage.
+      </p>
+    </section>
+
+    <section class="step">
+      <h2>Put them in Vercel</h2>
+      <pre><code>vercel env add AWS_REGION production
+vercel env add AWS_ACCESS_KEY_ID production
+vercel env add AWS_SECRET_ACCESS_KEY production</code></pre>
+      <p class="note">
+        Or Project → Settings → Environment Variables.
+      </p>
+      <div class="watch">
+        <b>Set <code>AWS_REGION</code> explicitly.</b> It’s the one people skip,
+        on the reasonable assumption that AWS defaults it sensibly. Vercel does
+        default it — to its own function’s region, which is wrong for us.
+      </div>
+      <p class="note">
+        All three are already in <code>turbo.json</code>’s <code>globalEnv</code>.
+        They weren’t before: Turbo strips variables it doesn’t declare, and a
+        stripped variable is indistinguishable from an unset one.
+      </p>
+    </section>
+
+    <section class="step">
+      <h2>Check it</h2>
+      <pre><code>pnpm aws:check</code></pre>
+      <p>
+        This makes three real calls — a fraction of a cent — rather than
+        checking that three variables are non-empty. A key with the wrong
+        permissions, a region carrying neither service, and a typo in the
+        provider ARN all look identical to a presence check.
+      </p>
+      <div class="terminal">
+<pre><span class="ok">  ✓</span> AWS_REGION carries both services  <span class="lbl">us-east-1</span>
+<span class="ok">  ✓</span> credentials present  <span class="lbl">AKIAIOSF… / secret 40 chars</span>
+
+Rekognition
+<span class="ok">  ✓</span> DetectFaces is allowed  <span class="lbl">0 faces in a 1×1 test image</span>
+<span class="ok">  ✓</span> CompareFaces is allowed  <span class="lbl">service rejected the faceless test image, which is the point</span>
+
+Amazon Location Places
+<span class="ok">  ✓</span> Geocode is allowed, with IntendedUse: Storage
+      <span class="lbl">30308 → Atlanta, GA (lng -84.38, lat 33.77)</span>
+
+<span class="ok">AWS is wired up.</span></pre>
+      </div>
+      <p class="note">
+        When something is wrong it names the variable rather than the symptom.
+        An unknown access key, a bad secret, a refused action and a dead
+        endpoint otherwise produce much the same unhelpful stack trace — and
+        “the security token included in the request is invalid” means the key
+        <i>doesn’t exist</i>, not that the policy refused it, which is an hour
+        in the wrong console if you take it at face value.
+      </p>
+      <p class="note">
+        Then, for the real thing end to end: <code>pnpm dev</code>, walk
+        <code>/apply/start</code> to step 3, and do the pose sequence with an
+        actual face.
+      </p>
+    </section>
+
+  </div>
+
+  <hr class="divider" />
+
+  <section class="section">
+    <h2>What it costs</h2>
+    <div class="table-wrap">
+      <table class="costs">
+        <thead>
+          <tr>
+            <th>Call</th>
+            <th>Rate</th>
+            <th>Free tier</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>DetectFaces<br />CompareFaces</td>
+            <td class="rate">$0.001 / image</td>
+            <td>1,000 images a month, for 12 months</td>
+          </tr>
+          <tr>
+            <td>Geocode<br />(Stored bucket)</td>
+            <td class="rate">~$4 / 1,000</td>
+            <td>
+              The published free tier covers the <i>Core</i> bucket. Assume
+              Stored is billed from the first request.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      An applicant costs four Rekognition images — three pose frames plus one
+      comparison — so about <b>$0.004</b> each, plus one geocode only if they
+      type a postcode instead of tapping the location button.
+    </p>
+    <p class="note">
+      Season One caps at 300 members. Even at a thousand applicants that is
+      roughly $4 of Rekognition and a few dollars of geocoding. Check the
+      current numbers on the
+      <a href="https://aws.amazon.com/rekognition/pricing/">Rekognition</a> and
+      <a href="https://aws.amazon.com/location/pricing/">Location</a> pricing
+      pages before trusting the second row — AWS describes the Stored bucket’s
+      rate in the developer guide rather than the pricing table.
+    </p>
+    <div class="watch">
+      Set a <b>billing alarm</b> anyway. Not because these numbers are
+      frightening, but because a loop retrying a failing call is how a
+      fraction of a cent becomes a bill.
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <section class="section">
+    <h2>Later: drop the long-lived key</h2>
+    <p class="footnote">
+      An access key in an environment variable never expires and works from
+      anywhere. AWS’s own documentation opens by telling you to use temporary
+      credentials instead, and Vercel supports OIDC federation to an IAM role —
+      the function exchanges a short-lived token for a role, and there is no
+      secret to leak.
+    </p>
+    <p class="footnote">
+      It needs a role, a trust policy, and a credential-provider change in
+      <code>lib/aws.ts</code>. <strong>Worth doing before there is real member
+      data behind it</strong>; not worth blocking on now, given this key can
+      only read faces and look up postcodes.
+    </p>
+  </section>
+
+</div>
