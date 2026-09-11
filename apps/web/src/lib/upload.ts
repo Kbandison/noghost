@@ -136,3 +136,39 @@ export async function uploadVoiceIntro(blob: Blob): Promise<string> {
 
   return path;
 }
+
+/**
+ * A small copy of an image, for asking what is in it.
+ *
+ * Moderation needs the scene, not the detail — so sending a 1024px JPEG instead
+ * of an eight-megabyte photograph makes the answer arrive in about a second
+ * rather than several, and means the original never leaves the device until it
+ * has been allowed to.
+ *
+ * Falls back to the original file if anything goes wrong. A browser that cannot
+ * make a canvas should still be able to apply.
+ */
+export async function screeningThumbnail(file: File, maxEdge = 1024): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    context.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.8),
+    );
+    if (!blob) return file;
+    return new File([blob], "screening.jpg", { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}

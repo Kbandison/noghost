@@ -22,8 +22,8 @@ import { FieldError } from "@/components/ui/field";
 import { AgeRange } from "@/components/ui/age-range";
 import { LocationField } from "@/components/ui/location-field";
 import { cn } from "@/lib/utils";
-import { publicPhotoUrl, uploadImage, uploadVoiceIntro } from "@/lib/upload";
-import { screenPhoto } from "./photo-actions";
+import { publicPhotoUrl, screeningThumbnail, uploadImage, uploadVoiceIntro } from "@/lib/upload";
+import { screenBeforeUpload, screenPhoto } from "./photo-actions";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { LivenessCapture } from "@/components/ui/liveness-capture";
 import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
@@ -327,27 +327,42 @@ export function PhotosStep({ draft, errors }: StepProps) {
       );
 
       /*
-       * Uploaded, then screened, before it counts as one of their photos.
+       * Screened before it is uploaded, not after.
        *
-       * Moderation used to run at filing, five steps later, so an explicit
-       * photo was accepted into a publicly readable bucket and the person who
-       * uploaded it was never told. A refusal now happens here, with the picker
-       * still open, and `screenPhoto` has already deleted the file from storage
-       * by the time this resolves — so removing it from the list is the UI
-       * catching up with the bucket rather than hiding something still there.
+       * The first version uploaded the full photo and then judged it, which
+       * meant an eight-megabyte file crossed the network four times before
+       * anybody knew whether it was allowed — and sat in a publicly readable
+       * bucket for the whole of it. A refusal now happens against a small copy
+       * made here on the device, so it comes back in about a second and the
+       * original never leaves at all.
        */
-      void uploadImage("photos", file)
-        .then(async (path) => {
-          setPhotos((prev) => prev.map((p) => (p.key === key ? { ...p, path } : p)));
+      void (async () => {
+        const thumb = await screeningThumbnail(file);
+        const data = new FormData();
+        data.set("thumb", thumb);
+        const screened = await screenBeforeUpload(data);
 
-          const screened = await screenPhoto(path);
-          if (screened.verdict !== "refuse") return;
-
+        if (screened.verdict === "refuse") {
           setPhotos((prev) => prev.filter((p) => p.key !== key));
-          setRefused(
-            screened.reason ?? "That photo can’t be used here. Pick a different one.",
-          );
-        })
+          setRefused(screened.reason ?? "That photo can’t be used here. Pick a different one.");
+          return;
+        }
+
+        const path = await uploadImage("photos", file);
+        setPhotos((prev) => prev.map((p) => (p.key === key ? { ...p, path } : p)));
+
+        /*
+         * The authoritative screening, against the stored file. The check above
+         * ran on a copy the browser produced, which a determined client could
+         * have swapped — this one reads what is actually in the bucket and is
+         * what filing trusts. It runs after the photo is on screen because the
+         * applicant has already been answered; if it disagrees, the photo goes.
+         */
+        const confirmed = await screenPhoto(path);
+        if (confirmed.verdict !== "refuse") return;
+        setPhotos((prev) => prev.filter((p) => p.key !== key));
+        setRefused(confirmed.reason ?? "That photo can’t be used here. Pick a different one.");
+      })()
         .catch((cause: unknown) =>
           setPhotos((prev) =>
             prev.map((p) =>
