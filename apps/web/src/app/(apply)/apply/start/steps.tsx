@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState } from "react";
 import {
   AGE_RANGE_TOP,
@@ -15,7 +17,7 @@ import {
   OTP_MAX_DIGITS,
   interpolate,
 } from "@noghost/config";
-import { CONSENT, PROMPT_LIBRARY } from "@noghost/config/copy";
+import { CONSENT, LEGAL_LINKS, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationDraft, FieldErrors } from "@noghost/logic";
 import { Chip, CheckboxRow, TextArea, TextField } from "@/components/ui/field";
 import { FieldError } from "@/components/ui/field";
@@ -180,19 +182,15 @@ export function PreferencesStep({ draft, errors }: StepProps) {
       />
 
       {/*
-       * Optional, and free text. This is the line under somebody's name on
-       * their card — a person describing where they are, not the product
-       * locating them.
+       * No "your part of town".
+       *
+       * It existed because the only thing the product knew about where somebody
+       * lived was a dropdown of nine Atlanta neighborhoods, and a free-text line
+       * was how a person said it in their own words. Since 0028 the location is
+       * a coordinate, resolved to a real place name — "Grayson, GA" — which is
+       * both more accurate than anything typed and already on the card. Asking
+       * again invited the contradiction of somebody in Grayson writing Duluth.
        */}
-      <TextField
-        label="Your part of town"
-        name="neighborhood"
-        placeholder="Old Fourth Ward"
-        hint="optional, shown on your card"
-        maxLength={60}
-        defaultValue={draft.neighborhood ?? ""}
-        error={errors.neighborhood}
-      />
 
       <fieldset>
         <legend className="mb-3 text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
@@ -653,6 +651,65 @@ export function VoiceStep({ draft, errors, voiceIntroUrl }: StepProps) {
       <p className="text-[15px] leading-relaxed text-[var(--text-dim)]">
         Thirty seconds, and entirely optional &mdash; Continue skips it. It sits on your card next
         to your name, so people can hear you before they decide whether to write.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The last screen: what happens next, and the rules it happens under.
+ *
+ * The funnel used to end on the optional voice intro, so the final act of
+ * applying was pressing Continue on a screen most people had decided to skip.
+ * This gives the end something to be.
+ *
+ * The three documents are links rather than a scroll box nobody reads, and the
+ * summary above them is the honest version of what somebody is agreeing to —
+ * written out because "I agree to the Terms" is a sentence people tick without
+ * reading, and the two or three things that actually affect them are worth
+ * saying in plain words first.
+ */
+export function AgreeStep({ draft, errors }: StepProps) {
+  return (
+    <div className="space-y-6">
+      <ul className="space-y-3 text-[16px] leading-relaxed text-[var(--text-secondary)]">
+        {/*
+          * Not "a person reads every application", which is the sentence the
+          * review page had to stop saying: since auto-admit, some are cleared
+          * by the identity check and nobody reads them. What is true on every
+          * path is that an answer comes back.
+          */}
+        <li className="border-l-2 border-[var(--border)] pl-4">
+          You&rsquo;ll hear back either way, within five days &mdash; we don&rsquo;t leave
+          applications hanging any more than we leave conversations hanging.
+        </li>
+        <li className="border-l-2 border-[var(--border)] pl-4">
+          Nothing is charged unless you&rsquo;re admitted, and then only if you claim a
+          seat.
+        </li>
+        <li className="border-l-2 border-[var(--border)] pl-4">
+          Your photos and answers can be changed all season. Your name, birthdate and
+          gender lock once you&rsquo;re in, because they get checked against your video.
+        </li>
+      </ul>
+
+      <CheckboxRow name="agree" error={errors.agree} defaultChecked={Boolean(draft.agreedAt)}>
+        {interpolate(CONSENT.application, { MIN_AGE })}
+      </CheckboxRow>
+
+      <p className="text-[14px] leading-relaxed text-[var(--text-dim)]">
+        {LEGAL_LINKS.map((link, index) => (
+          <span key={link.href}>
+            {index > 0 && <span aria-hidden="true"> &middot; </span>}
+            <Link
+              href={link.href}
+              target="_blank"
+              className="underline decoration-[1.5px] underline-offset-4 hover:text-[var(--text-secondary)]"
+            >
+              {link.label}
+            </Link>
+          </span>
+        ))}
       </p>
     </div>
   );

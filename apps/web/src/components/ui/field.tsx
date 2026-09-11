@@ -205,7 +205,7 @@ export function Chip({
      * Giving the wrapper a position puts the hidden input inside the chip you
      * just clicked, which is already on screen, so focusing it scrolls nowhere.
      */
-    <div className="relative">
+    <div className="relative inline-flex">
       <input
         type={type}
         id={id}
@@ -220,6 +220,18 @@ export function Chip({
       <label
         htmlFor={id}
         className={cn(
+          /*
+           * `inline-flex`, and this is load-bearing rather than cosmetic.
+           *
+           * A `<label>` is `display: inline` by default, and vertical padding
+           * on an inline box overflows its line instead of adding to it — so
+           * every chip bled into the rows above and below, visibly overlapping
+           * its neighbours. It only started when the wrapper stopped being
+           * `display: contents`: until then the label WAS the flex item and
+           * inherited a block box from the flex container. Fixing the scroll
+           * jump quietly took that away.
+           */
+          "inline-flex items-center justify-center",
           "cursor-pointer select-none rounded-md border border-[var(--border)] px-4 py-2 text-[15px]",
           "transition-all duration-150 hover:border-[var(--text-dim)]",
           "peer-checked:border-[var(--accent)] peer-checked:bg-[var(--accent)] peer-checked:text-[var(--on-accent)]",

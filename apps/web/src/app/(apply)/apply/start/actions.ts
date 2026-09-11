@@ -148,6 +148,11 @@ function applyStep(step: ApplicationStep, draft: ApplicationDraft, fd: FormData)
         voiceSeenAt: draft.voiceSeenAt ?? new Date().toISOString(),
       };
 
+    case "agree":
+      return {
+        ...draft,
+        agreedAt: str(fd, "agree") === "on" ? new Date().toISOString() : undefined,
+      };
     case "selfie":
       return { ...draft, selfiePath: str(fd, "selfiePath") || undefined };
   }
@@ -333,7 +338,15 @@ async function fileApplication(
       age_min: draft.ageMin!,
       age_max: draft.ageMax!,
       interests: draft.interests ?? [],
-      neighborhood: draft.neighborhood ?? null,
+      /*
+       * The place the lookup resolved — "Grayson, GA" — rather than something
+       * typed. `neighborhood` is what sits under a name on the card, and it
+       * used to be free text because the alternative was a dropdown of nine
+       * Atlanta districts. A reverse-geocoded label is more accurate than
+       * anything an applicant would type and cannot disagree with the
+       * coordinate beside it, so the field stopped being asked for.
+       */
+      neighborhood: draft.placeLabel ?? draft.neighborhood ?? null,
       // Rounded twice on purpose. `LocationField` rounds on the device, which
       // is what makes the promise ("the precise value never leaves your
       // browser") true for the honest path; `applyStep` rounds again because a

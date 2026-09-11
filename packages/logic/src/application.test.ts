@@ -8,6 +8,7 @@ import {
   nextIncompleteStep,
   normalizePhone,
   validateAbout,
+  validateAgree,
   validateInterests,
   validatePhotos,
   validatePhone,
@@ -42,6 +43,7 @@ const satisfy: Record<string, Partial<ApplicationDraft>> = {
     ],
   },
   voice: { voiceSeenAt: NOW },
+  agree: { agreedAt: NOW },
 };
 
 function complete(overrides: Partial<ApplicationDraft> = {}): ApplicationDraft {
@@ -67,6 +69,7 @@ function complete(overrides: Partial<ApplicationDraft> = {}): ApplicationDraft {
       { prompt_id: "prompt_11", answer: "Grits do not need sugar." },
     ],
     voiceSeenAt: NOW,
+    agreedAt: NOW,
     selfiePath: "selfie.jpg",
     ...overrides,
   };
@@ -304,6 +307,13 @@ describe("the order of the funnel", () => {
     expect(APPLICATION_STEPS.slice(0, 3)).toEqual(["phone", "verify", "selfie"]);
   });
 
+  it("ends on the agreement, not the optional voice intro", () => {
+    // The funnel used to finish on a screen most people skip, so the final act
+    // of applying was pressing Continue on something they had ignored.
+    expect(APPLICATION_STEPS[APPLICATION_STEPS.length - 1]).toBe("agree");
+    expect(OPTIONAL_STEPS).not.toContain("agree");
+  });
+
   it("files the application on whatever step is genuinely last", () => {
     // `fileApplication` keys off this. When it was the literal "selfie",
     // moving that step to position three would have filed an application with
@@ -322,5 +332,28 @@ describe("the order of the funnel", () => {
       draft = { ...draft, ...satisfy[step] };
     }
     expect(seen).toEqual([...APPLICATION_STEPS]);
+  });
+});
+
+describe("the agreement", () => {
+  it("is not satisfied by passing through", () => {
+    // Unlike the voice step, this one has to be answered. A funnel that let
+    // somebody Continue past the agreement would be collecting consent by
+    // inactivity, which is not consent.
+    expect(validateAgree({}).ok).toBe(false);
+    expect(validateAgree({ agreedAt: NOW }).ok).toBe(true);
+  });
+
+  it("blocks submission on its own", () => {
+    const { agreedAt: _dropped, ...everythingElse } = complete();
+    expect(isSubmittable(everythingElse, NOW)).toBe(false);
+    expect(nextIncompleteStep(everythingElse, NOW)).toBe("agree");
+  });
+
+  it("is separate from the consent that gated their phone number", () => {
+    // Two moments, two records: one to start, one to send.
+    const started = complete({ agreedAt: undefined });
+    expect(started.consentedAt).toBeTruthy();
+    expect(validateAgree(started).ok).toBe(false);
   });
 });

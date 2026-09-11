@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { submitStep, type StepState } from "./actions";
 import {
   AboutStep,
+  AgreeStep,
   InterestsStep,
   PhoneStep,
   PhotosStep,
@@ -88,12 +89,20 @@ const COPY: Record<
   },
   voice: {
     statement: "Say hello, if you want to.",
-    sub: "Thirty seconds of your actual voice, on your card next to your name. Nobody has to do this one — Continue submits either way.",
-    // Last step now, so this is the button that files the application. Saying
-    // "Continue" on the screen that submits would be the funnel lying about
-    // what the button does.
-    cta: "Submit application",
+    sub: "Thirty seconds of your actual voice, on your card next to your name. Nobody has to do this one — Continue skips it.",
+    cta: "Continue",
     component: VoiceStep,
+  },
+  agree: {
+    statement: "That's everything.",
+    sub: "Here's what happens next, and the rules it happens under.",
+    /*
+     * Not "Submit application", which described a form rather than a person.
+     * This is somebody putting themselves forward for a season, and the button
+     * should say the thing they are actually doing.
+     */
+    cta: "Put me forward",
+    component: AgreeStep,
   },
 };
 

@@ -46,6 +46,16 @@ export const APPLICATION_STEPS = [
   // would make the one thing here that nobody has to do look like a field they
   // forgot, and `validateStep` returning ok is what lets Continue skip it.
   "voice",
+  /*
+   * Last, and not only because something has to be.
+   *
+   * The voice intro used to end the funnel, which meant the final act of
+   * applying was an optional recording most people skip — so the last thing
+   * somebody did was press Continue on a screen they had decided to ignore, and
+   * that submitted their application. Ending on the agreement makes the last
+   * step the one that deserves to be deliberate.
+   */
+  "agree",
 ] as const;
 
 /**
@@ -99,6 +109,8 @@ export interface ApplicationDraft {
   voiceSeenAt?: string;
   selfiePath?: string;
   consentedAt?: string;
+  /** Stamped on the final step — the Terms, Privacy and Community Standards. */
+  agreedAt?: string;
 }
 
 export type FieldErrors = Record<string, string>;
@@ -310,6 +322,20 @@ export function validateVoice(draft: ApplicationDraft): StepResult {
     : fail({ voiceIntroPath: "Record something or press Continue — either one is an answer." });
 }
 
+/**
+ * The last screen, and the only one whose entire job is a decision.
+ *
+ * `consentedAt` on the phone step gates collecting somebody's number at all.
+ * This is the other end: everything is filled in, they can see what they are
+ * sending, and they say yes to the rules it will be held to. Two consents for
+ * two different moments rather than one standing in for both.
+ */
+export function validateAgree(draft: ApplicationDraft): StepResult {
+  return draft.agreedAt
+    ? ok
+    : fail({ agree: "Tick the box to send your application." });
+}
+
 export function validateSelfie(draft: ApplicationDraft): StepResult {
   return draft.selfiePath
     ? ok
@@ -339,6 +365,8 @@ export function validateStep(
       return validatePrompts(draft);
     case "voice":
       return validateVoice(draft);
+    case "agree":
+      return validateAgree(draft);
     case "selfie":
       return validateSelfie(draft);
   }
