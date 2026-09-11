@@ -32,23 +32,44 @@
 /**
  * How sure Rekognition has to be that somebody live was there.
  *
- * AWS returns a probability, not a verdict, and leaves the threshold to the
- * caller — which is the right way round, because the cost of the two mistakes
- * depends entirely on what is behind the door. Here a false pass admits an
- * impersonator into a product whose whole premise is that the person is real,
- * and a false fail costs a reviewer thirty seconds. So this sits well above the
- * middle, and every case under it goes to a human rather than being refused.
+ * AWS returns a probability, not a verdict, and declines to recommend a single
+ * number, because it depends on the population being checked. Their guidance
+ * frames it as a band: 50-60 catches presentation attacks and some injection;
+ * 80-90 catches sophisticated deepfakes and pre-recorded video.
+ *
+ * Set at 75 — above the moderate band, below deepfake-grade. It started at 85
+ * and came down after the first genuine check through this system scored 64.6
+ * on an ordinary phone in ordinary light. A threshold nothing real can clear is
+ * not strict, it is decorative: auto-admit would never fire and every applicant
+ * would queue behind a person who has nothing extra to go on.
+ *
+ * Nothing under this line is refused. It goes to a reviewer, which is where the
+ * application was going anyway, so being wrong in this direction costs thirty
+ * seconds of somebody's attention and never an applicant.
+ *
+ * **This is still undercalibrated.** One real score is not a distribution. The
+ * number is on the review screen now (0032) precisely so it can be set from
+ * evidence once twenty or so applicants have been through.
  */
-export const LIVENESS_CONFIDENCE = 85;
+export const LIVENESS_CONFIDENCE = 75;
 
 /**
  * How alike two faces have to be before nobody looks.
  *
- * 92 is deliberately above AWS's own suggested 80 for general matching, for the
- * same asymmetry. When in doubt this system asks a person, and this number is
- * where the doubt starts.
+ * **Set at 82, and that is below what AWS recommends for this use.** Their
+ * guidance for face comparison is 90-99, and 99 for anything they class as
+ * critical security — identity verification is their own example. 82 is a
+ * deliberate choice to send fewer people to a reviewer, made in the knowledge
+ * that it widens the gap a determined impersonator could walk through.
+ *
+ * What makes that survivable rather than reckless is what sits around it. This
+ * number cannot reject anybody — under it means a human looks. It cannot admit
+ * anybody on its own either: `seasons.auto_admit` is off, and while it is off
+ * this threshold changes a label on a review screen and nothing else. Turning
+ * auto-admit on is the moment this number starts deciding, and it should be
+ * revisited then, against real scores rather than reasoning.
  */
-export const MATCH_SIMILARITY = 92;
+export const MATCH_SIMILARITY = 82;
 
 export type VerificationOutcome = "auto-admit" | "needs-a-person";
 

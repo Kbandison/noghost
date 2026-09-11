@@ -22,7 +22,7 @@
  * than passing a section that never executed.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { decideVerification } from "@noghost/logic";
+import { LIVENESS_CONFIDENCE, MATCH_SIMILARITY, decideVerification } from "@noghost/logic";
 import { ENV_PATH, loadRepoEnv } from "./env";
 
 loadRepoEnv();
@@ -353,8 +353,10 @@ async function main() {
       // The policy is pure, so this is exhaustive rather than a sample: every
       // reachable combination of inputs, and the set of outcomes they produce.
       const outcomes = new Set<string>();
-      for (const livenessConfidence of [null, 0, 50, 84.9, 85, 100]) {
-        for (const similarity of [null, 0, 50, 91.9, 92, 100]) {
+      for (const livenessConfidence of [
+        null, 0, LIVENESS_CONFIDENCE - 0.1, LIVENESS_CONFIDENCE, 100,
+      ]) {
+        for (const similarity of [null, 0, MATCH_SIMILARITY - 0.1, MATCH_SIMILARITY, 100]) {
           for (const autoAdmitEnabled of [true, false]) {
             outcomes.add(
               decideVerification({ livenessConfidence, similarity, autoAdmitEnabled }).outcome,
