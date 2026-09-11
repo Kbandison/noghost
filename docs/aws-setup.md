@@ -175,6 +175,31 @@ development had no AWS at all.
 Save it, then copy the role ARN from the top of the page. It looks like
 `arn:aws:iam::123456789012:role/noghost-app`.
 
+### 3c. If your issuer mode says Global
+
+Everything above is for **Team** mode, which is what `noghost-web` is set
+to. Vercel's other option is **Global**, and it changes the issuer — so
+the provider URL and the condition keys move, while the audience and
+subject stay exactly as they are.
+
+| | Global mode |
+| --- | --- |
+| Provider URL | `https://oidc.vercel.com` |
+| Principal | `arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/oidc.vercel.com` |
+| Condition keys | `oidc.vercel.com:aud` and `oidc.vercel.com:sub` |
+| Audience | unchanged — `https://vercel.com/kevin-bandisons-projects` |
+| Subject | unchanged |
+
+In other words: drop `/kevin-bandisons-projects` from the issuer wherever
+it appears, and leave the two values it isn't part of alone. The setting
+is per project — Project → Settings → Security → *Secure backend access
+with OIDC federation*.
+
+**Renaming the team or project breaks this.** The slug and project name
+live inside the `sub` and `aud` claims, so a rename silently stops the
+role being assumable. If you ever rename, add a second statement for the
+new name before switching.
+
 ## 4. Put two variables in Vercel
 
 ```bash
@@ -215,6 +240,12 @@ AWS_REGION=us-east-1
 AWS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/noghost-app
 ```
 
+`us-east-1` is a recommendation, not a requirement — any of the fifteen
+in step 1 works, and nothing needs to already exist there. Neither
+service has resources that could be in the wrong region; the region only
+decides which endpoint gets called. Use the same one here as in the
+policy ARN and on Vercel.
+
 Two things to watch here, both of which have bitten this repo before:
 
 - **Pull to the repo root.** There is one `.env.local` and it lives at
@@ -223,8 +254,10 @@ Two things to watch here, both of which have bitten this repo before:
 - **Check which team you linked.** It has linked to the wrong team's
   `noghost-web` before. It should be `kevin-bandisons-projects`.
 
-`VERCEL_OIDC_TOKEN` is short-lived — a couple of hours. When
-`aws:check` says the token is unreadable, pull again.
+`VERCEL_OIDC_TOKEN` expires. The one you pull is a *development* token
+and lasts 12 hours — the ones Vercel mints for preview and production
+last two, and builds get one. When `aws:check` says the token is
+unreadable, pull again.
 
 ## 6. Check it
 

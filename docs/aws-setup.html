@@ -682,6 +682,37 @@
         Save it, then copy the role ARN from the top of the page. It looks like
         <code>arn:aws:iam::123456789012:role/noghost-app</code>.
       </p>
+
+      <h3>If your issuer mode says Global</h3>
+      <p>
+        The values above are for <b>Team</b> mode, which is what
+        <code>noghost-web</code> is set to. Vercel’s other option is
+        <b>Global</b>, and it changes the issuer — so the provider URL and the
+        condition keys move, while the audience and subject stay exactly as
+        they are.
+      </p>
+      <table class="values">
+        <tbody>
+          <tr><td>Provider URL</td><td class="v">https://oidc.vercel.com</td></tr>
+          <tr><td>Principal</td><td class="v">arn:aws:iam::YOUR_ACCOUNT_ID:oidc-provider/oidc.vercel.com</td></tr>
+          <tr><td>Condition keys</td><td class="v">oidc.vercel.com:aud  /  oidc.vercel.com:sub</td></tr>
+          <tr><td>Audience</td><td class="v">unchanged — https://vercel.com/kevin-bandisons-projects</td></tr>
+          <tr><td>Subject</td><td class="v">unchanged</td></tr>
+        </tbody>
+      </table>
+      <p class="note">
+        In other words: drop <code>/kevin-bandisons-projects</code> from the
+        issuer everywhere it appears, and leave the two values it isn’t part of
+        alone. The setting is per project — Project → Settings → Security →
+        <i>Secure backend access with OIDC federation</i>.
+      </p>
+
+      <div class="watch">
+        <b>Renaming the team or project breaks this.</b> The slug and project
+        name are inside the <code>sub</code> and <code>aud</code> claims, so a
+        rename silently stops the role being assumable. If you ever rename,
+        add a second statement for the new name before switching.
+      </div>
     </section>
 
     <section class="step">
@@ -718,6 +749,13 @@ vercel env pull .env.local --yes</code></pre>
       <p>Then add to the root <code>.env.local</code>:</p>
       <pre><code>AWS_REGION=us-east-1
 AWS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/noghost-app</code></pre>
+      <p class="note">
+        <code>us-east-1</code> is a recommendation, not a requirement — any of
+        the fifteen in step 1 works, and nothing needs to already exist there.
+        Neither service has resources to be in the wrong region; the region
+        only decides which endpoint gets called. Use the same one here as in
+        the policy ARN and on Vercel.
+      </p>
       <div class="watch">
         Two things that have bitten this repo before.
         <b>Pull to the repo root</b> — there is one <code>.env.local</code> and
@@ -727,7 +765,9 @@ AWS_ROLE_ARN=arn:aws:iam::YOUR_ACCOUNT_ID:role/noghost-app</code></pre>
         <code>noghost-web</code> before.
       </div>
       <p class="note">
-        <code>VERCEL_OIDC_TOKEN</code> is short-lived — a couple of hours. When
+        <code>VERCEL_OIDC_TOKEN</code> expires. The one you pull is a
+        <i>development</i> token and lasts 12 hours — the ones Vercel mints for
+        preview and production last two, and builds get one. When
         <code>aws:check</code> says the token is unreadable, pull again.
       </p>
     </section>
