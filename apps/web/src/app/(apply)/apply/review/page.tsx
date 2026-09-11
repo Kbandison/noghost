@@ -75,6 +75,24 @@ export default async function ReviewPage() {
       ? await claimContext(application.season_id, application.claim_deadline)
       : null;
 
+  /*
+   * Which door they came through.
+   *
+   * Since 0031 an application can be admitted by a person reading it or by the
+   * automated identity check. This page told everybody the same thing, phrased
+   * as fact — "a person read your application and said yes" — which for an
+   * auto-admitted applicant describes a review that never happened. Worse, the
+   * paragraph promising a human reviewer rendered *alongside* the admitted
+   * block, so that person was told it twice.
+   *
+   * Nothing here reveals a score or a shortfall. The outcome of an application
+   * is not a secret — an admitted member gets an email, an SMS and a claim
+   * deadline within seconds of this — and knowing how it was reached adds
+   * nothing an attacker could use, because they are already through.
+   */
+  const { data: route } = await (await supabaseServer()).rpc("my_application_route");
+  const admittedAutomatically = route?.[0]?.admitted_automatically ?? false;
+
   return (
     <div className="mx-auto grid w-full max-w-[var(--content-max)] grid-cols-1 gap-12 px-6 pb-24 pt-16 md:px-8 lg:grid-cols-12 lg:gap-16 lg:pt-24">
       <div className="lg:col-span-7">
@@ -93,7 +111,10 @@ export default async function ReviewPage() {
               You&rsquo;re in.
             </h2>
             <p className="mt-2 text-[17px] leading-relaxed text-[var(--text-secondary)]">
-              A person read your application and said yes.
+              {admittedAutomatically
+                ? "Your identity check cleared on its own, so you didn’t have to wait for " +
+                  "anybody. Your photos still go past a person before the season starts."
+                : "A person read your application and said yes."}
             </p>
             <div className="mt-5">
               <ClaimSeat
@@ -108,12 +129,20 @@ export default async function ReviewPage() {
           </section>
         )}
 
-        <p className="prose-measure mt-7 text-[19px] leading-[1.65] text-[var(--text-secondary)]">
-          {`Your application for ${season?.name ?? BRAND.SEASON_S1_NAME} is in. ` +
-            "A person on the review team reads it and compares your selfie to your photos. " +
-            "You’ll hear back within five days either way — we don’t leave applications " +
-            "hanging any more than we leave conversations hanging."}
-        </p>
+        {/*
+          * Only for an application still waiting. Rendered unconditionally
+          * before, so an admitted applicant read "a person reads it and
+          * compares your selfie" directly under "you're in" — two
+          * contradictory claims, and for an auto-admit both untrue.
+          */}
+        {!claim && (
+          <p className="prose-measure mt-7 text-[19px] leading-[1.65] text-[var(--text-secondary)]">
+            {`Your application for ${season?.name ?? BRAND.SEASON_S1_NAME} is in. ` +
+              "A person on the review team reads it and compares your selfie to your photos. " +
+              "You’ll hear back within five days either way — we don’t leave applications " +
+              "hanging any more than we leave conversations hanging."}
+          </p>
+        )}
         <p className="prose-measure mt-6 text-[17px] leading-[1.7] text-[var(--text-secondary)]">
           {"You haven’t paid anything, and you won’t unless you’re admitted. " +
             `If you are, you’ll get ${season?.claimHours ?? 72} hours to claim your seat.`}

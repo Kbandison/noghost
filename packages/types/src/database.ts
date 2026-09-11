@@ -122,6 +122,15 @@ export interface Database {
     Functions: {
       pass_card: { Args: { p_card_id: string }; Returns: undefined };
       /**
+       * 0033. The caller's own application status, and which door it came
+       * through. Members may know the outcome of their own application; they
+       * may never know a score or that they fell short of one.
+       */
+      my_application_route: {
+        Args: Record<string, never>;
+        Returns: { status: ApplicationStatus; admitted_automatically: boolean }[];
+      };
+      /**
        * 0029. Everything the review team needs about one verification —
        * including the columns revoked from the applicant. Admin-gated inside
        * the function, which is why the console can call it with the reviewer's

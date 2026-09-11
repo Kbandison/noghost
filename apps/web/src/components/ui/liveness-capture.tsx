@@ -198,19 +198,27 @@ export function LivenessCapture({
             Check complete <span className="text-[var(--sage-text)]">✓</span>
           </p>
           {/*
-           * Why there is no score here, said out loud.
+           * Two things are deliberately not said here, for different reasons.
            *
-           * Whether the check was convincing is deliberately not shown — an
-           * applicant who learns the number learns what to aim at, and an
-           * honest applicant told "you failed a liveness check" reads it as an
-           * accusation. But an unexplained silence reads as a broken screen, so
-           * this says what actually happens next. It is true either way: a
-           * person reviews every application.
+           * **No score.** An applicant who learns the number learns what to aim
+           * at, and an honest applicant told "you failed a liveness check"
+           * hears an accusation.
+           *
+           * **No promise about who decides.** This used to say "a person on the
+           * review team compares this with your photos" — stated as fact, at a
+           * point where it is not yet a fact about anybody. Nothing has been
+           * decided here: the face comparison cannot run until there are photos
+           * to compare against, four steps later, and only then does an
+           * application go to a reviewer or clear on its own. Promising a human
+           * now is a promise this screen has no standing to make, and it turned
+           * out to be false for everybody the automated check later cleared.
+           *
+           * An unexplained silence still reads as broken, so it says what is
+           * true right now — taken, kept private, assessed at the end.
            */}
           <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-dim)]">
-            A person on the review team compares this with your photos before you&rsquo;re
-            admitted, and you&rsquo;ll hear back either way. Nothing from it is shown on your
-            profile or to another member.
+            We&rsquo;ll check it against your photos when you submit, and tell you where you
+            stand either way. Nothing from it is shown on your profile or to another member.
           </p>
           <button
             type="button"
@@ -234,9 +242,14 @@ export function LivenessCapture({
       <div className="space-y-4">
         <div className="border border-[var(--border)] p-4">
           <p className="text-[15px]">Identity checks aren&rsquo;t switched on here.</p>
+          {/*
+            * Here the promise IS true and is worth making: with no automated
+            * check there is nothing that could clear this application on its
+            * own, so a person is the only route in.
+            */}
           <p className="mt-2 text-[14px] leading-relaxed text-[var(--text-dim)]">
-            Carry on — a person on the review team will check your photos by hand before
-            you&rsquo;re admitted, which is what happens to every application anyway.
+            Carry on — with the check switched off, a person on the review team reads every
+            application by hand, yours included.
           </p>
         </div>
         {/* Nothing to post. `validateSelfie` lets the step through on its own
