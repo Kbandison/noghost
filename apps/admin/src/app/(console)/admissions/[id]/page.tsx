@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { GENDER_LABELS } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationStatus } from "@noghost/types";
+import { reviewVerdict } from "@noghost/logic";
 import { Panel, StatusPill } from "@/components/ui";
 import { getApplication } from "@/lib/admissions";
 import { signedSelfieUrl } from "@/lib/storage";
@@ -37,6 +38,8 @@ export default async function ApplicationPage({
 
   const application = await getApplication(id);
   if (!application) notFound();
+
+  const verdict = reviewVerdict(application);
 
   const selfieUrl = await signedSelfieUrl(application.selfiePath);
   const decidable = application.status === "under_review";
@@ -82,15 +85,18 @@ export default async function ApplicationPage({
            * strip would make the reviewer click through and compare from
            * memory, which is exactly how a mismatch gets waved through.
            */}
-          <Panel
-            title="Verification"
-            meta={
-              application.livenessScore !== null
-                ? `liveness ${application.livenessScore.toFixed(2)}`
-                : "no liveness score"
-            }
-            className="mb-6"
-          >
+          <Panel title="Verification" meta={verdict.label} className="mb-6">
+            <p
+              className={
+                verdict.tone === "good"
+                  ? "border-b border-[var(--border-subtle)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--sage-text)]"
+                  : verdict.tone === "warn"
+                    ? "border-b border-[var(--border-subtle)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--warning,var(--text-primary))]"
+                    : "border-b border-[var(--border-subtle)] px-4 py-2.5 text-[13px] leading-relaxed text-[var(--text-dim)]"
+              }
+            >
+              {verdict.detail}
+            </p>
             <div className="grid gap-4 p-4 md:grid-cols-[minmax(0,17rem)_1fr]">
               <figure>
                 <div className="relative aspect-[4/5] overflow-hidden rounded-[3px] border border-[var(--border)] bg-[var(--bg-secondary)]">

@@ -2,7 +2,12 @@
 
 import { useActionState, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { APPLICATION_STEPS, type ApplicationDraft, type ApplicationStep } from "@noghost/logic";
+import {
+  APPLICATION_STEPS,
+  FORM_ERROR,
+  type ApplicationDraft,
+  type ApplicationStep,
+} from "@noghost/logic";
 import { Button } from "@/components/ui/button";
 import { submitStep, type StepState } from "./actions";
 import {
@@ -35,9 +40,21 @@ const COPY: Record<
   },
   verify: {
     statement: "Check your messages.",
-    sub: "Your number is the first of two things that prove you're a real person. The second is a selfie, at the end.",
+    sub: "Your number is the first of two things that prove you're a real person. The second is next.",
     cta: "Verify",
     component: VerifyStep,
+  },
+  /*
+   * Third, not last. The old funnel asked for this after eleven screens of
+   * writing, which meant somebody who cannot pass it found out at the very end
+   * — and somebody who can spent all that effort before anyone knew they were
+   * real. It is the other half of the phone code, so it sits next to it.
+   */
+  selfie: {
+    statement: "Now prove you're you.",
+    sub: "A few photos, taken here, in an order we pick. Review team only — never shown to another member.",
+    cta: "Continue",
+    component: SelfieStep,
   },
   about: {
     statement: "Who's applying?",
@@ -59,7 +76,7 @@ const COPY: Record<
   },
   photos: {
     statement: "Let people see you.",
-    sub: "Recent, and actually of you. A person compares these to your selfie before you're admitted.",
+    sub: "Recent, and actually of you. These get compared against the photos you just took.",
     cta: "Continue",
     component: PhotosStep,
   },
@@ -71,15 +88,12 @@ const COPY: Record<
   },
   voice: {
     statement: "Say hello, if you want to.",
-    sub: "Thirty seconds of your actual voice, on your card next to your name. Nobody has to do this one — Continue skips it.",
-    cta: "Continue",
-    component: VoiceStep,
-  },
-  selfie: {
-    statement: "Last one. Prove you're you.",
-    sub: "Review team only. Never shown to another member.",
+    sub: "Thirty seconds of your actual voice, on your card next to your name. Nobody has to do this one — Continue submits either way.",
+    // Last step now, so this is the button that files the application. Saying
+    // "Continue" on the screen that submits would be the funnel lying about
+    // what the button does.
     cta: "Submit application",
-    component: SelfieStep,
+    component: VoiceStep,
   },
 };
 
@@ -191,6 +205,22 @@ export function Funnel({
                 />
               </motion.div>
             </AnimatePresence>
+
+            {/*
+              * Errors that belong to no field — "applications aren't open",
+              * "we couldn't reach the season". Rendered here rather than by a
+              * step component so that reordering the funnel cannot orphan
+              * them, which is exactly what moving the selfie to step three did
+              * to the six messages that used to be keyed on it.
+              */}
+            {state.errors?.[FORM_ERROR] && (
+              <p
+                role="alert"
+                className="mt-6 border-l-2 border-[var(--error)] pl-3 text-[15px] leading-relaxed text-[var(--error)]"
+              >
+                {state.errors[FORM_ERROR]}
+              </p>
+            )}
 
             {state.notice && (
               <p className="mt-6 border-l-2 border-[var(--sage)] pl-3 text-[14px] leading-relaxed text-[var(--sage-text)]">

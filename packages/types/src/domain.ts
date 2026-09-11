@@ -107,8 +107,33 @@ export interface Season {
    * inventory back, never manufacture scarcity. Null shows the truth.
    */
   seats_display_cap: number | null;
+  /**
+   * 0029. Whether a confident automated identity match admits an application
+   * without a person reading it. Never causes a rejection — off simply means a
+   * human reads every case.
+   */
+  auto_admit: boolean;
   timezone: string;
   created_at: Timestamp;
+}
+
+/**
+ * 0029. One sequence of poses, issued before it is answered.
+ *
+ * The applicant can neither read nor write this — RLS is on with no policies,
+ * so every touch is through the service key. A member who could read `poses`
+ * would know the answer before being asked, which is the whole mechanism.
+ */
+export interface VerificationChallenge {
+  id: UUID;
+  user_id: UUID;
+  poses: string[];
+  /** Whether the sequence was answered. Null means no check could run. */
+  passed: boolean | null;
+  frame_paths: string[] | null;
+  issued_at: Timestamp;
+  expires_at: Timestamp;
+  consumed_at: Timestamp | null;
 }
 
 export interface Verification {
@@ -116,8 +141,21 @@ export interface Verification {
   user_id: UUID;
   phone_verified_at: Timestamp | null;
   selfie_path: string | null;
+  /** Face-comparison similarity, 0–100, live frame against the first photo. */
   liveness_score: number | null;
+  /**
+   * The automated verdict. **Null means no check ran** — never a failure.
+   * `decideVerification` is built on that distinction and so is the reviewer's
+   * screen; collapsing it to a boolean loses the only thing it is for.
+   */
   liveness_passed: boolean | null;
+  challenge_id: UUID | null;
+  challenge_passed: boolean | null;
+  /** Every captured frame in pose order; `selfie_path` is the centered one. */
+  frame_paths: string[] | null;
+  /** Internal — SELECT is revoked from `authenticated`. */
+  auto_reason: string | null;
+  auto_checked_at: Timestamp | null;
   admin_reviewed_by: UUID | null;
   admin_decision: "approved" | "rejected" | null;
   admin_notes: string | null;

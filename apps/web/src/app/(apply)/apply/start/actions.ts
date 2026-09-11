@@ -4,6 +4,7 @@ import { OTP_PATTERN } from "@noghost/config";
 import { usingSeedData } from "@noghost/config/env";
 import { createServiceClient } from "@noghost/db/service";
 import { allowRequest } from "@/lib/rate-limit";
+import { compareFaces, faceChecksConfigured } from "@/lib/rekognition";
 import {
   OTP_SEND_PER_ADDRESS,
   OTP_SEND_PER_PHONE,
@@ -11,6 +12,9 @@ import {
   OTP_VERIFY_PER_PHONE,
 } from "@/lib/auth-limits";
 import {
+  FINAL_STEP,
+  FORM_ERROR,
+  decideVerification,
   normalizePhone,
   roundForStorage,
   validateStep,
@@ -261,8 +265,10 @@ export async function submitStep(prev: StepState, formData: FormData): Promise<S
     };
   }
 
-  // The last step files the application.
-  if (step === "selfie") {
+  // The last step files the application — whichever one that is. Keyed on
+  // `FINAL_STEP` rather than a literal, because the step it used to name moved
+  // to position three and a literal would have filed an empty application.
+  if (step === FINAL_STEP) {
     const filed = await fileApplication(next, now);
     if (filed) return { errors: filed, draft: next, version };
   }
@@ -293,7 +299,7 @@ async function fileApplication(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { selfie: "Your session expired. Go back to the code step and verify again." };
+    return { [FORM_ERROR]: "Your session expired. Go back to the code step and verify again." };
   }
 
   // Which season is taking applications. Named columns, one string literal —
@@ -308,11 +314,11 @@ async function fileApplication(
 
   if (seasonError) {
     console.error(`[apply] season lookup failed: ${seasonError.message}`);
-    return { selfie: "We couldn't reach the season. Try again in a moment." };
+    return { [FORM_ERROR]: "We couldn't reach the season. Try again in a moment." };
   }
   if (!season) {
     return {
-      selfie: "Applications aren't open right now. Join the waitlist and we'll tell you when they are.",
+      [FORM_ERROR]: "Applications aren't open right now. Join the waitlist and we'll tell you when they are.",
     };
   }
 
@@ -353,7 +359,7 @@ async function fileApplication(
 
   if (profileError) {
     console.error(`[apply] profile upsert failed for ${user.id}: ${profileError.message}`);
-    return { selfie: "We couldn't save your profile. Try again in a moment." };
+    return { [FORM_ERROR]: "We couldn't save your profile. Try again in a moment." };
   }
 
   // Insert-if-absent. `verifications` has a unique user_id and only an INSERT
@@ -370,7 +376,7 @@ async function fileApplication(
 
   if (verificationError) {
     console.error(`[apply] verification insert failed for ${user.id}: ${verificationError.message}`);
-    return { selfie: "We couldn't save your selfie. Try again in a moment." };
+    return { [FORM_ERROR]: "We couldn't save your selfie. Try again in a moment." };
   }
 
   const { data: filed, error: applicationError } = await supabase
@@ -383,7 +389,7 @@ async function fileApplication(
 
   if (applicationError) {
     console.error(`[apply] application insert failed for ${user.id}: ${applicationError.message}`);
-    return { selfie: "We couldn't file your application. Try again in a moment." };
+    return { [FORM_ERROR]: "We couldn't file your application. Try again in a moment." };
   }
 
   /*
@@ -412,7 +418,161 @@ async function fileApplication(
   }
 
   await advanceToReview(user.id, season.id);
+  await runIdentityMatch(user.id, season.id, draft.photoPaths ?? []);
   return null;
+}
+
+/**
+ * The second half of verification — comparing the live face to the photos.
+ *
+ * It could not run at step three, because at step three there are no photos.
+ * That sequencing falls out of moving the selfie forward rather than being
+ * worked around: the pose sequence proves somebody was there, here, now; this
+ * proves the somebody is the person on the profile. Both are needed and they
+ * become possible at different moments.
+ *
+ * Everything about this is best-effort and nothing about it can turn anybody
+ * away. No AWS, no photo, a Rekognition outage, a timeout — every one of those
+ * ends at the same place the application was already going, which is a person's
+ * screen. Failures are logged, never surfaced: the application is filed and
+ * telling the applicant otherwise would be a lie.
+ */
+async function runIdentityMatch(
+  userId: string,
+  seasonId: string,
+  photoPaths: string[],
+): Promise<void> {
+  if (usingSeedData()) return;
+
+  const service = createServiceClient();
+
+  /*
+   * The pose result has been sitting on the challenge row since step three,
+   * because `verifications.user_id` references `profiles.id` and no profile
+   * existed then. It does now — `fileApplication` upserted it a few lines
+   * ago — so this is the first moment the two halves can be put together.
+   *
+   * Most recent first: a retake issues a new challenge, and the one that
+   * counts is the last one they actually answered.
+   */
+  const { data: challenge } = await service
+    .from("verification_challenges")
+    .select("id,passed,frame_paths")
+    .eq("user_id", userId)
+    .not("consumed_at", "is", null)
+    .order("issued_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: verification } = await service
+    .from("verifications")
+    .select("selfie_path")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const live = verification?.selfie_path;
+  // The lead photo — the one that leads their card, and the one a reviewer
+  // would have compared by eye.
+  const photo = photoPaths[0];
+
+  /*
+   * `faceChecksConfigured()` gates the comparison, not the copy. Without AWS
+   * there is no similarity — but the frames and the pose result still have to
+   * land on the verification row, because a reviewer with no photographs to
+   * look at has nothing to review. Skipping the whole function when AWS is
+   * absent would have made the reorder silently lose the capture.
+   */
+  let similarity: number | null = null;
+  if (faceChecksConfigured() && live && photo) {
+    const [liveFile, photoFile] = await Promise.all([
+      service.storage.from("verification-selfies").download(live),
+      service.storage.from("photos").download(photo),
+    ]);
+
+    if (liveFile.data && photoFile.data) {
+      similarity = await compareFaces(
+        new Uint8Array(await liveFile.data.arrayBuffer()),
+        new Uint8Array(await photoFile.data.arrayBuffer()),
+      );
+    } else {
+      console.error(`[apply] identity match: could not read both images for ${userId}`);
+    }
+  }
+
+  const { data: season } = await service
+    .from("seasons")
+    .select("auto_admit")
+    .eq("id", seasonId)
+    .maybeSingle();
+
+  const decision = decideVerification({
+    challengeOk: challenge?.passed ?? null,
+    similarity,
+    autoAdmitEnabled: season?.auto_admit ?? false,
+  });
+
+  const { error: writeError } = await service
+    .from("verifications")
+    .update({
+      challenge_id: challenge?.id ?? null,
+      challenge_passed: challenge?.passed ?? null,
+      frame_paths: challenge?.frame_paths ?? null,
+      liveness_score: similarity,
+      liveness_passed: decision.livenessPassed,
+      auto_reason: decision.reason,
+      auto_checked_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+
+  if (writeError) {
+    console.error(`[apply] identity match write for ${userId}: ${writeError.message}`);
+  }
+
+  if (decision.outcome !== "auto-admit") return;
+
+  const { data: application } = await service
+    .from("applications")
+    .select("id,status")
+    .eq("user_id", userId)
+    .eq("season_id", seasonId)
+    .maybeSingle();
+
+  // Only from `under_review`. An application a person already decided on is
+  // not one an automated check gets to revisit, and `advance_application`
+  // would refuse the transition anyway — this is so it is never attempted.
+  if (application?.status !== "under_review") return;
+
+  const { error: admitError } = await service.rpc("advance_application", {
+    p_application_id: application.id,
+    p_new_status: "admitted",
+  });
+
+  if (admitError) {
+    // Logged and dropped. The application stays in the review queue, which is
+    // the safe direction for this to fail in.
+    console.error(`[apply] auto-admit ${application.id}: ${admitError.message}`);
+    return;
+  }
+
+  /*
+   * A second audit row, on purpose.
+   *
+   * `advance_application` writes its own `{from, to}` under the all-zeros
+   * admin id, which is the same signature the claim-sweep cron leaves. Six
+   * months from now "who admitted this person" has to have a better answer
+   * than "something automated did", so this records what the machine actually
+   * saw. Failure here is logged rather than rolled back — an admitted member
+   * with a thin trail beats an admission reversed by a logging problem.
+   */
+  const { error: auditError } = await service.rpc("audit", {
+    p_action: "auto_admit",
+    p_table: "applications",
+    p_target: application.id,
+    p_detail: { similarity, reason: decision.reason },
+  });
+  if (auditError) {
+    console.error(`[apply] auto-admit audit ${application.id}: ${auditError.message}`);
+  }
 }
 
 /**

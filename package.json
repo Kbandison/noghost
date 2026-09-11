@@ -30,6 +30,7 @@
     "db:verify:photos": "tsx packages/db/scripts/verify-photos.ts",
     "db:verify:notifications": "tsx packages/db/scripts/verify-notifications.ts",
     "db:verify:geography": "tsx packages/db/scripts/verify-geography.ts",
+    "db:verify:verification": "tsx packages/db/scripts/verify-verification.ts",
     "admin:grant": "tsx packages/db/scripts/grant-admin.ts",
     "vapid:keys": "node apps/web/scripts/vapid-keys.mjs"
   },

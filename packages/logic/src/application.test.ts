@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   APPLICATION_STEPS,
+  FINAL_STEP,
   OPTIONAL_STEPS,
   completionRatio,
   isSubmittable,
@@ -18,6 +19,30 @@ import {
 } from "./application";
 
 const NOW = "2026-08-01T12:00:00.000Z";
+
+/** The minimum that satisfies each step, so the walkthrough can advance. */
+const satisfy: Record<string, Partial<ApplicationDraft>> = {
+  phone: { phone: "+14045550134", email: "maya@example.com", consentedAt: NOW },
+  verify: { phoneVerifiedAt: NOW },
+  selfie: { selfiePath: "selfie.jpg" },
+  about: { firstName: "Maya", birthdate: "1994-03-02", gender: "woman", seeking: ["man"] },
+  preferences: {
+    point: { lat: 33.782, lng: -84.384 },
+    travelRadiusKm: 25,
+    ageMin: 28,
+    ageMax: 40,
+  },
+  interests: { interests: ["live music", "running", "coffee", "film", "cooking"] },
+  photos: { photoPaths: ["a.webp", "b.webp", "c.webp"] },
+  prompts: {
+    prompts: [
+      { prompt_id: "prompt_01", answer: "I know which Publix to avoid on a Sunday." },
+      { prompt_id: "prompt_04", answer: "I remember what you told me last time." },
+      { prompt_id: "prompt_11", answer: "Grits do not need sugar." },
+    ],
+  },
+  voice: { voiceSeenAt: NOW },
+};
 
 function complete(overrides: Partial<ApplicationDraft> = {}): ApplicationDraft {
   return {
@@ -256,9 +281,9 @@ describe("the optional voice intro", () => {
   it("stops a resumed application so the offer is not silently retired", () => {
     // The bug this exists to prevent: an always-valid step is walked past by
     // `nextIncompleteStep`, so anyone returning to a half-finished application
-    // goes prompts -> selfie and is never asked.
-    const { voiceSeenAt: _seen, selfiePath: _selfie, ...upToPrompts } = complete();
-    expect(nextIncompleteStep(upToPrompts, NOW)).toBe("voice");
+    // sails past the voice step and is never asked.
+    const { voiceSeenAt: _seen, ...everythingElse } = complete();
+    expect(nextIncompleteStep(everythingElse, NOW)).toBe("voice");
   });
 
   it("does not ask twice once they have answered either way", () => {
@@ -268,5 +293,34 @@ describe("the optional voice intro", () => {
 
   it("is not required for submission", () => {
     expect(isSubmittable(complete({ voiceIntroPath: undefined }), NOW)).toBe(true);
+  });
+});
+
+describe("the order of the funnel", () => {
+  it("asks for the selfie immediately after the phone code", () => {
+    // Not cosmetic. Last-place meant somebody who cannot pass identity
+    // verification found out after eleven screens of work, and somebody who
+    // can did all of it before anyone knew they were real.
+    expect(APPLICATION_STEPS.slice(0, 3)).toEqual(["phone", "verify", "selfie"]);
+  });
+
+  it("files the application on whatever step is genuinely last", () => {
+    // `fileApplication` keys off this. When it was the literal "selfie",
+    // moving that step to position three would have filed an application with
+    // no photos, no prompts and no answers on it.
+    expect(FINAL_STEP).toBe(APPLICATION_STEPS[APPLICATION_STEPS.length - 1]);
+    expect(APPLICATION_STEPS.indexOf(FINAL_STEP)).toBe(APPLICATION_STEPS.length - 1);
+  });
+
+  it("still reaches every step on the way through", () => {
+    const seen: string[] = [];
+    let draft: ApplicationDraft = {};
+    for (let i = 0; i < APPLICATION_STEPS.length + 2; i += 1) {
+      const step = nextIncompleteStep(draft, NOW);
+      if (!step) break;
+      seen.push(step);
+      draft = { ...draft, ...satisfy[step] };
+    }
+    expect(seen).toEqual([...APPLICATION_STEPS]);
   });
 });

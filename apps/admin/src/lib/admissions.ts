@@ -47,8 +47,19 @@ export interface ApplicationDetail extends QueueRow {
   photos: ReviewPhoto[];
   prompts: { prompt_id: string; answer: string }[];
   selfiePath: string | null;
+  /** Every frame of the pose sequence, in order. 0029. */
+  framePaths: string[];
+  /** Did the live sequence get answered? Null means no check ran. */
+  challengePassed: boolean | null;
   livenessScore: number | null;
+  /**
+   * The automated verdict. **Null is not a failure** — it means nothing ran.
+   * The screen says so in words, because a reviewer who reads a null as a
+   * failed check is reviewing a different case than the one in front of them.
+   */
   livenessPassed: boolean | null;
+  autoReason: string | null;
+  autoCheckedAt: string | null;
   phoneVerifiedAt: string | null;
 }
 
@@ -153,17 +164,22 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
 
   if (!application) return null;
 
-  const [{ data: profile }, { data: verification }] = await Promise.all([
+  const [{ data: profile }, { data: verificationRows }] = await Promise.all([
     supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", application.user_id).maybeSingle(),
-    supabase
-      .from("verifications")
-      .select("user_id,selfie_path,liveness_score,liveness_passed,phone_verified_at")
-      .eq("user_id", application.user_id)
-      .maybeSingle(),
+    /*
+     * Through `review_verification` rather than a table select. 0029 revokes
+     * the score, the verdict and the reason from `authenticated` — the
+     * applicant owns this row and RLS restricts rows, not columns, so a plain
+     * select would have handed them their own match score. The RPC asks
+     * `is_admin()` itself, so the database is still what decides.
+     */
+    supabase.rpc("review_verification", { p_user_id: application.user_id }),
   ]);
 
   if (!profile) return null;
   const p = profile as ProfileRow;
+  // The RPC returns a set; one row or none.
+  const review = verificationRows?.[0];
 
   return {
     id: application.id,
@@ -188,11 +204,17 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
     photos: photoList(p.photos),
     prompts: promptList(p.prompts),
     photoPath: photoPaths(p.photos)[0] ?? null,
-    hasSelfie: Boolean(verification?.selfie_path),
-    selfiePath: verification?.selfie_path ?? null,
-    livenessScore: verification?.liveness_score ?? null,
-    livenessPassed: verification?.liveness_passed ?? null,
-    phoneVerifiedAt: verification?.phone_verified_at ?? null,
+    hasSelfie: Boolean(review?.selfie_path),
+    selfiePath: review?.selfie_path ?? null,
+    framePaths: review?.frame_paths ?? [],
+    challengePassed: review?.challenge_passed ?? null,
+    livenessScore: review?.liveness_score === null || review?.liveness_score === undefined
+      ? null
+      : Number(review.liveness_score),
+    livenessPassed: review?.liveness_passed ?? null,
+    autoReason: review?.auto_reason ?? null,
+    autoCheckedAt: review?.auto_checked_at ?? null,
+    phoneVerifiedAt: review?.phone_verified_at ?? null,
   };
 }
 

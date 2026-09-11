@@ -24,6 +24,7 @@ import { LocationField } from "@/components/ui/location-field";
 import { cn } from "@/lib/utils";
 import { publicPhotoUrl, uploadImage, uploadVoiceIntro } from "@/lib/upload";
 import { VoicePlayer } from "@/components/ui/voice-player";
+import { LivenessCapture } from "@/components/ui/liveness-capture";
 import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
 import { VOICE_INTRO_MAX_MS } from "@/lib/voice";
 
@@ -500,110 +501,9 @@ export function PromptsStep({ draft, errors }: StepProps) {
 }
 
 export function SelfieStep({ draft, errors }: StepProps) {
-  const [selfie, setSelfie] = useState<{ label: string; preview: string } | null>(
-    draft.selfiePath ? { label: "Selfie on file", preview: "" } : null,
-  );
-  const [path, setPath] = useState<string | null>(draft.selfiePath ?? null);
-  const [uploading, setUploading] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-
-  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = e.target.files?.[0];
-    e.target.value = "";
-    if (!picked) return;
-
-    setSelfie({ label: picked.name, preview: URL.createObjectURL(picked) });
-    setPath(null);
-    setFailure(null);
-    setUploading(true);
-
-    void uploadImage("verification-selfies", picked)
-      .then(setPath)
-      .catch((cause: unknown) =>
-        setFailure(cause instanceof Error ? cause.message : "Upload failed."),
-      )
-      .finally(() => setUploading(false));
-  }
-
-  function retake() {
-    setSelfie(null);
-    setPath(null);
-    setFailure(null);
-  }
-
-  return (
-    <div className="space-y-6">
-      {selfie ? (
-        <div className="flex items-center gap-4 border border-[var(--border)] p-4">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--bg-secondary)]">
-            {selfie.preview ? (
-              // Local object URL; nothing for next/image to optimise.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={selfie.preview}
-                alt=""
-                className={uploading ? "h-full w-full object-cover opacity-50" : "h-full w-full object-cover"}
-              />
-            ) : (
-              <span aria-hidden="true" className="text-[22px] text-[var(--sage-text)]">
-                ✓
-              </span>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px]" aria-live="polite">
-              {uploading ? "Uploading…" : failure ? "Upload failed" : selfie.label}
-            </p>
-            <button
-              type="button"
-              onClick={retake}
-              className="mt-1 text-[14px] text-[var(--accent-text)] underline underline-offset-4"
-            >
-              Retake
-            </button>
-          </div>
-          {path && <input type="hidden" name="selfiePath" value={path} />}
-        </div>
-      ) : (
-        <label className="flex cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-[var(--border)] px-6 py-12 text-center transition-colors hover:border-[var(--accent)]">
-          <span className="text-[16px] font-medium">Take a selfie</span>
-          <span className="text-[14px] text-[var(--text-dim)]">
-            Front camera, good light, no sunglasses
-          </span>
-          <input
-            type="file"
-            accept="image/*"
-            capture="user"
-            className="sr-only"
-            onChange={onPick}
-          />
-        </label>
-      )}
-
-      {failure && (
-        <p role="alert" className="text-[14px] leading-snug text-[var(--error)]">
-          {failure}
-        </p>
-      )}
-      <FieldError id="selfie-error">{errors.selfie}</FieldError>
-
-      <p className="text-[14px] leading-relaxed text-[var(--text-dim)]">{CONSENT.selfie}</p>
-    </div>
-  );
+  return <LivenessCapture existingPath={draft.selfiePath} error={errors.selfie} />;
 }
 
-/**
- * The optional 30s intro — §7.2's "optional 30s voice intro".
- *
- * The only step in the funnel nobody has to do, and it says so twice: in the
- * skip affordance and in what the Continue button does when the field is empty.
- * `validateStep` returns ok for this step whatever the draft holds, so an empty
- * one moves on exactly like a filled one.
- *
- * Thirty seconds rather than the chat note's sixty. A card in somebody's drop
- * is being skimmed, and the difference between a voice you can place and a
- * monologue is roughly the length of a sentence you would say out loud.
- */
 export function VoiceStep({ draft, errors, voiceIntroUrl }: StepProps) {
   const [path, setPath] = useState<string | undefined>(draft.voiceIntroPath);
   const [recording, setRecording] = useState<Recording | null>(null);

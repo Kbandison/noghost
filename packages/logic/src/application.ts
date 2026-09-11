@@ -19,9 +19,24 @@ import { ageOn } from "./time";
  * so the browser is never the thing enforcing eligibility.
  */
 
+/**
+ * Order matters, and this order changed.
+ *
+ * The selfie used to be last, after eleven screens of writing prompts, picking
+ * interests and uploading photographs. That put the one step that can end an
+ * application at the end of the one path that costs the most to walk — and
+ * §7.2's own funnel table listed it there. Somebody who cannot pass identity
+ * verification found out after doing everything else, and somebody who *can*
+ * spent that effort before anyone knew they were real.
+ *
+ * It now sits directly after the phone code, which is the other half of the
+ * same question. Two proofs of a real person, back to back, before the
+ * application asks for anything about them.
+ */
 export const APPLICATION_STEPS = [
   "phone",
   "verify",
+  "selfie",
   "about",
   "preferences",
   "interests",
@@ -31,8 +46,19 @@ export const APPLICATION_STEPS = [
   // would make the one thing here that nobody has to do look like a field they
   // forgot, and `validateStep` returning ok is what lets Continue skip it.
   "voice",
-  "selfie",
 ] as const;
+
+/**
+ * The step that files the application — whatever it happens to be.
+ *
+ * Derived rather than written down. `fileApplication` used to trigger on
+ * `step === "selfie"`, which was correct only because the selfie was last;
+ * moving it to position three would have made the funnel file an application
+ * with no photos, no prompts and no answers on it, and nothing in the type
+ * system would have said a word.
+ */
+export const FINAL_STEP: ApplicationStep =
+  APPLICATION_STEPS[APPLICATION_STEPS.length - 1]!;
 
 export type ApplicationStep = (typeof APPLICATION_STEPS)[number];
 
@@ -76,6 +102,20 @@ export interface ApplicationDraft {
 }
 
 export type FieldErrors = Record<string, string>;
+
+/**
+ * The key for a problem that belongs to no field.
+ *
+ * "We couldn't reach the season", "applications aren't open" — these are about
+ * the submission, not about something the applicant typed. They used to be
+ * filed under `selfie` because the selfie was the last step and its component
+ * happened to render them. Moving that step to position three turned every one
+ * of them into a silent failure: the action returned an error, the funnel put
+ * it in `errors.selfie`, and the screen the applicant was looking at rendered
+ * `errors.voiceIntroPath`. A form-level key is rendered by the funnel itself,
+ * so it cannot be orphaned by reordering the steps again.
+ */
+export const FORM_ERROR = "form";
 export type StepResult = { ok: true } | { ok: false; errors: FieldErrors };
 
 const ok: StepResult = { ok: true };

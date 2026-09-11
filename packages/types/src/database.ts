@@ -4,23 +4,24 @@ import type {
   Application,
   Chat,
   ClosureNote,
+  Connect,
   DateCheckin,
   DateProposal,
   Drop,
   DropCard,
-  Connect,
   ExitSurvey,
   Graduation,
   Message,
-  ProcessedWebhookEvent,
   Notification,
   NotificationPrefs,
-  PushSubscriptionRow,
+  ProcessedWebhookEvent,
   Profile,
+  PushSubscriptionRow,
   Report,
   Season,
   SeasonMember,
   Verification,
+  VerificationChallenge,
   VisibleProfile,
   WaitlistEntry,
 } from "./domain";
@@ -91,6 +92,7 @@ export interface Database {
     Tables: {
       profiles: Table<Profile>;
       verifications: Table<Verification>;
+      verification_challenges: Table<VerificationChallenge>;
       seasons: Table<Season>;
       applications: Table<Application>;
       season_members: Table<SeasonMember>;
@@ -119,6 +121,25 @@ export interface Database {
     };
     Functions: {
       pass_card: { Args: { p_card_id: string }; Returns: undefined };
+      /**
+       * 0029. Everything the review team needs about one verification —
+       * including the columns revoked from the applicant. Admin-gated inside
+       * the function, which is why the console can call it with the reviewer's
+       * own session instead of reaching for a service client.
+       */
+      review_verification: {
+        Args: { p_user_id: string };
+        Returns: {
+          selfie_path: string | null;
+          frame_paths: string[] | null;
+          challenge_passed: boolean | null;
+          liveness_score: number | null;
+          liveness_passed: boolean | null;
+          auto_reason: string | null;
+          auto_checked_at: string | null;
+          phone_verified_at: string | null;
+        }[];
+      };
       send_connect: {
         Args: {
           p_card_id: string;
