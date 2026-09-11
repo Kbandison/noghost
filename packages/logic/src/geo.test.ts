@@ -3,6 +3,7 @@ import {
   distanceKm,
   distanceLabel,
   isUsablePoint,
+  placeLabel,
   proximityScore,
   roundForStorage,
   withinReach,
@@ -96,5 +97,71 @@ describe("what gets stored", () => {
     expect(isUsablePoint({ lat: NaN, lng: 1 })).toBe(false);
     expect(isUsablePoint(MIDTOWN)).toBe(true);
     expect(isUsablePoint(LISBON)).toBe(true);
+  });
+});
+
+describe("placeLabel — a place, never an address", () => {
+  it("composes a city and state rather than trusting the title", () => {
+    // The exact response `30308` came back with from the live API. The title
+    // names a building; the label must not.
+    const label = placeLabel(
+      {
+        title: "30308, U-Rescue Villa, Atlanta, GA, United States",
+        locality: "Atlanta",
+        regionCode: "GA",
+        regionName: "Georgia",
+        country: "United States",
+      },
+      "30308",
+    );
+    expect(label).toBe("Atlanta, GA");
+    expect(label).not.toContain("U-Rescue Villa");
+    expect(label).not.toContain("30308");
+  });
+
+  it("never leaks a building name, whatever the title says", () => {
+    const titles = [
+      "30308, U-Rescue Villa, Atlanta, GA, United States",
+      "221B Baker Street, Marylebone, London, England, United Kingdom",
+      "Apartment 4, 12 Rua Garrett, Lisboa, Portugal",
+    ];
+    for (const title of titles) {
+      const label = placeLabel({ title, locality: "Somewhere", regionCode: "XX" }, "typed");
+      expect(label).toBe("Somewhere, XX");
+    }
+  });
+
+  it("prefers a short region code to a long region name", () => {
+    expect(placeLabel({ locality: "Atlanta", regionCode: "GA", regionName: "Georgia" }, "x"))
+      .toBe("Atlanta, GA");
+    // Some regions report their full name in the code field; a code is only a
+    // code when it is short.
+    expect(
+      placeLabel(
+        { locality: "Lisbon", regionCode: "Lisboa Metropolitan Area", regionName: "Lisboa" },
+        "x",
+      ),
+    ).toBe("Lisbon, Lisboa");
+  });
+
+  it("falls back to the country when there is no region", () => {
+    expect(placeLabel({ locality: "Lisbon", country: "Portugal" }, "x")).toBe("Lisbon, Portugal");
+  });
+
+  it("uses the sub-region when there is no locality", () => {
+    expect(placeLabel({ subRegion: "DeKalb County", regionCode: "GA" }, "x"))
+      .toBe("DeKalb County, GA");
+  });
+
+  it("trims the title to its tail when there is nothing else — never its head", () => {
+    // The head is the specific end. "30308, U-Rescue Villa, ..." must not
+    // survive as "30308, U-Rescue Villa".
+    expect(placeLabel({ title: "30308, U-Rescue Villa, Atlanta, GA, United States" }, "30308"))
+      .toBe("GA, United States");
+  });
+
+  it("gives back what they typed rather than nothing at all", () => {
+    expect(placeLabel({}, "30308")).toBe("30308");
+    expect(placeLabel({ title: "  ", locality: "  " }, "Lisbon")).toBe("Lisbon");
   });
 });

@@ -1,5 +1,5 @@
 import { GeoPlacesClient, GeocodeCommand } from "@aws-sdk/client-geo-places";
-import { roundForStorage, isUsablePoint, type Point } from "@noghost/logic";
+import { placeLabel, roundForStorage, isUsablePoint, type Point } from "@noghost/logic";
 import { awsConfig } from "./aws";
 
 /**
@@ -99,20 +99,20 @@ export async function geocode(query: string): Promise<GeocodeOutcome> {
       return { ok: false, reason: "We couldn't find that. Try a postcode, or the nearest town." };
     }
 
-    /*
-     * A place name, never numbers. v2 gives a ready-made `Title` — "Atlanta,
-     * GA, USA" for a city, the postcode itself for a postcode — and falls back
-     * to the composed address label. What the applicant needs to see is only
-     * that the lookup understood them.
-     */
+    // A place, never an address — see `placeLabel`, which exists because the
+    // obvious choice here (Amazon's ready-made `Title`) names a building.
     const address = found!.Address;
-    const label =
-      found!.Title ||
-      [address?.Locality, address?.Region?.Name ?? address?.SubRegion?.Name, address?.Country?.Name]
-        .filter(Boolean)
-        .join(", ") ||
-      address?.Label ||
-      trimmed;
+    const label = placeLabel(
+      {
+        title: found!.Title,
+        locality: address?.Locality,
+        regionCode: address?.Region?.Code,
+        regionName: address?.Region?.Name,
+        subRegion: address?.SubRegion?.Name,
+        country: address?.Country?.Name,
+      },
+      trimmed,
+    );
 
     return { ok: true, result: { point: roundForStorage(point), label } };
   } catch (cause) {

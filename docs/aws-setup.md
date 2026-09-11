@@ -288,7 +288,8 @@ Rekognition
       refused the faceless 1×1 test image — which means the call itself got through
 
 Amazon Location Places
-  ✓ Geocode is allowed, with IntendedUse: Storage  30308 → Atlanta, GA (lng -84.38, lat 33.77)
+  ✓ Geocode is allowed, with IntendedUse: Storage
+      30308 → Atlanta, GA (lat 33.771, lng -84.382 — rounded, as stored)
 
 AWS is wired up.
 ```

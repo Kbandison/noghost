@@ -226,11 +226,24 @@ async function main() {
     if (!position) {
       bad("Geocode returned nothing for 30308", "credentials work; the query found no place.");
     } else {
-      // [lng, lat]. Printed in the order the API returns them and labelled,
-      // because reading them the other way round is the bug this catches.
+      /*
+       * Rounded, and labelled by axis.
+       *
+       * [lng, lat] is the order Amazon returns, and reading it the other way
+       * round is the bug this line exists to catch. The rounding is shown
+       * because the raw answer carries five decimals the product never stores —
+       * printing those here would advertise a precision that does not survive
+       * the trip, and this output is the first thing anybody sees.
+       *
+       * `Title` is deliberately not shown: for a postcode it names a building.
+       * See `placeLabel`, which is why members never see it either.
+       */
+      const lat = Math.round(position[1]! * 1000) / 1000;
+      const lng = Math.round(position[0]! * 1000) / 1000;
       ok(
         "Geocode is allowed, with IntendedUse: Storage",
-        `30308 → ${item?.Title} (lng ${position[0]}, lat ${position[1]})`,
+        `30308 → ${item?.Address?.Locality ?? "?"}, ${item?.Address?.Region?.Code ?? "?"} ` +
+          `(lat ${lat}, lng ${lng} — rounded, as stored)`,
       );
     }
   } catch (cause) {

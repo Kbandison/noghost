@@ -141,3 +141,69 @@ export function isUsablePoint(point: Partial<Point> | null | undefined): point i
   // failed geocode looks like.
   return !(point.lat === 0 && point.lng === 0);
 }
+
+/**
+ * What a member is shown after a lookup — a place, never an address.
+ *
+ * Written from a live response, because the assumption it replaces was wrong.
+ * The first version handed back Amazon's ready-made `Title` on the theory that
+ * a postcode query returns the postcode. Asking the real API for `30308` gave:
+ *
+ *   "30308, U-Rescue Villa, Atlanta, GA, United States"
+ *
+ * A named building. Shown back to an applicant that reads as though we have
+ * pinned them to a doorway — in a product whose entire geography story is
+ * "enough to sort a city, never enough to find a door", and which rounds the
+ * coordinate to 110 metres two or three times over to keep that true. Getting
+ * the number right and then printing the building next to it would undo all of
+ * it in one line of UI text.
+ *
+ * So the locality is composed here and `Title` is the last resort rather than
+ * the first. The question this answers, for the person reading it, is only
+ * "did the lookup understand me" — and "Atlanta, GA" answers that completely.
+ */
+export interface PlaceName {
+  title?: string | null;
+  locality?: string | null;
+  regionCode?: string | null;
+  regionName?: string | null;
+  subRegion?: string | null;
+  country?: string | null;
+}
+
+export function placeLabel(place: PlaceName, typed: string): string {
+  const clean = (value: string | null | undefined): string | null => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  };
+
+  const locality = clean(place.locality) ?? clean(place.subRegion);
+  // "Atlanta, GA" reads better than "Atlanta, Georgia", and a code is only a
+  // code when it is short — some regions report their full name in both.
+  const code = clean(place.regionCode);
+  const region = code && code.length <= 3 ? code : clean(place.regionName);
+  const country = clean(place.country);
+
+  const parts = locality
+    ? [locality, region ?? country]
+    : region
+      ? [region, country]
+      : [country];
+
+  const label = parts.filter(Boolean).join(", ");
+  if (label) return label;
+
+  /*
+   * Only now the title, and only its tail. Amazon leads with the most specific
+   * component, so dropping everything before the last two segments turns
+   * "30308, U-Rescue Villa, Atlanta, GA, United States" into "GA, United
+   * States" rather than naming a building.
+   */
+  const title = clean(place.title);
+  if (title) {
+    const segments = title.split(",").map((segment) => segment.trim()).filter(Boolean);
+    return segments.slice(-2).join(", ") || title;
+  }
+
+  return typed;
+}
