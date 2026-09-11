@@ -156,38 +156,79 @@ export function decideVerification(input: {
  */
 export type VerdictTone = "good" | "warn" | "quiet";
 
+export interface ReviewVerdict {
+  label: string;
+  tone: VerdictTone;
+  detail: string;
+  /** The two numbers, formatted for a screen. Null when they do not exist. */
+  liveness: string | null;
+  match: string | null;
+}
+
 export function reviewVerdict(row: {
   livenessPassed: boolean | null;
+  /** 0–100 from Face Liveness: was a live human there? */
+  livenessConfidence: number | null;
+  /** 0–100 from CompareFaces: is that human the person in the photographs? */
   livenessScore: number | null;
   challengePassed: boolean | null;
   autoReason: string | null;
-}): { label: string; tone: VerdictTone; detail: string } {
-  const score = row.livenessScore === null ? null : `${row.livenessScore.toFixed(0)}/100`;
+}): ReviewVerdict {
+  const liveness =
+    row.livenessConfidence === null
+      ? null
+      : `${row.livenessConfidence.toFixed(0)}/100`;
+  const match = row.livenessScore === null ? null : `${row.livenessScore.toFixed(0)}/100`;
+
+  const base = { liveness, match };
 
   if (row.livenessPassed === null) {
     return {
+      ...base,
       label: "Not checked",
       tone: "quiet",
       detail:
         row.autoReason ??
-        "No automated check ran. This is not a failed check — compare them yourself.",
+        (liveness
+          ? "The liveness check ran, but the application was never compared against its photos."
+          : "No automated check ran. This is not a failed check — compare them yourself."),
     };
   }
 
   if (row.livenessPassed) {
     return {
-      label: score ? `Matched ${score}` : "Matched",
+      ...base,
+      label: match ? `Cleared ${match}` : "Cleared",
       tone: "good",
-      detail: row.autoReason ?? "Answered the live sequence and matched the photos.",
+      detail: row.autoReason ?? "Live person confirmed, and their face matched the photos.",
     };
   }
 
+  /*
+   * Which number fell short, said as a number rather than a verdict.
+   *
+   * The previous wording was "Liveness not convincing", and it was doing harm:
+   * the first genuine check through this system scored 64.6, and a reviewer
+   * reading "not convincing" above a real applicant's face has been told to
+   * distrust them before they look. The thresholds are uncalibrated — AWS
+   * declines to recommend one because it depends on the population — so the
+   * screen reports the measurement and where the line currently sits, and lets
+   * the person decide. That is what they are there for.
+   */
+  const belowLiveness =
+    row.challengePassed === false || (row.livenessConfidence ?? 100) < LIVENESS_CONFIDENCE;
+
   return {
-    label:
-      row.challengePassed === false
-        ? "Liveness not convincing"
-        : `Weak match${score ? ` ${score}` : ""}`,
+    ...base,
+    label: belowLiveness
+      ? `Liveness ${liveness ?? "?"} — your call`
+      : `Match ${match ?? "?"} — your call`,
     tone: "warn",
-    detail: row.autoReason ?? "The automated check was not confident. Your call.",
+    detail:
+      row.autoReason ??
+      (belowLiveness
+        ? `Under the ${LIVENESS_CONFIDENCE} auto-admit line, which is a threshold we set and not a judgement. ` +
+          "Bad light and an older phone both drag this down. Look at the frames."
+        : `Under the ${MATCH_SIMILARITY} auto-admit line. A new beard, an old profile photo and a sibling all do this.`),
   };
 }

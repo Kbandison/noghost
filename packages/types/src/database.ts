@@ -133,6 +133,10 @@ export interface Database {
           selfie_path: string | null;
           frame_paths: string[] | null;
           challenge_passed: boolean | null;
+          /** 0032. Face Liveness confidence — was a live human there? */
+          liveness_confidence: number | null;
+          liveness_checked_at: string | null;
+          /** The face MATCH against their photos. A different question. */
           liveness_score: number | null;
           liveness_passed: boolean | null;
           auto_reason: string | null;

@@ -311,8 +311,40 @@ async function main() {
         const { data, error } = await admin.rpc("review_verification", { p_user_id: M.id });
         const row = data?.[0];
         check(!error && Number(row?.liveness_score) === 71 && row?.auto_reason?.includes("71"),
-          "an admin reads the score and the reason",
+          "an admin reads the match score and the reason",
           error ? error.message : `${row?.liveness_score}, "${row?.auto_reason}"`);
+      }
+      {
+        /*
+         * 0032. The liveness confidence lives on the attempt row, not on
+         * `verifications`, so it was stored and surfaced to nobody — which made
+         * the auto-admit threshold unauditable. It has to reach the reviewer.
+         */
+        const attempt = await issue(M.id);
+        await service
+          .from("verification_challenges")
+          .update({ confidence: 64.6, consumed_at: new Date().toISOString() })
+          .eq("id", attempt.id);
+
+        const { data } = await admin.rpc("review_verification", { p_user_id: M.id });
+        const row = data?.[0];
+        check(Math.round(Number(row?.liveness_confidence)) === 65,
+          "and the liveness confidence from their latest completed attempt",
+          `${row?.liveness_confidence}`);
+        check(
+          Number(row?.liveness_confidence) !== Number(row?.liveness_score),
+          "which is a different number from the face match — they answer different questions",
+          `live ${row?.liveness_confidence} vs match ${row?.liveness_score}`,
+        );
+      }
+      {
+        // An abandoned attempt never got a confidence. It must not displace the
+        // completed one the application actually rests on.
+        await issue(M.id);
+        const { data } = await admin.rpc("review_verification", { p_user_id: M.id });
+        check(Math.round(Number(data?.[0]?.liveness_confidence)) === 65,
+          "an abandoned attempt afterwards does not hide the real result",
+          `${data?.[0]?.liveness_confidence}`);
       }
     }
 
@@ -347,14 +379,16 @@ async function main() {
     }
 
     section("The face checks themselves");
-    if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_REGION) {
+    if (!process.env.AWS_REGION || !(process.env.AWS_ROLE_ARN || process.env.AWS_ACCESS_KEY_ID)) {
       // Not a pass. The pose reading and the face comparison are the half of
       // this that spends money and the half that has never run — saying so is
       // the only honest thing to print.
       skip("no AWS credentials — Face Liveness and CompareFaces have NOT been verified");
     } else {
-      check(true, "AWS is configured — run the funnel end to end to exercise it",
-        process.env.AWS_REGION);
+      // Not a pass either. `pnpm aws:check` proves the calls are permitted;
+      // only a real face in front of a real camera proves the check works.
+      skip(`AWS is configured (${process.env.AWS_REGION}) — run \`pnpm aws:check\`, ` +
+        "then the funnel, to exercise it");
     }
   } finally {
     section("Teardown");

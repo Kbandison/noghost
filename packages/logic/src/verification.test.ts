@@ -100,6 +100,7 @@ describe("decideVerification — never rejects", () => {
 describe("reviewVerdict — what the reviewer is told", () => {
   const row = (over: Partial<Parameters<typeof reviewVerdict>[0]> = {}) => ({
     livenessPassed: null,
+    livenessConfidence: null,
     livenessScore: null,
     challengePassed: null,
     autoReason: null,
@@ -112,42 +113,88 @@ describe("reviewVerdict — what the reviewer is told", () => {
     expect(v.detail).toContain("not a failed check");
   });
 
-  it("never presents a null as a failure, whatever else is on the row", () => {
-    // The distinction the three-valued column exists for. A score can be left
-    // over from an earlier attempt while the verdict itself is null.
-    const v = reviewVerdict(row({ livenessScore: 40, challengePassed: false }));
+  it("never presents a null verdict as a failure, whatever else is on the row", () => {
+    const v = reviewVerdict(row({ livenessConfidence: 40, livenessScore: 40 }));
     expect(v.label).toBe("Not checked");
     expect(v.tone).toBe("quiet");
   });
 
-  it("shows a confident match with its number", () => {
-    const v = reviewVerdict(row({ livenessPassed: true, livenessScore: 96.4 }));
-    expect(v.label).toBe("Matched 96/100");
-    expect(v.tone).toBe("good");
+  it("shows both numbers, always, when they exist", () => {
+    const v = reviewVerdict(row({ livenessPassed: true, livenessConfidence: 91.2, livenessScore: 96.4 }));
+    expect(v.liveness).toBe("91/100");
+    expect(v.match).toBe("96/100");
   });
 
-  it("names the two failures differently, because they mean different things", () => {
-    const sequence = reviewVerdict(row({ livenessPassed: false, challengePassed: false }));
-    const weak = reviewVerdict(
-      row({ livenessPassed: false, challengePassed: true, livenessScore: 71 }),
+  it("keeps the two numbers apart — they answer different questions", () => {
+    // A convincing stranger: unmistakably a live person, not the person in the
+    // photographs. Collapsing these into one score loses exactly that case.
+    const stranger = reviewVerdict(
+      row({ livenessPassed: false, livenessConfidence: 98, challengePassed: true, livenessScore: 30 }),
     );
-    expect(sequence.label).toBe("Liveness not convincing");
-    expect(weak.label).toBe("Weak match 71/100");
+    expect(stranger.liveness).toBe("98/100");
+    expect(stranger.match).toBe("30/100");
+    expect(stranger.label).toContain("Match");
+  });
+
+  it("reports a low liveness score as a measurement, not a character judgement", () => {
+    // The first genuine check through this system scored 64.6. A reviewer
+    // reading "not convincing" above a real applicant's face has been told to
+    // distrust them before they look.
+    const v = reviewVerdict(
+      row({ livenessPassed: false, livenessConfidence: 64.6, challengePassed: false, livenessScore: 95 }),
+    );
+    expect(v.label).toBe("Liveness 65/100 — your call");
+    expect(v.label.toLowerCase()).not.toContain("not convincing");
+    expect(v.detail).toContain("threshold we set");
+    expect(v.detail).toContain("Bad light");
+  });
+
+  it("names which line was missed, so the reviewer knows what to look at", () => {
+    const weakLive = reviewVerdict(
+      row({ livenessPassed: false, livenessConfidence: 40, challengePassed: false, livenessScore: 99 }),
+    );
+    const weakMatch = reviewVerdict(
+      row({ livenessPassed: false, livenessConfidence: 99, challengePassed: true, livenessScore: 40 }),
+    );
+    expect(weakLive.label).toContain("Liveness");
+    expect(weakMatch.label).toContain("Match");
+    expect(weakLive.label).not.toBe(weakMatch.label);
   });
 
   it("never tells a reviewer the machine rejected anybody", () => {
     for (const livenessPassed of [true, false, null]) {
       for (const challengePassed of [true, false, null]) {
-        for (const livenessScore of [null, 0, 71, 100]) {
-          const v = reviewVerdict(row({ livenessPassed, challengePassed, livenessScore }));
-          expect(`${v.label} ${v.detail}`.toLowerCase()).not.toContain("reject");
+        for (const livenessConfidence of [null, 0, 64.6, 100]) {
+          for (const livenessScore of [null, 0, 71, 100]) {
+            const v = reviewVerdict(
+              row({ livenessPassed, challengePassed, livenessConfidence, livenessScore }),
+            );
+            const text = `${v.label} ${v.detail}`.toLowerCase();
+            expect(text).not.toContain("reject");
+            /*
+             * Phrases that assert a failure, rather than the word "fail" — the
+             * one legitimate use is "this is NOT a failed check", which says
+             * the opposite and must survive.
+             */
+            for (const accusation of [
+              "not convincing",
+              "check failed",
+              "failed liveness",
+              "failed the",
+              "did not pass",
+            ]) {
+              expect(text).not.toContain(accusation);
+            }
+          }
         }
       }
     }
   });
 
   it("prefers the stored reason over the generic one", () => {
-    const v = reviewVerdict(row({ livenessPassed: false, autoReason: "Matched at 61, under 92." }));
-    expect(v.detail).toBe("Matched at 61, under 92.");
+    const v = reviewVerdict(
+      row({ livenessPassed: false, livenessConfidence: 90, autoReason: "Live at 90, matched at 61." }),
+    );
+    expect(v.detail).toBe("Live at 90, matched at 61.");
   });
 });

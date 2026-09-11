@@ -51,6 +51,14 @@ export interface ApplicationDetail extends QueueRow {
   framePaths: string[];
   /** Did the live sequence get answered? Null means no check ran. */
   challengePassed: boolean | null;
+  /**
+   * 0-100 from Face Liveness: was a live human in front of the camera?
+   * Distinct from `livenessScore`, which asks whether that human is the person
+   * in the photographs. Bad light drops this one; an old profile photo drops
+   * the other, and they want different decisions.
+   */
+  livenessConfidence: number | null;
+  livenessCheckedAt: string | null;
   livenessScore: number | null;
   /**
    * The automated verdict. **Null is not a failure** — it means nothing ran.
@@ -208,6 +216,11 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
     selfiePath: review?.selfie_path ?? null,
     framePaths: review?.frame_paths ?? [],
     challengePassed: review?.challenge_passed ?? null,
+    livenessConfidence:
+      review?.liveness_confidence === null || review?.liveness_confidence === undefined
+        ? null
+        : Number(review.liveness_confidence),
+    livenessCheckedAt: review?.liveness_checked_at ?? null,
     livenessScore: review?.liveness_score === null || review?.liveness_score === undefined
       ? null
       : Number(review.liveness_score),

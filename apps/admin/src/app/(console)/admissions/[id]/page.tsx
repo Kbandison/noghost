@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { GENDER_LABELS } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationStatus } from "@noghost/types";
-import { reviewVerdict } from "@noghost/logic";
+import { LIVENESS_CONFIDENCE, MATCH_SIMILARITY, reviewVerdict } from "@noghost/logic";
 import { Panel, StatusPill } from "@/components/ui";
 import { getApplication } from "@/lib/admissions";
 import { signedSelfieUrl } from "@/lib/storage";
@@ -22,6 +22,54 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
         {label}
       </dt>
       <dd className="mt-0.5 text-[14px]">{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * One measurement, and the line it is being held against.
+ *
+ * The line is printed because a bare "65/100" invites the reviewer to supply
+ * their own idea of what is good. Saying "auto-admits at 85" tells them both
+ * where the number sits and that the number below it is a setting rather than a
+ * verdict — which is the difference between reading a measurement and reading
+ * an accusation.
+ */
+function Measure({
+  label,
+  value,
+  line,
+  raw,
+  asks,
+}: {
+  label: string;
+  value: string | null;
+  line: number;
+  raw: number | null;
+  asks: string;
+}) {
+  const under = raw !== null && raw < line;
+  return (
+    <div className="border-r border-[var(--border-subtle)] px-4 py-3 last:border-r-0">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">
+        {label}
+      </dt>
+      <dd
+        className={
+          value === null
+            ? "mt-1 text-[20px] tabular-nums text-[var(--text-dim)]"
+            : under
+              ? "mt-1 text-[20px] tabular-nums text-[var(--warning,var(--text-primary))]"
+              : "mt-1 text-[20px] tabular-nums text-[var(--sage-text)]"
+        }
+      >
+        {value ?? "not measured"}
+      </dd>
+      <p className="mt-0.5 text-[11px] leading-snug text-[var(--text-dim)]">
+        {asks}
+        <br />
+        auto-admits at {line}
+      </p>
     </div>
   );
 }
@@ -97,6 +145,35 @@ export default async function ApplicationPage({
             >
               {verdict.detail}
             </p>
+
+            {/*
+             * Both numbers, side by side, with the line each is measured
+             * against printed next to it.
+             *
+             * They were stored and shown to nobody, which made the thresholds
+             * unauditable: you cannot tell whether 85 suits your applicants
+             * without seeing what real applicants score. AWS declines to
+             * recommend a number for exactly that reason. Neither can reject
+             * anybody — under the line means this screen, which is where the
+             * application was going regardless.
+             */}
+            <dl className="grid grid-cols-2 border-b border-[var(--border-subtle)]">
+              <Measure
+                label="Live person"
+                value={verdict.liveness}
+                line={LIVENESS_CONFIDENCE}
+                raw={application.livenessConfidence}
+                asks="Was somebody really there?"
+              />
+              <Measure
+                label="Same person"
+                value={verdict.match}
+                line={MATCH_SIMILARITY}
+                raw={application.livenessScore}
+                asks="Are they the one in the photos?"
+              />
+            </dl>
+
             <div className="grid gap-4 p-4 md:grid-cols-[minmax(0,17rem)_1fr]">
               <figure>
                 <div className="relative aspect-[4/5] overflow-hidden rounded-[3px] border border-[var(--border)] bg-[var(--bg-secondary)]">
