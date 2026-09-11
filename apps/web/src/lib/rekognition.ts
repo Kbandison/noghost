@@ -1,9 +1,12 @@
 import {
   CompareFacesCommand,
   CreateFaceLivenessSessionCommand,
+  DetectFacesCommand,
+  DetectModerationLabelsCommand,
   GetFaceLivenessSessionResultsCommand,
   RekognitionClient,
 } from "@aws-sdk/client-rekognition";
+import { MODERATION_FLOOR, type PhotoReading } from "@noghost/logic";
 import { awsConfig } from "./aws";
 
 /**
@@ -151,6 +154,64 @@ export async function compareFaces(
     return best;
   } catch (cause) {
     console.error(`[rekognition] compare: ${cause instanceof Error ? cause.message : cause}`);
+    return null;
+  }
+}
+
+/**
+ * Everything the photo policy needs to judge one image.
+ *
+ * Two calls, because Rekognition answers two different questions and neither
+ * alone is enough. `DetectModerationLabels` says what is *in* the picture —
+ * and, in `ContentTypes`, what kind of picture it is, which is how a cartoon
+ * gets caught. `DetectFaces` says whether there is a person in it, how many,
+ * and how much of the frame they occupy.
+ *
+ * Returns null on any failure, and null means "nobody checked" — `decidePhoto`
+ * routes that to a human rather than treating it as clean. An outage must never
+ * become a wave of auto-approved photographs.
+ */
+export async function readPhoto(bytes: Uint8Array): Promise<PhotoReading | null> {
+  const aws = rekognition();
+  if (!aws) return null;
+
+  try {
+    const [moderation, faces] = await Promise.all([
+      aws.send(
+        new DetectModerationLabelsCommand({
+          Image: { Bytes: bytes },
+          // Rekognition's own default is 50. Asking a little lower than the
+          // policy's floor means the policy decides what to act on, rather
+          // than inheriting a cutoff from the service.
+          MinConfidence: Math.min(50, MODERATION_FLOOR),
+        }),
+      ),
+      aws.send(new DetectFacesCommand({ Image: { Bytes: bytes }, Attributes: ["DEFAULT"] })),
+    ]);
+
+    const detected = faces.FaceDetails ?? [];
+    // The largest face is the subject. A friend in the background should not
+    // decide whether this photograph is usable.
+    const largest = [...detected].sort(
+      (a, b) => (b.BoundingBox?.Width ?? 0) - (a.BoundingBox?.Width ?? 0),
+    )[0];
+
+    return {
+      flags: (moderation.ModerationLabels ?? []).map((label) => ({
+        name: label.Name ?? "",
+        parent: label.ParentName || null,
+        confidence: label.Confidence ?? 0,
+      })),
+      contentTypes: (moderation.ContentTypes ?? []).map((type) => ({
+        name: type.Name ?? "",
+        confidence: type.Confidence ?? 0,
+      })),
+      faceCount: detected.length,
+      faceShare: largest?.BoundingBox?.Width ?? 0,
+      faceConfidence: largest?.Confidence ?? 0,
+    };
+  } catch (cause) {
+    console.error(`[rekognition] photo: ${cause instanceof Error ? cause.message : cause}`);
     return null;
   }
 }

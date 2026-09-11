@@ -194,6 +194,43 @@ async function main() {
         "while admin_audit itself stays closed to them",
         error ? `refused: ${error.code}` : `${data?.length ?? 0} row(s)`);
     }
+    section("An admitted member has to be visible");
+    {
+      /*
+       * The bug auto-admit introduced, asserted directly.
+       *
+       * Every uploaded photo arrives `approved: false` and `visible_profiles`
+       * filters unapproved ones out. That was fine while a reviewer read every
+       * application and set the flag. An application nobody reads is an
+       * application whose photos nobody approves — so the member is admitted,
+       * pays for a seat, and arrives in the drop with an empty card.
+       */
+      const photos = [
+        { path: "a.webp", order: 0, approved: false },
+        { path: "b.webp", order: 1, approved: false },
+      ];
+      await service.from("profiles").update({ photos }).eq("id", AUTO.id);
+
+      // Asked of the view's own filter rather than of the view, which
+      // `can_view_profile()` gates on a live drop this probe does not have.
+      const before = photos.filter((p) => p.approved).length;
+      check(before === 0,
+        "unapproved photos are invisible — this is what made auto-admit produce an empty card",
+        `${before} of ${photos.length} would show`);
+
+      await service
+        .from("profiles")
+        .update({ photos: photos.map((p) => ({ ...p, approved: true })) })
+        .eq("id", AUTO.id);
+      const { data: after } = await service
+        .from("profiles").select("photos").eq("id", AUTO.id).single();
+      const showing = ((after?.photos ?? []) as { approved: boolean }[])
+        .filter((p) => p.approved).length;
+      check(showing === photos.length,
+        "and the service role can approve them, which is what clearPhotos relies on",
+        `${showing} of ${photos.length} now show`);
+    }
+
   } finally {
     section("Teardown");
     await teardown();

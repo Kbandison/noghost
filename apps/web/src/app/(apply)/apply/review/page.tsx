@@ -112,8 +112,8 @@ export default async function ReviewPage() {
             </h2>
             <p className="mt-2 text-[17px] leading-relaxed text-[var(--text-secondary)]">
               {admittedAutomatically
-                ? "Your identity check cleared on its own, so you didn’t have to wait for " +
-                  "anybody. Your photos still go past a person before the season starts."
+                ? "Your identity check cleared and your photos came back clean, so you " +
+                  "didn’t have to wait for anybody."
                 : "A person read your application and said yes."}
             </p>
             <div className="mt-5">

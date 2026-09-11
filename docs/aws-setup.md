@@ -88,7 +88,9 @@ replacing the region in the ARN if you did not pick `us-east-1`:
         "rekognition:CreateFaceLivenessSession",
         "rekognition:StartFaceLivenessSession",
         "rekognition:GetFaceLivenessSessionResults",
-        "rekognition:CompareFaces"
+        "rekognition:CompareFaces",
+        "rekognition:DetectFaces",
+        "rekognition:DetectModerationLabels"
       ],
       "Resource": "*"
     },

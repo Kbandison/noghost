@@ -76,7 +76,7 @@ const COPY: Record<
   },
   photos: {
     statement: "Let people see you.",
-    sub: "Recent, and actually of you. These get compared against the video check you just did.",
+    sub: "Recent, and actually of you — one clear face each. They get compared against the video check you just did.",
     cta: "Continue",
     component: PhotosStep,
   },

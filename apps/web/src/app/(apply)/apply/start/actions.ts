@@ -4,7 +4,7 @@ import { OTP_PATTERN } from "@noghost/config";
 import { usingSeedData } from "@noghost/config/env";
 import { createServiceClient } from "@noghost/db/service";
 import { allowRequest } from "@/lib/rate-limit";
-import { compareFaces, faceChecksConfigured } from "@/lib/rekognition";
+import { compareFaces, faceChecksConfigured, readPhoto } from "@/lib/rekognition";
 import {
   OTP_SEND_PER_ADDRESS,
   OTP_SEND_PER_PHONE,
@@ -15,6 +15,7 @@ import {
   FINAL_STEP,
   FORM_ERROR,
   LIVENESS_CONFIDENCE,
+  decidePhotoSet,
   decideVerification,
   normalizePhone,
   roundForStorage,
@@ -538,6 +539,32 @@ async function runIdentityMatch(
     console.error(`[apply] identity match write for ${userId}: ${writeError.message}`);
   }
 
+  /*
+   * The photos, before anything is admitted.
+   *
+   * 0020 gives every uploaded photo `approved: false` and `visible_profiles`
+   * filters unapproved ones out, which was fine while a reviewer read every
+   * application. Auto-admit broke that silently: an application nobody reads is
+   * an application whose photos nobody approves, and the member arrives in the
+   * drop with an empty card. Admitted, paid up, and invisible.
+   *
+   * So clearing the photos is a precondition of admitting automatically, not a
+   * separate feature. If any photo needs a person, the whole application does —
+   * which is the state it was in before this ran.
+   */
+  const photoVerdict = await clearPhotos(service, userId, photoPaths);
+
+  if (photoVerdict !== "ok") {
+    await service
+      .from("verifications")
+      .update({
+        auto_reason:
+          `${decision.reason} Photos need a look: ${photoVerdict === "refuse" ? "one was refused" : "one was flagged"}.`,
+      })
+      .eq("user_id", userId);
+    return;
+  }
+
   if (decision.outcome !== "auto-admit") return;
 
   const { data: application } = await service
@@ -622,4 +649,62 @@ async function advanceToReview(userId: string, seasonId: string): Promise<void> 
       return;
     }
   }
+}
+
+/**
+ * Judge each photo, and approve them only if every one is clean.
+ *
+ * Runs as the service role, which is the only caller that can set `approved` —
+ * 0021's trigger rewrites the flag for any signed-in member, precisely so a
+ * client cannot approve itself, and 0025 narrowed that to signed-in members so
+ * a server-side caller like this one can.
+ *
+ * Returns the set verdict. `refuse` means at least one photo had explicit
+ * content; `needs-a-person` covers everything else uncertain, including AWS
+ * being unavailable.
+ */
+async function clearPhotos(
+  service: ReturnType<typeof createServiceClient>,
+  userId: string,
+  photoPaths: string[],
+): Promise<"ok" | "refuse" | "needs-a-person"> {
+  if (photoPaths.length === 0) return "needs-a-person";
+  if (!faceChecksConfigured()) return "needs-a-person";
+
+  const readings = await Promise.all(
+    photoPaths.map(async (path) => {
+      const { data } = await service.storage.from("photos").download(path);
+      if (!data) {
+        console.error(`[apply] could not read photo ${path} for ${userId}`);
+        return null;
+      }
+      return readPhoto(new Uint8Array(await data.arrayBuffer()));
+    }),
+  );
+
+  const { verdict, perPhoto } = decidePhotoSet(readings);
+  if (verdict !== "ok") {
+    console.error(
+      `[apply] photos for ${userId}: ${perPhoto.map((d, i) => `${i}=${d.verdict} (${d.reason})`).join("; ")}`,
+    );
+    return verdict;
+  }
+
+  const { data: profile } = await service
+    .from("profiles")
+    .select("photos")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const photos = (profile?.photos ?? []) as { path: string; order: number; approved: boolean }[];
+  const { error } = await service
+    .from("profiles")
+    .update({ photos: photos.map((photo) => ({ ...photo, approved: true })) })
+    .eq("id", userId);
+
+  if (error) {
+    console.error(`[apply] approving photos for ${userId}: ${error.message}`);
+    return "needs-a-person";
+  }
+  return "ok";
 }

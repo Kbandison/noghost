@@ -15,7 +15,10 @@
  */
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import {
+  CompareFacesCommand,
   CreateFaceLivenessSessionCommand,
+  DetectFacesCommand,
+  DetectModerationLabelsCommand,
   GetFaceLivenessSessionResultsCommand,
   RekognitionClient,
 } from "@aws-sdk/client-rekognition";
@@ -240,6 +243,71 @@ async function main() {
     }
   } else {
     skip("no AWS_ROLE_ARN — Face Liveness needs a role, because an access key cannot be scoped down for the browser");
+  }
+
+  console.log("\nRekognition — the image APIs");
+
+  /*
+   * Restored after going missing.
+   *
+   * The switch to Face Liveness replaced this whole section, and the
+   * replacement did not carry `CompareFaces` across — so the check that proves
+   * the identity comparison is permitted quietly stopped existing, and every
+   * run stayed green because a check that does not run cannot fail. Exactly the
+   * failure this script was written to catch, in this script.
+   */
+  try {
+    const out = await rekog.send(
+      new DetectFacesCommand({ Image: { Bytes: TINY_JPEG }, Attributes: ["DEFAULT"] }),
+    );
+    ok("DetectFaces is allowed", `${out.FaceDetails?.length ?? 0} faces in a 1×1 test image`);
+  } catch (cause) {
+    bad("DetectFaces failed", explain(cause));
+  }
+
+  try {
+    const out = await rekog.send(
+      // An image with no face gives InvalidParameterException — which is the
+      // service answering, and that is the thing being tested.
+      new CompareFacesCommand({
+        SourceImage: { Bytes: TINY_JPEG },
+        TargetImage: { Bytes: TINY_JPEG },
+        SimilarityThreshold: 0,
+      }),
+    );
+    ok("CompareFaces is allowed", `${out.FaceMatches?.length ?? 0} matches`);
+  } catch (cause) {
+    // The AWS SDK puts the code on `name` and prose on `message`; matching the
+    // message alone never fires, and reports a correct setup in red.
+    const name = cause instanceof Error ? cause.name : "";
+    const message = cause instanceof Error ? cause.message : String(cause);
+    if (/InvalidParameter|no faces|NoFace/i.test(`${name} ${message}`)) {
+      ok(
+        "CompareFaces is allowed",
+        "refused the faceless 1×1 test image — which means the call itself got through",
+      );
+    } else {
+      bad("CompareFaces failed", explain(cause));
+    }
+  }
+
+  /*
+   * Photo moderation. A separate IAM action again, and the one auto-admit now
+   * depends on: an application nobody reads is an application whose photos
+   * nobody approves, and `visible_profiles` hides unapproved photos — so
+   * without this an auto-admitted member arrives in the drop with an empty
+   * card.
+   */
+  try {
+    const out = await rekog.send(
+      new DetectModerationLabelsCommand({ Image: { Bytes: TINY_JPEG }, MinConfidence: 50 }),
+    );
+    ok(
+      "DetectModerationLabels is allowed",
+      `${out.ModerationLabels?.length ?? 0} labels on a 1×1 test image, model ${out.ModerationModelVersion ?? "?"}`,
+    );
+  } catch (cause) {
+    bad("DetectModerationLabels failed", explain(cause));
   }
 
   console.log("\nAmazon Location Places");
