@@ -70,7 +70,16 @@ export function Modal({ children }: { children: React.ReactNode }) {
             Close
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        {/*
+          * `overflow-hidden`, not `auto`.
+          *
+          * The conversation pins its own header and composer and scrolls only
+          * the messages between them, which it can only do if nothing outside
+          * it scrolls first — a scrolling parent would carry the composer up
+          * the screen with the thread. A note has no pinned parts and brings
+          * its own `overflow-y-auto` instead.
+          */}
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
       </div>
     </dialog>
   );

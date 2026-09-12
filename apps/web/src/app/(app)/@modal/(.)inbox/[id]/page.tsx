@@ -19,7 +19,11 @@ export default async function InterceptedConnect({
   const { id } = await params;
   return (
     <Modal>
-      <ConnectDetail id={id} />
+      {/* A note is one column of prose with no pinned parts, so it scrolls
+          itself — the dialog stopped doing that for the conversation's sake. */}
+      <div className="h-full overflow-y-auto">
+        <ConnectDetail id={id} />
+      </div>
     </Modal>
   );
 }

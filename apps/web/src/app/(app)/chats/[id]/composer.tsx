@@ -21,7 +21,7 @@ const initial: ChatActionState = {};
  * inaudible after the other person did. So a finished recording becomes a
  * player with Send and Discard beneath it, and nothing leaves until it is sent.
  *
- * Uncontrolled textarea on purpose: React 19 resets a form after its action
+ * Uncontrolled input on purpose: React 19 resets a form after its action
  * runs, which clears it on a successful send with no state to manage.
  */
 export function Composer({ chatId, name }: { chatId: string; name: string }) {
@@ -101,21 +101,32 @@ export function Composer({ chatId, name }: { chatId: string; name: string }) {
   }
 
   return (
-    <div className="space-y-3">
-      <form action={action} className="space-y-3">
+    <div className="space-y-2">
+      <form action={action} className="space-y-2">
         <input type="hidden" name="chatId" value={chatId} />
 
         <label htmlFor={`body-${chatId}`} className="sr-only">
           Message {name}
         </label>
-        <textarea
+        {/*
+          * A single-line box, not a textarea.
+          *
+          * Two rows plus a resize handle made the composer the tallest thing on
+          * the screen before a word was typed, and in a pinned footer that is
+          * height taken from the conversation permanently rather than while
+          * somebody is writing. `maxLength` is unchanged — a long message is
+          * still allowed, it just scrolls sideways in the box the way every
+          * other messaging field does.
+          */}
+        <input
           id={`body-${chatId}`}
           name="body"
-          rows={2}
+          type="text"
           maxLength={4000}
           required
+          autoComplete="off"
           placeholder={`Message ${name}`}
-          className="w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-[16px] leading-relaxed text-[var(--text-primary)] placeholder:text-[var(--n-400)] focus:border-[var(--accent)] focus:outline-none"
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3.5 py-2.5 text-[15px] text-[var(--text-primary)] placeholder:text-[var(--n-400)] focus:border-[var(--accent)] focus:outline-none"
         />
 
         {state.error && (
@@ -124,7 +135,7 @@ export function Composer({ chatId, name }: { chatId: string; name: string }) {
           </p>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <VoiceRecorder onRecorded={setRecording} disabled={pending} />
           <Button type="submit" disabled={pending}>
             {pending ? "Sending…" : "Send"}

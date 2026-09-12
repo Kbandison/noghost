@@ -29,7 +29,13 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
       <div className="hidden md:block">
         <Rail inbox={inbox} chats={chats} now={now} activeId={id} />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/*
+        * An explicit height, because the conversation pins its header and
+        * composer and needs something to pin them inside. 4rem is the app
+        * header; below `md` the layout also pads for the fixed tab bar, so
+        * that comes off too or the composer sits below the fold.
+        */}
+      <div className="flex min-w-0 flex-1 flex-col h-[calc(100dvh-4rem-3.5rem-env(safe-area-inset-bottom))] md:h-[calc(100dvh-4rem)]">
 
       {/*
         * Mobile shows the detail ALONE, with a way back — never the list with

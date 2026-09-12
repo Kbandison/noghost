@@ -9,6 +9,7 @@ import { requireMember } from "@/lib/member";
 import { getChat, type ChatDate, type ChatDetail, type ChatMessage } from "@/lib/chats";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { ReportSheet } from "@/components/report/report-sheet";
+import { ChatMenu } from "./chat-menu";
 import { Composer } from "./composer";
 import { DateProposal, RespondToDate } from "./propose-date";
 import { CloseKindly } from "./close-kindly";
@@ -43,99 +44,70 @@ export async function ChatDetailView({ id }: { id: string }) {
   const closed = isChatClosed(chat.state);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
-        <Header chat={chat} closed={closed} />
+    /*
+     * A fixed frame: name bar at the top, composer at the bottom, and only the
+     * messages between them moving.
+     *
+     * These were `sticky` inside whatever scrolled around them, which works
+     * until the container changes — in the dialog the whole detail scrolled as
+     * one and the composer drifted up the screen with it. Owning the height
+     * here means the layout is the same in the dialog and on the page, and
+     * `min-h-0` is what lets the middle actually shrink: a flex child defaults
+     * to its content size and would otherwise push the composer off the bottom
+     * rather than scroll.
+     */
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      <Header chat={chat} closed={closed} />
 
-        <div className="flex-1 px-6 py-6 md:px-10">
-          <div className="mx-auto max-w-[40rem] space-y-4">
-            {/*
-              Answering comes first when both are true — somebody who asked and
-              was asked should be looking at the question, not at their own.
-            */}
-            {chat.graduation?.answer ? (
-              <AnswerGraduation
-                chatId={chat.id}
-                graduationId={chat.graduation.answer.id}
-                name={chat.partner.firstName}
-              />
-            ) : chat.graduation?.iAsked ? (
-              <GraduationAsked name={chat.partner.firstName} />
-            ) : null}
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-8">
+        <div className="mx-auto max-w-[38rem] space-y-3">
+          {/*
+            Answering comes first when both are true — somebody who asked and
+            was asked should be looking at the question, not at their own.
+          */}
+          {chat.graduation?.answer ? (
+            <AnswerGraduation
+              chatId={chat.id}
+              graduationId={chat.graduation.answer.id}
+              name={chat.partner.firstName}
+            />
+          ) : chat.graduation?.iAsked ? (
+            <GraduationAsked name={chat.partner.firstName} />
+          ) : null}
 
-            {chat.checkin && (
-              <Checkin
-                chatId={chat.id}
-                dateId={chat.checkin.dateId}
-                placeName={chat.checkin.placeName}
-                name={chat.partner.firstName}
-                myAnswer={chat.checkin.myAnswer}
-              />
-            )}
+          {chat.checkin && (
+            <Checkin
+              chatId={chat.id}
+              dateId={chat.checkin.dateId}
+              placeName={chat.checkin.placeName}
+              name={chat.partner.firstName}
+              myAnswer={chat.checkin.myAnswer}
+            />
+          )}
 
-            {chat.dates.map((date) => (
-              <DateCard key={date.id} chatId={chat.id} date={date} />
-            ))}
+          {chat.dates.map((date) => (
+            <DateCard key={date.id} chatId={chat.id} date={date} />
+          ))}
 
-            {chat.messages.map((message) => (
-              <Bubble key={message.id} message={message} partner={chat.partner.firstName} />
-            ))}
+          {chat.messages.map((message) => (
+            <Bubble key={message.id} message={message} partner={chat.partner.firstName} />
+          ))}
 
-            {closed && <ClosedNote chat={chat} />}
+          {closed && <ClosedNote chat={chat} />}
+        </div>
+      </div>
+
+      {/*
+        Pinned, not sticky. The three endings that used to sit above this — close
+        kindly, found someone, report — are in the name bar's menu now, so this
+        is only ever the composer and stays one row tall.
+      */}
+      {!closed && (
+        <div className="shrink-0 border-t border-[var(--border-subtle)] bg-[var(--bg-primary)] px-5 py-3 md:px-8">
+          <div className="mx-auto max-w-[38rem]">
+            <Composer chatId={chat.id} name={chat.partner.firstName} />
           </div>
         </div>
-
-        {/*
-          Closing kindly sits at the end of the thread, in normal flow — not in
-          the sticky footer with the composer. Expanded it is a six-template
-          picker plus a textarea, and a sticky element that tall stops being a
-          footer and starts covering the conversation. It is also a deliberate
-          act, not a toolbar button.
-        */}
-        {!closed && (
-          <div className="px-6 pb-2 md:px-10">
-            {/*
-              Two triggers, one per line, each in its own block wrapper.
-              Collapsed they are bare `<button>`s — inline, so `space-y-3` alone
-              put them side by side and rendered "Close this kindlyFound
-              someone?". A flex row is not the fix either: both expand into tall
-              forms that need the full width.
-            */}
-            <div className="mx-auto max-w-[40rem] space-y-3">
-              <div>
-                <CloseKindly chatId={chat.id} name={chat.partner.firstName} />
-              </div>
-              {/*
-                Gone for good once asked, and gone while their question is open.
-                One ask per person is §6.5's whole mechanic, and a button that
-                came back after a decline would be how the proposer found out —
-                see `graduation` in `lib/chats.ts`.
-              */}
-              {!chat.graduation && (
-                <div>
-                  <ProposeGraduation chatId={chat.id} name={chat.partner.firstName} />
-                </div>
-              )}
-              {/* Last and quietest of the three, but always present: the
-                  Community Standards page promises reporting "from any profile
-                  or chat", and a promise that depends on finding a menu is not
-                  one. */}
-              <div className="pt-1">
-                <ReportSheet
-                  reportedId={chat.partner.id}
-                  name={chat.partner.firstName}
-                  chatId={chat.id}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {!closed && (
-          <div className="sticky bottom-0 border-t border-[var(--border-subtle)] bg-[var(--bg-primary)] px-6 py-4 md:px-10">
-            <div className="mx-auto max-w-[40rem]">
-              <Composer chatId={chat.id} name={chat.partner.firstName} />
-            </div>
-          </div>
       )}
     </div>
   );
@@ -154,9 +126,9 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
      * plus a full-width button below `sm` gives the button its own row when
      * there is no space for it, and leaves the wide layout untouched.
      */
-    <header className="sticky top-0 z-10 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)] px-5 py-3.5 md:px-10 md:py-4">
-      <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-[var(--bg-tertiary)]">
-        {url && <Image src={url} alt="" fill sizes="44px" className="object-cover" />}
+    <header className="relative z-20 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)] px-4 py-2.5 md:px-8 md:py-3">
+      <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-[var(--bg-tertiary)]">
+        {url && <Image src={url} alt="" fill sizes="36px" className="object-cover" />}
       </span>
 
       {/* `basis-0` with `flex-1` so the name column gives up space to the ring
@@ -172,7 +144,7 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
               ? "A closed conversation"
               : `${chat.partner.firstName}, ${chat.partner.age}`
           }
-          className="truncate font-[family-name:var(--font-display)] text-[22px] font-bold tracking-[-0.02em]"
+          className="truncate font-[family-name:var(--font-display)] text-[17px] font-bold tracking-[-0.02em]"
         >
           {chat.partner.firstName}
           {/* No age on a withheld partner — there is no profile left to read,
@@ -181,7 +153,7 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
             <span className="ml-2 font-normal text-[var(--text-dim)]">{chat.partner.age}</span>
           )}
         </h1>
-        <p className="text-[13px] text-[var(--text-dim)]">
+        <p className="text-[12px] text-[var(--text-dim)]">
           {closed
             ? "Closed"
             : chat.state === "date_scheduled"
@@ -193,14 +165,41 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
       </div>
 
       {/*
-        * No ring here.
-        *
-        * The line directly to the left already says "15 hours left" in words,
-        * so the ring was saying the same thing twice in the one place where
-        * there is room to say it properly. It still earns its place in the
-        * list, where a row has no room for a sentence and the whole point is
-        * comparing one conversation's urgency against another's.
+        * No ring here. The line to the left already says "15 hours left" in
+        * words, so the ring said the same thing twice in the one place with
+        * room to say it properly. It still earns its place in the list, where a
+        * row has no room for a sentence and the point is comparing one
+        * conversation's urgency against another's.
         */}
+
+      {!closed && (
+        <ChatMenu>
+          <div>
+            <CloseKindly chatId={chat.id} name={chat.partner.firstName} />
+          </div>
+          {/*
+            Gone for good once asked, and gone while their question is open. One
+            ask per person is §6.5's whole mechanic, and a button that came back
+            after a decline would be how the proposer found out — see
+            `graduation` in `lib/chats.ts`.
+          */}
+          {!chat.graduation && (
+            <div>
+              <ProposeGraduation chatId={chat.id} name={chat.partner.firstName} />
+            </div>
+          )}
+          {/* Always present: the Community Standards page promises reporting
+              "from any profile or chat". Behind a menu is still from the chat —
+              what it must never be is absent. */}
+          <div className="border-t border-[var(--border-subtle)] pt-3">
+            <ReportSheet
+              reportedId={chat.partner.id}
+              name={chat.partner.firstName}
+              chatId={chat.id}
+            />
+          </div>
+        </ChatMenu>
+      )}
 
       {/* Always visible while the chat is open — §7.2 calls this the chat's
           entire purpose, so it does not hide behind a menu. */}
@@ -210,10 +209,13 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
         * independent form — and whichever one was hidden would quietly keep
         * whatever had been typed into it.
         */}
+      {/*
+        * Inline again. It took its own full-width row while the header also
+        * carried a fuse ring; with the ring gone and the menu reduced to three
+        * dots, a compact button fits on the name row at 390px.
+        */}
       {!closed && chat.state !== "date_scheduled" && (
-        <div className="w-full sm:w-auto">
-          <DateProposal chatId={chat.id} name={chat.partner.firstName} />
-        </div>
+        <DateProposal chatId={chat.id} name={chat.partner.firstName} />
       )}
     </header>
   );
@@ -233,7 +235,7 @@ function Bubble({ message, partner }: { message: ChatMessage; partner: string })
         <p className="text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
           Closing note
         </p>
-        <p className="mt-2 text-[17px] leading-relaxed">{text}</p>
+        <p className="mt-2 text-[15px] leading-relaxed">{text}</p>
       </div>
     );
   }
@@ -251,7 +253,7 @@ function Bubble({ message, partner }: { message: ChatMessage; partner: string })
   return (
     <p
       className={cn(
-        "max-w-[80%] rounded-lg px-4 py-3 text-[16px] leading-relaxed",
+        "max-w-[80%] rounded-lg px-3.5 py-2.5 text-[15px] leading-relaxed",
         message.mine
           ? "ml-auto bg-[var(--accent)]/12"
           : "border border-[var(--border-subtle)] bg-[var(--bg-secondary)]",
@@ -286,9 +288,9 @@ function DateCard({ chatId, date }: { chatId: string; date: ChatDate }) {
       <p className="text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
         {date.status === "confirmed" ? "It's on" : "A plan, waiting on an answer"}
       </p>
-      <p className="mt-2 text-[18px] leading-snug">
+      <p className="mt-2 text-[16px] leading-snug">
         {date.placeName}
-        <span className="block text-[16px] text-[var(--text-secondary)]">{when}</span>
+        <span className="block text-[14px] text-[var(--text-secondary)]">{when}</span>
       </p>
       {date.placeNote && (
         <p className="mt-2 text-[15px] leading-relaxed text-[var(--text-secondary)]">
@@ -320,7 +322,7 @@ function DateCard({ chatId, date }: { chatId: string; date: ChatDate }) {
 function ClosedNote({ chat }: { chat: ChatDetail }) {
   return (
     <div className="border-t border-[var(--border-subtle)] pt-6 text-center">
-      <p className="text-[16px] leading-relaxed text-[var(--text-secondary)]">
+      <p className="text-[15px] leading-relaxed text-[var(--text-secondary)]">
         This chat is closed
         {chat.state === "closed_fuse" && " — the seven days ran out"}
         {chat.state === "closed_by_user" &&

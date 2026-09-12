@@ -40,7 +40,12 @@ export function DateProposal({ chatId, name }: { chatId: string; name: string })
             max: day(DATE_MAX_LEAD_DAYS * 86_400_000),
           });
         }}
-        className="shrink-0"
+        /*
+         * Overridden down from the default 48px/px-7 button. This one lives in
+         * the name bar beside a 36px avatar, and at full size it either pushed
+         * the name into an ellipsis or took a whole second row to itself.
+         */
+        className="min-h-0 shrink-0 px-3.5 py-2 text-[14px]"
       >
         Propose a date
       </Button>
