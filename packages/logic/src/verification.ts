@@ -37,39 +37,54 @@
  * frames it as a band: 50-60 catches presentation attacks and some injection;
  * 80-90 catches sophisticated deepfakes and pre-recorded video.
  *
- * Set at 75 — above the moderate band, below deepfake-grade. It started at 85
- * and came down after the first genuine check through this system scored 64.6
- * on an ordinary phone in ordinary light. A threshold nothing real can clear is
- * not strict, it is decorative: auto-admit would never fire and every applicant
- * would queue behind a person who has nothing extra to go on.
+ * Set at 80, which is the bottom of AWS's deepfake-grade band (80-90) rather
+ * than the top of their moderate one. It went 85 → 75 → 80: down when the first
+ * genuine check scored 64.6 and a threshold nothing real could clear looked
+ * strict while being decorative, back up on 2026-09-12 when auto-admit was
+ * turned on and this number started admitting people instead of labelling them.
+ *
+ * Raising it the same day as the flip is the point. While `auto_admit` was off
+ * the cost of being loose was a mislabelled review screen; now it is somebody
+ * admitted without a person ever looking. The looser number belonged to the
+ * looser consequence.
  *
  * Nothing under this line is refused. It goes to a reviewer, which is where the
  * application was going anyway, so being wrong in this direction costs thirty
  * seconds of somebody's attention and never an applicant.
  *
- * **This is still undercalibrated.** One real score is not a distribution. The
- * number is on the review screen now (0032) precisely so it can be set from
- * evidence once twenty or so applicants have been through.
+ * **This is still undercalibrated**, and now it matters more. Four real scores
+ * — 64.6, 73.5, 89.4, 0.0001 — are not a distribution, and one of them was a
+ * genuine person whose camera had not focused (see `capture-quality.ts`). Only
+ * the 89.4 clears this line. Read `capture_sharpness` before treating any low
+ * score as evidence about a person, and set this from the review screen once
+ * twenty or so applicants have been through.
  */
-export const LIVENESS_CONFIDENCE = 75;
+export const LIVENESS_CONFIDENCE = 80;
 
 /**
  * How alike two faces have to be before nobody looks.
  *
- * **Set at 82, and that is below what AWS recommends for this use.** Their
- * guidance for face comparison is 90-99, and 99 for anything they class as
- * critical security — identity verification is their own example. 82 is a
+ * **Set at 87, and that is still below what AWS recommends for this use.**
+ * Their guidance for face comparison is 90-99, and 99 for anything they class
+ * as critical security — identity verification is their own example. 87 is a
  * deliberate choice to send fewer people to a reviewer, made in the knowledge
  * that it widens the gap a determined impersonator could walk through.
  *
- * What makes that survivable rather than reckless is what sits around it. This
- * number cannot reject anybody — under it means a human looks. It cannot admit
- * anybody on its own either: `seasons.auto_admit` is off, and while it is off
- * this threshold changes a label on a review screen and nothing else. Turning
- * auto-admit on is the moment this number starts deciding, and it should be
- * revisited then, against real scores rather than reasoning.
+ * Raised from 82 on 2026-09-12, the day `auto_admit` was turned on. Until then
+ * this number changed a label on a review screen; from that day it admits
+ * people. The previous comment said it "should be revisited then, against real
+ * scores rather than reasoning" — this is that revision, and it is still partly
+ * reasoning: the only real match measured so far is 99.99, which clears any
+ * line anybody would draw and tells us nothing about where the line belongs.
+ *
+ * It still cannot reject anybody. Under it means a human looks.
+ *
+ * The honest reading is that 87 buys margin over 82 without yet being evidence-
+ * based, and that the number to watch is the first genuine match that lands
+ * between 87 and 95 — a real person with an old profile photo. When one does,
+ * this belongs at 90 or above unless that case argues otherwise.
  */
-export const MATCH_SIMILARITY = 82;
+export const MATCH_SIMILARITY = 87;
 
 export type VerificationOutcome = "auto-admit" | "needs-a-person";
 

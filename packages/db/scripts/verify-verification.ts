@@ -52,6 +52,13 @@ const skip = (why: string) => {
   skipped += 1;
   console.log(`  ${D}– skipped: ${why}${X}`);
 };
+/*
+ * Printed, not counted. For facts a reviewer needs in front of them that are
+ * settings rather than invariants — `auto_admit` is a product decision, and
+ * asserting either value would be asserting the decision rather than testing
+ * anything. The checks around it are what make both settings safe.
+ */
+const note = (what: string) => console.log(`  ${D}· ${what}${X}`);
 
 const M = { id: "deadbeef-0000-4000-8000-00000000ae01", email: "verify-member@noghost.test" };
 const A = { id: "deadbeef-0000-4000-8000-00000000ae02", email: "verify-admin@noghost.test" };
@@ -414,14 +421,68 @@ async function main() {
         [...outcomes].sort().join(", "),
       );
     }
-    if (!applied) {
-      skip("apply 0029_a_face_that_answers.sql");
-    } else {
-      const { data: season } = await service
-        .from("seasons").select("id,auto_admit").limit(1).maybeSingle();
-      check(season?.auto_admit === false,
-        "and auto-admit is off until somebody turns it on",
-        `season auto_admit = ${season?.auto_admit}`);
+    {
+      /*
+       * This used to assert `auto_admit === false`, which was a fair check
+       * while the answer was "not yet" and worthless the moment somebody
+       * turned it on (2026-09-12). Flipping it to assert `true` would be
+       * worse than worthless: it would pass forever while testing nothing.
+       *
+       * The property that actually keeps auto-admit safe is that it cannot
+       * fire on a single number. Both have to clear their own line, and the
+       * flag has to be on. Exhaustive rather than sampled, because the policy
+       * is pure and the whole input space is four values by five by two.
+       */
+      const admitted: { liveness: number | null; similarity: number | null }[] = [];
+      const admittedWhileOff: unknown[] = [];
+
+      for (const livenessConfidence of [
+        null, 0, LIVENESS_CONFIDENCE - 0.1, LIVENESS_CONFIDENCE, 100,
+      ]) {
+        for (const similarity of [null, 0, MATCH_SIMILARITY - 0.1, MATCH_SIMILARITY, 100]) {
+          for (const autoAdmitEnabled of [true, false]) {
+            const { outcome } = decideVerification({
+              livenessConfidence, similarity, autoAdmitEnabled,
+            });
+            if (outcome !== "auto-admit") continue;
+            if (!autoAdmitEnabled) admittedWhileOff.push({ livenessConfidence, similarity });
+            else admitted.push({ liveness: livenessConfidence, similarity });
+          }
+        }
+      }
+
+      check(admittedWhileOff.length === 0,
+        "with the season flag off, nothing auto-admits at all",
+        `${admittedWhileOff.length} would have`);
+
+      check(admitted.length > 0,
+        "with it on, something can — a gate nothing passes is not a gate",
+        `${admitted.length} input pair(s) admit`);
+
+      check(
+        admitted.every(
+          (a) =>
+            a.liveness !== null && a.liveness >= LIVENESS_CONFIDENCE &&
+            a.similarity !== null && a.similarity >= MATCH_SIMILARITY,
+        ),
+        "and every one of them cleared BOTH lines — neither number admits alone",
+        admitted
+          .filter((a) =>
+            a.liveness === null || a.liveness < LIVENESS_CONFIDENCE ||
+            a.similarity === null || a.similarity < MATCH_SIMILARITY)
+          .map((a) => `live ${a.liveness}/match ${a.similarity}`)
+          .join(", ") || `live >= ${LIVENESS_CONFIDENCE}, match >= ${MATCH_SIMILARITY}`,
+      );
+
+      if (applied) {
+        // Reported, not asserted. Which way this is set is a product decision
+        // somebody makes deliberately; the checks above are what make either
+        // setting safe.
+        const { data: season } = await service
+          .from("seasons").select("id,auto_admit").limit(1).maybeSingle();
+        note(`season auto_admit = ${season?.auto_admit} — admissions ${
+          season?.auto_admit ? "can complete without a person" : "all go to a person"}`);
+      }
     }
 
     section("The face checks themselves");

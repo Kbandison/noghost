@@ -10,6 +10,14 @@ import { MODERATION_FLOOR, type FrameQuality, type PhotoReading } from "@noghost
 import { awsConfig } from "./aws";
 
 /**
+ * Rekognition's hard cap on inline image bytes: 5MiB, for every image API.
+ *
+ * Not a number we chose and not one we can raise — the S3 form of these calls
+ * allows 15MB, but the frames live in a Supabase bucket AWS cannot reach.
+ */
+export const REKOGNITION_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
  * Reading a face — the only part of verification that leaves this building.
  *
  * Two calls, both on raw bytes rather than an S3 reference, because the frames
@@ -222,6 +230,31 @@ export async function frameQuality(images: Uint8Array[]): Promise<FrameQuality[]
 export async function readPhoto(bytes: Uint8Array): Promise<PhotoReading | null> {
   const aws = rekognition();
   if (!aws) return null;
+
+  /*
+   * Rekognition refuses raw bytes over 5MB, and it refuses them as a 400 that
+   * looks like any other AWS failure once it reaches the catch below.
+   *
+   * Found by running the real policy over real uploads: two 4000px originals at
+   * 6.4MB and 6.8MB came back `ValidationException: Member must have length
+   * less than or equal to 5242880`, which became `null`, which became
+   * "needs-a-person". Not dangerous — that is the safe direction — but silent,
+   * and it means a photo can be perfectly clean and still never auto-admit,
+   * with nothing in the logs naming the size as the reason.
+   *
+   * `prepareImage` now caps uploads at 2000px/q0.85, which lands around 300-500KB,
+   * so this should not fire for anything uploaded through the funnel today. It
+   * fires for photos that predate that, and it says so rather than spending a
+   * round trip to be told off.
+   */
+  if (bytes.byteLength > REKOGNITION_MAX_BYTES) {
+    console.error(
+      `[rekognition] photo is ${(bytes.byteLength / 1_048_576).toFixed(1)}MB, over ` +
+        `Rekognition's ${(REKOGNITION_MAX_BYTES / 1_048_576).toFixed(0)}MB limit — not screened, ` +
+        `so it goes to a person. Re-upload it to get it re-encoded.`,
+    );
+    return null;
+  }
 
   try {
     const [moderation, faces] = await Promise.all([
