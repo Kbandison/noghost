@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { BRAND } from "@noghost/config";
 import { requireMember } from "@/lib/member";
 import { unansweredCount } from "@/lib/inbox";
@@ -29,7 +30,13 @@ function IconLink({
   label,
   children,
 }: {
-  href: "/profile" | "/profile#notifications";
+  /*
+   * `Route`, not a union of the two literals. `typedRoutes` makes `Link`
+   * generic over its href, and a union widens that generic to something it
+   * cannot satisfy — the error names `LinkProps<"/notifications">` and looks
+   * like the route is missing rather than like a typing mismatch.
+   */
+  href: Route;
   label: string;
   children: React.ReactNode;
 }) {
@@ -111,13 +118,13 @@ export default async function AppLayout({
             </span>
 
             {/*
-              * Straight to the section rather than the top of a long settings
-              * page. There is deliberately no in-app notification centre — all
-              * three of §8's `inapp` templates already surface in context, and a
-              * centre would duplicate them and add the kind of badge §3.3 bans.
-              * What this opens is the switchboard for what the app may send.
+              * The record of what was sent. Push is the one channel that leaves
+              * no copy anywhere — dismissed from a lock screen and it is gone —
+              * so this exists to be the copy. Carries no count: §3.3 bans
+              * engagement bait, and a number on a log of things that already
+              * happened is exactly that. See `notifications/page.tsx`.
               */}
-            <IconLink href="/profile#notifications" label="Notifications">
+            <IconLink href="/notifications" label="Notifications">
               <BellIcon className="h-5 w-5" />
             </IconLink>
 
