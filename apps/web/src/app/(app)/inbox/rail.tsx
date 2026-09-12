@@ -110,6 +110,17 @@ export function Rail({
   const answered = inbox.incoming.filter(
     (c) => c.status !== "pending" && c.status !== "accepted",
   );
+  /*
+   * Outgoing notes drop the accepted ones too, for the same reason incoming
+   * ones do — and the seed fixtures are what made it visible.
+   *
+   * A note you sent that somebody said yes to became the conversation you are
+   * now having. Listing it under "Your notes" as "they said yes" while that
+   * conversation sits in "Talking" puts one person on the screen twice, and the
+   * second row is the less useful of the two: it describes something that has
+   * already happened next to the thing it turned into.
+   */
+  const sent = inbox.outgoing.filter((c) => c.status !== "accepted");
   const open = chats.filter((chat) => !isChatClosed(chat.state));
   const closed = chats.filter((chat) => isChatClosed(chat.state));
 
@@ -204,9 +215,9 @@ export function Rail({
             </Section>
           )}
 
-          {inbox.outgoing.length > 0 && (
-            <Section title="Your notes" count={inbox.outgoing.length}>
-              {inbox.outgoing.map((connect) => (
+          {sent.length > 0 && (
+            <Section title="Your notes" count={sent.length}>
+              {sent.map((connect) => (
                 <Row
                   key={connect.id}
                   href={`/inbox/${connect.id}`}
