@@ -24,7 +24,7 @@ export default async function InboxPage() {
 
   return (
     <div className="flex flex-col md:flex-row">
-      <Rail inbox={inbox} chats={chats} />
+      <Rail inbox={inbox} chats={chats} now={now} />
 
       {/* Hidden on mobile: the rail *is* the screen there, and an empty detail
           pane below a list is just dead space to scroll past. */}

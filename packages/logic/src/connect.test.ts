@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  answerWindow,
   expireConnect,
   needsNudge,
   respondToConnect,
@@ -159,6 +160,39 @@ describe("needsNudge", () => {
   it("never nudges a connect that has been answered", () => {
     for (const status of ["accepted", "declined", "expired"] as const) {
       expect(needsNudge({ status, createdAt: NOW }, addHours(NOW, 100))).toBe(false);
+    }
+  });
+});
+
+describe("answerWindow", () => {
+  const sent = "2026-09-12T00:00:00.000Z";
+  const at = (hours: number) =>
+    new Date(Date.parse(sent) + hours * 3_600_000).toISOString();
+
+  it("is calm for the first third of the window", () => {
+    expect(answerWindow(sent, at(1)).tone).toBe("calm");
+    expect(answerWindow(sent, at(23)).tone).toBe("calm");
+  });
+
+  it("turns amber, then urgent, as the nudge approaches", () => {
+    expect(answerWindow(sent, at(30)).tone).toBe("amber");
+    expect(answerWindow(sent, at(60)).tone).toBe("urgent");
+  });
+
+  it("keeps counting past the nudge rather than pretending the note is gone", () => {
+    // A pending connect survives until the season ends. 72h is when the sender
+    // is told nobody has answered, not when the note disappears.
+    const after = answerWindow(sent, at(83));
+    expect(after.left).toBeCloseTo(-11, 5);
+    expect(after.remaining).toBe(0);
+    expect(after.tone).toBe("urgent");
+  });
+
+  it("never draws an arc outside 0..1", () => {
+    for (const h of [-5, 0, 36, 72, 500]) {
+      const w = answerWindow(sent, at(h));
+      expect(w.remaining).toBeGreaterThanOrEqual(0);
+      expect(w.remaining).toBeLessThanOrEqual(1);
     }
   });
 });

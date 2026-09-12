@@ -146,6 +146,47 @@ export function respondToConnect(
  * Reusing it would invent a decision on behalf of someone who never made one,
  * which is a worse ending than the silence it replaces.
  */
+/**
+ * How much of the answer window a note has left — for the ring around a face in
+ * the Inbox.
+ *
+ * **A note does not expire when this runs out**, and the ring must not be read
+ * as a countdown to deletion. A pending connect lives until the season ends
+ * (`connect-sweep`); what happens at 72 hours is that the sender gets their one
+ * nudge (§6.2). So this measures "how long before the person who wrote to you
+ * is told you haven't answered", which is the only per-note clock the product
+ * actually has, and the only one worth putting in front of somebody.
+ *
+ * `left` goes negative past the window rather than clamping, because "they were
+ * nudged eleven hours ago" is a different fact from "the window just closed"
+ * and a caller may want to say so.
+ */
+export interface AnswerWindow {
+  /** Hours until the sender is nudged. Negative once they have been. */
+  left: number;
+  /** 0–1 of the window still unspent, clamped, for drawing an arc. */
+  remaining: number;
+  /** Same vocabulary as the fuse ring, so one page can use one palette. */
+  tone: "calm" | "amber" | "urgent";
+}
+
+export function answerWindow(createdAt: string, now: string): AnswerWindow {
+  const spent = hoursBetween(createdAt, now);
+  const left = CONNECT_NUDGE_HOURS - spent;
+  const remaining = Math.max(0, Math.min(1, left / CONNECT_NUDGE_HOURS));
+
+  /*
+   * Thirds of the window rather than the fuse's 72/48/24, which are hours and
+   * would put a 72-hour window permanently in its own calmest band. The
+   * proportions are what carry meaning between two different clocks.
+   */
+  return {
+    left,
+    remaining,
+    tone: remaining > 2 / 3 ? "calm" : remaining > 1 / 3 ? "amber" : "urgent",
+  };
+}
+
 export function expireConnect(fromUser: string): ConnectOutcome {
   return {
     status: "expired",

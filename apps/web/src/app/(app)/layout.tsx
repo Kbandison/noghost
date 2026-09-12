@@ -21,7 +21,25 @@ import { AppNav } from "./app-nav";
  * nothing in settings is ever waiting on you, and a badge there would be the
  * engagement bait §3.3 bans.
  */
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  /**
+   * The `@modal` parallel slot — empty on nearly every render, and holding an
+   * intercepted note or conversation when one was opened from the list.
+   * Declared here because a slot no layout renders is a slot that never
+   * appears, and the interception would silently do nothing.
+   *
+   * Optional, and not because it might be absent at runtime — Next always
+   * passes it here. `(app)` and `(apply)` are both root route groups, so both
+   * layouts are typed against the same generated `LayoutProps<"/">`, and that
+   * type cannot carry a slot only one of them has. Requiring it fails
+   * typegen validation for a prop that is always supplied.
+   */
+  modal?: React.ReactNode;
+}) {
   const member = await requireMember();
   const now = new Date().toISOString();
   const [waiting, chats, warning, broadcasts] = await Promise.all([
@@ -103,6 +121,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         * signing out or reading the standards must not require acknowledging
         * anything first, and on a phone these tabs ARE that escape route.
         */}
+      {/* Outside <main> and before the nav: a dialog is not part of the
+          document's reading order, and `showModal()` moves focus into it. */}
+      {modal}
+
       <AppNav
         waiting={waiting}
         chats={chats.count}
