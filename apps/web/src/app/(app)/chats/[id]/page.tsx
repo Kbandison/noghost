@@ -9,7 +9,8 @@ import { publicPhotoUrl } from "@/lib/photos";
 import { requireMember } from "@/lib/member";
 import { getChat, type ChatDate, type ChatDetail, type ChatMessage } from "@/lib/chats";
 import { listChats } from "@/lib/chats";
-import { Rail } from "../rail";
+import { loadInbox } from "@/lib/inbox";
+import { Rail } from "../../inbox/rail";
 import { FuseRing } from "../fuse-ring";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { ReportSheet } from "@/components/report/report-sheet";
@@ -35,9 +36,11 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const member = await requireMember();
   const now = new Date().toISOString();
 
-  const [chat, chats] = await Promise.all([
+  // `inbox` joins these because the rail lists notes alongside chats now.
+  const [chat, chats, inbox] = await Promise.all([
     getChat(id, member.id, now),
     listChats(member.id, now),
+    loadInbox(member.id),
   ]);
   if (!chat) notFound();
 
@@ -45,7 +48,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="flex flex-col md:flex-row">
-      <Rail chats={chats} activeId={id} />
+      <Rail inbox={inbox} chats={chats} activeId={id} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Header chat={chat} closed={closed} />

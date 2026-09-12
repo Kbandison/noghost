@@ -8,6 +8,7 @@ import type { ProfilePhoto, ProfilePromptAnswer, PromptRef } from "@noghost/type
 import { publicPhotoUrl } from "@/lib/photos";
 import { requireMember } from "@/lib/member";
 import { loadInbox, type IncomingConnect, type InboxPerson, type OutgoingConnect } from "@/lib/inbox";
+import { listChats } from "@/lib/chats";
 import { Rail } from "../rail";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { VoicePlayer } from "@/components/ui/voice-player";
@@ -19,7 +20,11 @@ export const dynamic = "force-dynamic";
 export default async function ConnectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const member = await requireMember();
-  const inbox = await loadInbox(member.id);
+  // Both, because the rail shows both now — see its own comment for why.
+  const [inbox, chats] = await Promise.all([
+    loadInbox(member.id),
+    listChats(member.id, new Date().toISOString()),
+  ]);
 
   const incoming = inbox.incoming.find((connect) => connect.id === id);
   const outgoing = inbox.outgoing.find((connect) => connect.id === id);
@@ -27,7 +32,7 @@ export default async function ConnectPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="flex flex-col md:flex-row">
-      <Rail inbox={inbox} activeId={id} />
+      <Rail inbox={inbox} chats={chats} activeId={id} />
       <div className="min-w-0 flex-1">
         {incoming ? (
           <Received

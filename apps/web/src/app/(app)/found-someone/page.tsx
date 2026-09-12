@@ -72,7 +72,7 @@ export default async function FoundSomeonePage() {
       )}
 
       <p className="mt-12 text-center text-[15px] text-[var(--text-dim)]">
-        <Link href="/chats" className="underline decoration-[1.5px] underline-offset-4">
+        <Link href="/inbox" className="underline decoration-[1.5px] underline-offset-4">
           Your chats are still here
         </Link>{" "}
         &mdash; the one that worked is still open.

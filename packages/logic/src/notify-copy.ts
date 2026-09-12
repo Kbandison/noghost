@@ -71,7 +71,8 @@ function destination(template: string, payload: Payload): string {
     case "connect_nudge":
       return "/inbox";
     default:
-      return chat ? `/chats/${chat}` : "/chats";
+      // A single conversation still has its own screen; the list is /inbox.
+      return chat ? `/chats/${chat}` : "/inbox";
   }
 }
 

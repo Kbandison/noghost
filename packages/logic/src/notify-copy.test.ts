@@ -93,7 +93,9 @@ describe("filling in §9.4's copy", () => {
 
   it("never puts a chat id in front of somebody as a destination it cannot reach", () => {
     // No id in the payload: the fallback is a real route, not `/chats/undefined`.
+    // `/inbox` since notes and chats share one list — `/chats` is now only a
+    // redirect, and sending somebody to a redirect is a wasted navigation.
     const result = renderNotification("closure_received", {}, context);
-    expect(result?.url).toBe("/chats");
+    expect(result?.url).toBe("/inbox");
   });
 });

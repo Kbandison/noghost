@@ -79,7 +79,8 @@ export async function sendMessage(
   if (!data || data.length === 0) return { error: CLOSED };
 
   revalidatePath(`/chats/${chatId}`);
-  revalidatePath("/chats");
+  // The list lives at /inbox now; /chats is only a redirect.
+  revalidatePath("/inbox");
   return {};
 }
 
@@ -178,7 +179,8 @@ export async function sendVoiceNote(
   }
 
   revalidatePath(`/chats/${chatId}`);
-  revalidatePath("/chats");
+  // The list lives at /inbox now; /chats is only a redirect.
+  revalidatePath("/inbox");
   return { sentToken: token };
 }
 
@@ -233,7 +235,8 @@ export async function proposeDate(
   }
 
   revalidatePath(`/chats/${chatId}`);
-  revalidatePath("/chats");
+  // The list lives at /inbox now; /chats is only a redirect.
+  revalidatePath("/inbox");
   return {};
 }
 
@@ -267,7 +270,8 @@ export async function respondToDate(
   }
 
   revalidatePath(`/chats/${chatId}`);
-  revalidatePath("/chats");
+  // The list lives at /inbox now; /chats is only a redirect.
+  revalidatePath("/inbox");
   return {};
 }
 
@@ -311,7 +315,8 @@ export async function answerCheckin(
   }
 
   revalidatePath(`/chats/${chatId}`);
-  revalidatePath("/chats");
+  // The list lives at /inbox now; /chats is only a redirect.
+  revalidatePath("/inbox");
   /*
    * Intentionally empty. `answer_checkin` returns "closed" | "continued" |
    * "pending", and returning that here would tell the first person to answer
@@ -403,7 +408,8 @@ export async function respondGraduation(
   }
 
   revalidatePath(`/chats/${chatId}`);
-  revalidatePath("/chats");
+  // The list lives at /inbox now; /chats is only a redirect.
+  revalidatePath("/inbox");
   revalidatePath("/tonight");
 
   /*
@@ -492,6 +498,7 @@ export async function closeChat(
   }
 
   revalidatePath(`/chats/${chatId}`);
-  revalidatePath("/chats");
+  // The list lives at /inbox now; /chats is only a redirect.
+  revalidatePath("/inbox");
   return { closed: true };
 }

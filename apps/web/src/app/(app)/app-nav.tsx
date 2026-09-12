@@ -2,16 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { FuseUrgency } from "@noghost/logic";
+import { worstUrgency, type FuseUrgency } from "@noghost/logic";
 import { cn } from "@/lib/utils";
 
 /**
- * §7.2's four tabs.
+ * Three tabs.
  *
- * The Inbox count is the number of notes waiting on *you*, not a total. §3.3
- * bans engagement bait, so this is never "3 people like you" — it is a count of
- * answers you owe someone, which is the one number this product is entitled to
- * put in front of a person.
+ * §7.2 specifies four — Tonight / Inbox / Chats / Profile — and Inbox and Chats
+ * are now one, because a member with a note waiting and a conversation running
+ * had to check two places to learn whether anybody was talking to them. The
+ * two kinds are still kept apart, in sections inside the list rather than in
+ * the navigation. See `inbox/rail.tsx`.
+ *
+ * The Inbox badge counts answers you owe someone, never a total. §3.3 bans
+ * engagement bait, so this is never "3 people like you" — it is the one number
+ * this product is entitled to put in front of a person.
  *
  * ---------------------------------------------------------------------------
  * Two placements, because one row does not fit a phone
@@ -30,38 +35,25 @@ import { cn } from "@/lib/utils";
  */
 
 interface Tab {
-  href: "/tonight" | "/inbox" | "/chats" | "/profile";
+  href: "/tonight" | "/inbox" | "/profile";
   label: string;
 }
 
 const TABS: Tab[] = [
   { href: "/tonight", label: "Tonight" },
   { href: "/inbox", label: "Inbox" },
-  { href: "/chats", label: "Chats" },
   // Never counted. Nothing in settings is ever waiting on you.
   { href: "/profile", label: "Profile" },
 ];
 
-/**
- * Inbox: answers you owe someone. Always the accent colour, because every one
- * of them is the same kind of thing.
- */
-function Count({ n }: { n: number }) {
-  return (
-    <span
-      className="min-w-5 rounded-full bg-[var(--accent)] px-1.5 text-center text-[13px] font-medium leading-5 text-[var(--on-accent)]"
-      aria-label={`${n} waiting on you`}
-    >
-      {n}
-    </span>
-  );
-}
-
 /*
- * Chats: the number is how many are open, the colour is how close the nearest
- * one is to burning. Same thresholds as the per-row fuse ring (§7.2 — calm
- * above 72h, amber under 48h, warm-red under 24h), so the tab and the list can
- * never tell a member different things.
+ * One badge, now that notes and chats share a tab.
+ *
+ * The number is how many things involve you right now — notes you have not
+ * answered plus conversations still running. The colour is how close the
+ * nearest fuse is to going out, on the same thresholds as the per-row ring
+ * (§7.2 — calm above 72h, amber under 48h, warm-red under 24h), so the tab and
+ * the list can never tell a member different things.
  *
  * `paused` is a `date_scheduled` chat, whose fuse is stopped: it gets the quiet
  * treatment rather than a colour, because a colour would imply a clock that is
@@ -81,7 +73,15 @@ const FUSE_BADGE: Record<FuseUrgency, { className: string; says: string }> = {
   },
 };
 
-function FuseCount({ n, urgency }: { n: number; urgency: FuseUrgency }) {
+function Badge({
+  n,
+  urgency,
+  notes,
+}: {
+  n: number;
+  urgency: FuseUrgency;
+  notes: number;
+}) {
   const tone = FUSE_BADGE[urgency];
   return (
     <span
@@ -89,8 +89,17 @@ function FuseCount({ n, urgency }: { n: number; urgency: FuseUrgency }) {
         "min-w-5 rounded-full px-1.5 text-center text-[13px] font-medium leading-5",
         tone.className,
       )}
-      // The colour is meaningless to a screen reader, so it is said in words.
-      aria-label={`${n} open chat${n === 1 ? "" : "s"}, ${tone.says}`}
+      /*
+       * The colour is meaningless to a screen reader, so what it means is said
+       * in words — and the split is said too, because "4" alone cannot
+       * distinguish four people waiting on an answer from four chats ticking.
+       */
+      aria-label={[
+        notes > 0 && `${notes} note${notes === 1 ? "" : "s"} to answer`,
+        n - notes > 0 && `${n - notes} chat${n - notes === 1 ? "" : "s"} open, ${tone.says}`,
+      ]
+        .filter(Boolean)
+        .join("; ")}
     >
       {n}
     </span>
@@ -103,19 +112,31 @@ export function AppNav({
   chatUrgency,
   layout = "header",
 }: {
+  /** Notes you have not answered. */
   waiting: number;
-  /** Open conversations. The colour comes from `chatUrgency`, not this. */
+  /** Conversations still running. The colour comes from `chatUrgency`. */
   chats: number;
   chatUrgency: FuseUrgency;
   layout?: "header" | "bottom";
 }) {
   const pathname = usePathname();
+  const total = waiting + chats;
 
-  const badgeFor = (href: Tab["href"]) => {
-    if (href === "/inbox") return waiting > 0 ? <Count n={waiting} /> : null;
-    if (href === "/chats") return chats > 0 ? <FuseCount n={chats} urgency={chatUrgency} /> : null;
-    return null;
-  };
+  /*
+   * A waiting note forces at least amber.
+   *
+   * Otherwise a member with two notes and no open chats gets the `paused` grey
+   * — the quiet treatment reserved for a stopped clock — on a badge whose whole
+   * job is to say somebody is waiting for an answer. Notes have no fuse of
+   * their own, so they cannot supply a colour; they can only insist the badge
+   * is not silent.
+   */
+  const urgency = worstUrgency(waiting > 0 ? [chatUrgency, "amber"] : [chatUrgency]);
+
+  const badgeFor = (href: Tab["href"]) =>
+    href === "/inbox" && total > 0 ? (
+      <Badge n={total} urgency={urgency} notes={waiting} />
+    ) : null;
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 

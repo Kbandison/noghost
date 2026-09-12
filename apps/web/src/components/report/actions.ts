@@ -72,7 +72,8 @@ export async function reportMember(
    */
   revalidatePath("/tonight");
   revalidatePath("/inbox");
-  revalidatePath("/chats");
+  // The list lives at /inbox now; /chats is only a redirect.
+  revalidatePath("/inbox");
   if (chatId) revalidatePath(`/chats/${chatId}`);
 
   /*
