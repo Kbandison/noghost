@@ -1,4 +1,4 @@
-import { fuseUrgency, type FuseUrgency } from "@noghost/logic";
+import { fuseUrgency, worstUrgency, type FuseUrgency } from "@noghost/logic";
 import type {
   ChatState,
   CheckinAnswer,
@@ -417,13 +417,37 @@ export async function getChat(
   };
 }
 
-/** Open chats, for the nav tab. */
-export async function openChatCount(memberId: string): Promise<number> {
+/**
+ * The Chats tab: how many are open, and how close the nearest one is to
+ * burning.
+ *
+ * The count answers "how many conversations do I have" and the colour answers
+ * "is one of them about to go out" — the second being the only one that should
+ * ever make somebody open the app. Both come from the same `fuseUrgency` the
+ * per-row ring uses, so the tab and the list cannot disagree.
+ *
+ * The rows are fetched rather than counted because the urgency needs
+ * `fuse_expires_at`; a `head: true` count cannot tell you how urgent anything
+ * is.
+ */
+export async function chatsTabState(
+  memberId: string,
+  now: string,
+): Promise<{ count: number; urgency: FuseUrgency }> {
   const supabase = await supabaseServer();
-  const { count } = await supabase
+  const { data } = await supabase
     .from("chats")
-    .select("id", { head: true, count: "exact" })
+    .select("id,state,fuse_expires_at")
     .in("state", ["active", "date_scheduled", "post_date_checkin"])
     .or(`user_a.eq.${memberId},user_b.eq.${memberId}`);
-  return count ?? 0;
+
+  const rows = data ?? [];
+  return {
+    count: rows.length,
+    urgency: worstUrgency(
+      rows.map((chat) =>
+        fuseUrgency({ state: chat.state, fuseExpiresAt: chat.fuse_expires_at }, now),
+      ),
+    ),
+  };
 }

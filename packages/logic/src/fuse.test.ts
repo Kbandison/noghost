@@ -5,6 +5,7 @@ import {
   fuseUrgency,
   openingFuseExpiry,
   remainingFuseHours,
+  worstUrgency,
   type FuseChat,
   type FuseConfig,
   type FuseEvent,
@@ -387,5 +388,28 @@ describe("helpers", () => {
     expect(fuseUrgency(chat({ fuseExpiresAt: addHours(START, 3) }), START)).toBe("urgent");
     expect(fuseUrgency(chat({ state: "date_scheduled" }), START)).toBe("paused");
     expect(fuseUrgency(chat({ state: "closed_fuse" }), START)).toBe("closed");
+  });
+});
+
+describe("worstUrgency", () => {
+  it("takes the chat closest to burning", () => {
+    expect(worstUrgency(["calm", "urgent", "amber"])).toBe("urgent");
+    expect(worstUrgency(["calm", "amber"])).toBe("amber");
+    expect(worstUrgency(["calm", "calm"])).toBe("calm");
+  });
+
+  it("does not let a paused fuse colour the badge", () => {
+    // A date_scheduled chat has no running clock. Colouring the tab from it
+    // would imply a deadline that isn't ticking.
+    expect(worstUrgency(["paused", "calm"])).toBe("calm");
+    expect(worstUrgency(["paused"])).toBe("paused");
+  });
+
+  it("ignores closed chats", () => {
+    expect(worstUrgency(["closed", "calm"])).toBe("calm");
+  });
+
+  it("is paused, not urgent, when there is nothing open", () => {
+    expect(worstUrgency([])).toBe("paused");
   });
 });

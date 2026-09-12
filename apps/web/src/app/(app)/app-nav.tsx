@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { FuseUrgency } from "@noghost/logic";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,19 +32,20 @@ import { cn } from "@/lib/utils";
 interface Tab {
   href: "/tonight" | "/inbox" | "/chats" | "/profile";
   label: string;
-  count?: number;
 }
 
 const TABS: Tab[] = [
   { href: "/tonight", label: "Tonight" },
   { href: "/inbox", label: "Inbox" },
-  // No count: an open chat is not a task you owe someone, and a badge would
-  // turn the fuse into a nag. The ring inside the list carries the urgency.
   { href: "/chats", label: "Chats" },
-  // Last, and never counted. Nothing in settings is ever waiting on you.
+  // Never counted. Nothing in settings is ever waiting on you.
   { href: "/profile", label: "Profile" },
 ];
 
+/**
+ * Inbox: answers you owe someone. Always the accent colour, because every one
+ * of them is the same kind of thing.
+ */
 function Count({ n }: { n: number }) {
   return (
     <span
@@ -55,15 +57,65 @@ function Count({ n }: { n: number }) {
   );
 }
 
+/*
+ * Chats: the number is how many are open, the colour is how close the nearest
+ * one is to burning. Same thresholds as the per-row fuse ring (§7.2 — calm
+ * above 72h, amber under 48h, warm-red under 24h), so the tab and the list can
+ * never tell a member different things.
+ *
+ * `paused` is a `date_scheduled` chat, whose fuse is stopped: it gets the quiet
+ * treatment rather than a colour, because a colour would imply a clock that is
+ * not running.
+ */
+const FUSE_BADGE: Record<FuseUrgency, { className: string; says: string }> = {
+  urgent: { className: "bg-[var(--error)] text-white", says: "one is close to closing" },
+  amber: { className: "bg-[var(--accent)] text-[var(--on-accent)]", says: "one is running low" },
+  calm: { className: "bg-[var(--sage)] text-[var(--on-accent)]", says: "all with time left" },
+  paused: {
+    className: "bg-[var(--bg-tertiary)] text-[var(--text-secondary)]",
+    says: "no fuse running",
+  },
+  closed: {
+    className: "bg-[var(--bg-tertiary)] text-[var(--text-secondary)]",
+    says: "no fuse running",
+  },
+};
+
+function FuseCount({ n, urgency }: { n: number; urgency: FuseUrgency }) {
+  const tone = FUSE_BADGE[urgency];
+  return (
+    <span
+      className={cn(
+        "min-w-5 rounded-full px-1.5 text-center text-[13px] font-medium leading-5",
+        tone.className,
+      )}
+      // The colour is meaningless to a screen reader, so it is said in words.
+      aria-label={`${n} open chat${n === 1 ? "" : "s"}, ${tone.says}`}
+    >
+      {n}
+    </span>
+  );
+}
+
 export function AppNav({
   waiting,
+  chats,
+  chatUrgency,
   layout = "header",
 }: {
   waiting: number;
+  /** Open conversations. The colour comes from `chatUrgency`, not this. */
+  chats: number;
+  chatUrgency: FuseUrgency;
   layout?: "header" | "bottom";
 }) {
   const pathname = usePathname();
-  const counts: Partial<Record<Tab["href"], number>> = { "/inbox": waiting };
+
+  const badgeFor = (href: Tab["href"]) => {
+    if (href === "/inbox") return waiting > 0 ? <Count n={waiting} /> : null;
+    if (href === "/chats") return chats > 0 ? <FuseCount n={chats} urgency={chatUrgency} /> : null;
+    return null;
+  };
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
@@ -82,7 +134,6 @@ export function AppNav({
         <ul className="flex items-stretch">
           {TABS.map((tab) => {
             const active = isActive(tab.href);
-            const count = counts[tab.href] ?? 0;
             return (
               <li key={tab.href} className="flex-1">
                 <Link
@@ -99,7 +150,7 @@ export function AppNav({
                 >
                   <span className="flex items-center gap-1.5">
                     {tab.label}
-                    {count ? <Count n={count} /> : null}
+                    {badgeFor(tab.href)}
                   </span>
                   {/* The active marker is a rule rather than a background fill:
                       a filled pill this small reads as a button, not a tab. */}
@@ -123,7 +174,6 @@ export function AppNav({
     <nav aria-label="Sections" className="hidden items-center gap-1 md:flex">
       {TABS.map((tab) => {
         const active = isActive(tab.href);
-        const count = counts[tab.href] ?? 0;
         return (
           <Link
             key={tab.href}
@@ -137,7 +187,7 @@ export function AppNav({
             )}
           >
             {tab.label}
-            {count ? <Count n={count} /> : null}
+            {badgeFor(tab.href)}
           </Link>
         );
       })}

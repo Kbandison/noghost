@@ -347,13 +347,48 @@ function tick(chat: FuseChat, at: string, config: FuseConfig): FuseTransition {
  */
 export type FuseUrgency = "paused" | "calm" | "amber" | "urgent" | "closed";
 
-export function fuseUrgency(chat: FuseChat, now: string): FuseUrgency {
+// Takes only the two fields it reads, not a whole `FuseChat`. The Chats tab
+// badge asks this of a two-column query, and demanding the full row would mean
+// either fetching eight columns it does not need or fabricating them.
+export function fuseUrgency(
+  chat: Pick<FuseChat, "state" | "fuseExpiresAt">,
+  now: string,
+): FuseUrgency {
   if (isChatClosed(chat.state)) return "closed";
   if (chat.state !== "active") return "paused";
   const hoursLeft = hoursBetween(now, chat.fuseExpiresAt);
   if (hoursLeft <= 24) return "urgent";
   if (hoursLeft <= 48) return "amber";
   return "calm";
+}
+
+/**
+ * The worst fuse in a set, for the Chats tab badge.
+ *
+ * The tab shows how many conversations are open and colours that number by the
+ * nearest one to burning — count for "how many", colour for "is anything about
+ * to go out". Same thresholds as the per-row ring, so the tab and the list can
+ * never disagree.
+ *
+ * `paused` ranks below `calm` because a `date_scheduled` chat has no running
+ * fuse; letting it colour the badge would imply a deadline that isn't ticking.
+ * `closed` never reaches here — a closed chat is not open.
+ */
+const URGENCY_RANK: Record<FuseUrgency, number> = {
+  closed: -1,
+  paused: 0,
+  calm: 1,
+  amber: 2,
+  urgent: 3,
+};
+
+export function worstUrgency(urgencies: FuseUrgency[]): FuseUrgency {
+  return urgencies
+    .filter((u) => u !== "closed")
+    .reduce<FuseUrgency>(
+      (worst, next) => (URGENCY_RANK[next] > URGENCY_RANK[worst] ? next : worst),
+      "paused",
+    );
 }
 
 /** A new chat's fuse starts the moment the connect is accepted (spec §6.2). */

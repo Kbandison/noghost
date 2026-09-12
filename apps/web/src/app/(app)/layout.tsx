@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BRAND } from "@noghost/config";
 import { requireMember } from "@/lib/member";
 import { unansweredCount } from "@/lib/inbox";
+import { chatsTabState } from "@/lib/chats";
 import { pendingWarning } from "@/lib/warnings";
 import { pendingBroadcasts } from "@/lib/broadcasts";
 import { WarningScreen } from "@/components/warning/warning-screen";
@@ -22,22 +23,14 @@ import { AppNav } from "./app-nav";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const member = await requireMember();
-  /*
-   * `openChatCount` used to be a fourth query here and is gone.
-   *
-   * It fed `muted: chats === 0` on the Chats tab — a property no className ever
-   * read — beside a hardcoded `count: 0` that meant the badge could not render
-   * either. So it was a database round trip on every member page load feeding
-   * two dead properties. Removed rather than wired up, because the reason the
-   * tab has no badge is deliberate and documented in `AppNav`: an open chat is
-   * not a task you owe somebody, and a number on it would turn the fuse into a
-   * nag.
-   */
-  const [waiting, warning, broadcasts] = await Promise.all([
+  const now = new Date().toISOString();
+  const [waiting, chats, warning, broadcasts] = await Promise.all([
     unansweredCount(member.id),
+    chatsTabState(member.id, now),
     pendingWarning(),
     pendingBroadcasts(),
   ]);
+
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -52,7 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
           {/* Inline from `md` up; below that the same tabs render as a fixed
               bottom bar, outside this row. */}
-          <AppNav waiting={waiting} />
+          <AppNav waiting={waiting} chats={chats.count} chatUrgency={chats.urgency} />
 
           <div className="flex items-center gap-5">
             {/*
@@ -110,7 +103,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         * signing out or reading the standards must not require acknowledging
         * anything first, and on a phone these tabs ARE that escape route.
         */}
-      <AppNav waiting={waiting} layout="bottom" />
+      <AppNav
+        waiting={waiting}
+        chats={chats.count}
+        chatUrgency={chats.urgency}
+        layout="bottom"
+      />
     </div>
   );
 }
