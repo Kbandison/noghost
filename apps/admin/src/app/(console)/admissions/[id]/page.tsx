@@ -16,6 +16,7 @@ import { getApplication } from "@/lib/admissions";
 import { signedSelfieUrl } from "@/lib/storage";
 import { Queue } from "../queue";
 import { DecisionBar } from "./decision-bar";
+import { CompBar } from "./comp-bar";
 
 export const metadata: Metadata = { title: "Review application" };
 export const dynamic = "force-dynamic";
@@ -105,6 +106,10 @@ export default async function ApplicationPage({
 
   const selfieUrl = await signedSelfieUrl(application.selfiePath);
   const decidable = application.status === "under_review";
+  // 0038. A comp only makes sense for somebody who has been offered a seat and
+  // has not taken one — otherwise the button would either skip a decision or
+  // re-grant a seat they already hold.
+  const compable = application.status === "admitted" && !application.hasSeat;
 
   return (
     <div className="flex">
@@ -317,10 +322,31 @@ export default async function ApplicationPage({
 
         {decidable ? (
           <DecisionBar id={application.id} name={application.firstName} />
+        ) : compable ? (
+          /*
+           * 0038. Admitted, no seat taken. Until 0038 the Stripe webhook was
+           * the only thing that could write `season_members`, so on a
+           * deployment without Stripe keys this state was terminal: the
+           * applicant's screen said their seat was held and gave them nothing
+           * to press, and no amount of waiting changed it.
+           */
+          <CompBar
+            id={application.id}
+            name={application.firstName}
+            priceCents={application.seatPaidCents}
+          />
         ) : (
           <div className="sticky bottom-0 border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-3 text-[13px] text-[var(--text-dim)]">
             Already decided — this application is {application.status.replace(/_/g, " ")}.
-            {application.claimDeadline && (
+            {application.hasSeat && (
+              <>
+                {" "}
+                {application.seatComped
+                  ? `Seat comped${application.seatCompReason ? ` — ${application.seatCompReason}` : ""}.`
+                  : `Seat paid, $${((application.seatPaidCents ?? 0) / 100).toFixed(0)}.`}
+              </>
+            )}
+            {application.claimDeadline && !application.hasSeat && (
               <>
                 {" "}Claim window closes{" "}
                 <span className="tabular">

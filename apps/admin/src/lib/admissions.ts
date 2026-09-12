@@ -57,6 +57,16 @@ export interface ApplicationDetail extends QueueRow {
    * in the photographs. Bad light drops this one; an old profile photo drops
    * the other, and they want different decisions.
    */
+  /**
+   * 0038. Whether they hold a seat at all — `season_members`, which is what
+   * `memberGate` reads. Admitted is a promise of a seat; this is the seat.
+   */
+  hasSeat: boolean;
+  /** 0038. True when the seat was granted by an admin rather than bought. */
+  seatComped: boolean;
+  seatCompReason: string | null;
+  /** What they actually paid. Zero on a comp. */
+  seatPaidCents: number | null;
   livenessConfidence: number | null;
   /** 0037. Completed liveness attempts for this application. */
   livenessAttempts: number | null;
@@ -184,7 +194,7 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
 
   if (!application) return null;
 
-  const [{ data: profile }, { data: verificationRows }] = await Promise.all([
+  const [{ data: profile }, { data: verificationRows }, { data: seat }] = await Promise.all([
     supabase.from("profiles").select(PROFILE_COLUMNS).eq("id", application.user_id).maybeSingle(),
     /*
      * Through `review_verification` rather than a table select. 0029 revokes
@@ -194,6 +204,20 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
      * `is_admin()` itself, so the database is still what decides.
      */
     supabase.rpc("review_verification", { p_user_id: application.user_id }),
+    /*
+     * 0038. Whether they actually hold a seat, which is a different question
+     * from whether they were admitted — `memberGate` reads `season_members`,
+     * and an admitted application is a promise of a seat rather than a seat.
+     * Without this the console cannot tell "admitted, waiting to pay" from
+     * "admitted and in", and the comp control would offer to grant a seat
+     * somebody already has.
+     */
+    supabase
+      .from("season_members")
+      .select("price_paid_cents,comped_by,comp_reason,joined_at")
+      .eq("user_id", application.user_id)
+      .eq("season_id", application.season_id)
+      .maybeSingle(),
   ]);
 
   if (!profile) return null;
@@ -252,6 +276,10 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
     autoReason: review?.auto_reason ?? null,
     autoCheckedAt: review?.auto_checked_at ?? null,
     phoneVerifiedAt: review?.phone_verified_at ?? null,
+    hasSeat: Boolean(seat),
+    seatComped: Boolean(seat?.comped_by),
+    seatCompReason: seat?.comp_reason ?? null,
+    seatPaidCents: seat?.price_paid_cents ?? null,
   };
 }
 

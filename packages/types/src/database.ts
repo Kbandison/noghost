@@ -138,6 +138,14 @@ export interface Database {
        * the function, which is why the console can call it with the reviewer's
        * own session instead of reaching for a service client.
        */
+      /**
+       * 0038. Gives an admitted applicant their seat with no payment:
+       * `season_members` at 0 cents with a named admin, then the application
+       * advances to `claimed` so the claim sweep does not expire a seat its
+       * holder is sitting in. Admin-only, enforced on `auth.uid()`. A reason is
+       * required — a free seat with no explanation is untraceable.
+       */
+      comp_seat: { Args: { p_application_id: string; p_reason: string }; Returns: undefined };
       review_verification: {
         Args: { p_user_id: string };
         Returns: {

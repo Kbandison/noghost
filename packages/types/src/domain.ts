@@ -214,8 +214,19 @@ export interface SeasonMember {
   id: UUID;
   user_id: UUID;
   season_id: UUID;
-  stripe_payment_intent: string;
+  /**
+   * Null on a comped seat — 0038 dropped the NOT NULL.
+   *
+   * Exactly one of this and `comped_by` is set, enforced by
+   * `season_members_paid_or_comped`. Neither would be a seat from nowhere;
+   * both would make "was this seat sold" unanswerable.
+   */
+  stripe_payment_intent: string | null;
   price_paid_cents: number;
+  /** 0038. The admin who granted this seat without payment. */
+  comped_by: UUID | null;
+  /** 0038. Required whenever `comped_by` is set. */
+  comp_reason: string | null;
   joined_at: Timestamp;
   created_at: Timestamp;
 }

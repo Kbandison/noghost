@@ -47,6 +47,14 @@ const SEASON = "deadbeef-0000-4000-8000-00000000ad01";
 const AUTO = { id: "deadbeef-0000-4000-8000-00000000ad02", email: "route-auto@noghost.test" };
 const HUMAN = { id: "deadbeef-0000-4000-8000-00000000ad03", email: "route-human@noghost.test" };
 const WAIT = { id: "deadbeef-0000-4000-8000-00000000ad04", email: "route-wait@noghost.test" };
+/*
+ * 0038. A real admin, separate from every applicant above.
+ *
+ * Reusing an applicant account would make "an admin can comp a seat" and "a
+ * member cannot" the same account in two hats, and the refusal checks would
+ * then pass or fail for reasons that have nothing to do with the control.
+ */
+const ADMIN = { id: "deadbeef-0000-4000-8000-00000000ad05", email: "route-admin@noghost.test" };
 const PASSWORD = "probe-only-not-a-real-account-3d90";
 
 async function signIn(email: string) {
@@ -60,7 +68,11 @@ async function signIn(email: string) {
 }
 
 async function teardown() {
-  const ids = [AUTO.id, HUMAN.id, WAIT.id];
+  const ids = [AUTO.id, HUMAN.id, WAIT.id, ADMIN.id];
+  // 0038's rows. Seats first: they reference the season this deletes.
+  await service.from("season_members").delete().in("user_id", ids);
+  await service.from("admin_audit").delete().in("admin_id", ids);
+  await service.from("admin_users").delete().in("id", ids);
   await service.from("admin_audit").delete().in("target_id", ids);
   for (const id of ids) {
     const { data } = await service.from("applications").select("id").eq("user_id", id);
@@ -72,7 +84,7 @@ async function teardown() {
   await service.from("seasons").delete().eq("id", SEASON);
   const { data: page } = await service.auth.admin.listUsers({ page: 1, perPage: 200 });
   for (const u of page?.users ?? []) {
-    if ([AUTO.email, HUMAN.email, WAIT.email].includes(u.email ?? "")) {
+    if ([AUTO.email, HUMAN.email, WAIT.email, ADMIN.email].includes(u.email ?? "")) {
       await service.auth.admin.deleteUser(u.id);
     }
   }
@@ -122,7 +134,22 @@ async function main() {
   try {
     const autoApp = await applicant(AUTO);
     const humanApp = await applicant(HUMAN);
-    await applicant(WAIT);
+    const waitApp = await applicant(WAIT);
+
+    // The admin. No profile and no application — a reviewer is not a member,
+    // which is exactly the assumption 0038's first draft got wrong by giving
+    // `comped_by` a foreign key to `profiles`.
+    {
+      const { error: ue } = await service.auth.admin.createUser({
+        id: ADMIN.id, email: ADMIN.email, password: PASSWORD,
+        email_confirm: true, app_metadata: { seed: true },
+      });
+      if (ue) throw new Error(`admin user: ${ue.message}`);
+      const { error: ae } = await service
+        .from("admin_users")
+        .upsert({ id: ADMIN.id, email: ADMIN.email, active: true }, { onConflict: "id" });
+      if (ae) throw new Error(`admin_users: ${ae.message}`);
+    }
 
     /*
      * The automated path, reproduced exactly as `runIdentityMatch` performs it:
@@ -229,6 +256,112 @@ async function main() {
       check(showing === photos.length,
         "and the service role can approve them, which is what clearPhotos relies on",
         `${showing} of ${photos.length} now show`);
+    }
+
+    section("A seat can be granted without a payment — 0038");
+    {
+      /*
+       * `season_members` is what `memberGate` reads, and until 0038 the Stripe
+       * webhook was the only thing in the product that could write it. On a
+       * deployment with no Stripe keys there was therefore no path from
+       * "admitted" to "member" at all: the review screen told people their seat
+       * was held and gave them nothing to press, permanently.
+       *
+       * This exercises the whole control, including every way it must refuse.
+       * It moves money, so "it worked once by hand" is not evidence.
+       */
+      const member = await signIn(WAIT.email);
+      const admin = await signIn(ADMIN.email);
+
+      // WAIT is `under_review`, which is the wrong state to comp from.
+      {
+        const { error } = await service.rpc("comp_seat", {
+          p_application_id: waitApp, p_reason: "service role has no admin identity",
+        });
+        check(Boolean(error),
+          "the service role cannot comp a seat — there is no person to record",
+          error ? "refused" : "ALLOWED");
+      }
+      {
+        const { error } = await member.rpc("comp_seat", {
+          p_application_id: waitApp, p_reason: "granting myself a seat",
+        });
+        check(Boolean(error),
+          "and an ordinary member certainly cannot comp their own",
+          error ? "refused" : "ALLOWED");
+      }
+      {
+        const { error } = await admin.rpc("comp_seat", {
+          p_application_id: waitApp, p_reason: "still under review",
+        });
+        check(/admitted/i.test(error?.message ?? ""),
+          "not even an admin can comp an application nobody has decided yet",
+          error ? error.message.slice(0, 60) : "ALLOWED");
+      }
+      {
+        const { error } = await admin.rpc("comp_seat", {
+          p_application_id: humanApp, p_reason: "   ",
+        });
+        check(/reason/i.test(error?.message ?? ""),
+          "a free seat with no reason is refused — it would be untraceable",
+          error ? error.message.slice(0, 50) : "ALLOWED");
+      }
+
+      // And now the one that should work.
+      {
+        const { error } = await admin.rpc("comp_seat", {
+          p_application_id: humanApp, p_reason: "Press — launch coverage",
+        });
+        const { data: seat } = await service
+          .from("season_members")
+          .select("price_paid_cents,stripe_payment_intent,comped_by,comp_reason")
+          .eq("user_id", HUMAN.id).eq("season_id", SEASON).maybeSingle();
+
+        check(!error && Boolean(seat),
+          "an admin can grant an admitted applicant their seat",
+          error ? error.message : `paid ${seat?.price_paid_cents}, intent ${seat?.stripe_payment_intent}`);
+
+        check(seat?.price_paid_cents === 0 && seat?.stripe_payment_intent === null,
+          "recorded as free and unpaid rather than as a fake payment",
+          `${seat?.price_paid_cents} cents, intent ${seat?.stripe_payment_intent}`);
+
+        check(seat?.comped_by === ADMIN.id && Boolean(seat?.comp_reason),
+          "and names who granted it and why",
+          `${seat?.comped_by === ADMIN.id ? "the admin" : seat?.comped_by}, "${seat?.comp_reason}"`);
+
+        const { data: app } = await service
+          .from("applications").select("status").eq("id", humanApp).maybeSingle();
+        check(app?.status === "claimed",
+          "the application follows the seat, or the claim sweep expires a seat somebody holds",
+          `${app?.status}`);
+      }
+      {
+        // A double-click must not raise, and must not mint a second seat.
+        const { error } = await admin.rpc("comp_seat", {
+          p_application_id: humanApp, p_reason: "pressed twice",
+        });
+        const { count } = await service
+          .from("season_members")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", HUMAN.id).eq("season_id", SEASON);
+        check(!error && count === 1,
+          "comping twice is a no-op rather than a second seat",
+          error ? error.message : `${count} seat(s)`);
+      }
+      {
+        /*
+         * The schema, not the function. Making `stripe_payment_intent`
+         * nullable opened the door to a row with no payment AND no comp — a
+         * seat from nowhere, which is the thing this table exists to rule out.
+         */
+        const { error } = await service.from("season_members").insert({
+          user_id: WAIT.id, season_id: SEASON,
+          stripe_payment_intent: null, price_paid_cents: 0,
+        });
+        check(/season_members_paid_or_comped|violates check/i.test(error?.message ?? ""),
+          "a seat with neither a payment nor a comp is refused by the schema itself",
+          error ? "refused" : "ACCEPTED");
+      }
     }
 
   } finally {

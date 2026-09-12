@@ -87,6 +87,71 @@ export async function decide(
   redirect(next ? `/admissions/${next.id}` : "/admissions");
 }
 
+export interface CompState {
+  error?: string;
+  done?: boolean;
+}
+
+/**
+ * Giving an admitted applicant their seat without a payment — 0038.
+ *
+ * `season_members` is what `memberGate` reads, and until 0038 the Stripe
+ * webhook was the only thing in the product that could write it. With no Stripe
+ * keys there was no path from "admitted" to "member" at all: the review screen
+ * told people their seat was held and offered nothing to press, forever.
+ *
+ * Comps are also just part of running this — the review team, press, the
+ * founder, and the support case where a card failed three times and the person
+ * is plainly in.
+ *
+ * A reason is required by the function as well as here. "Why is this member not
+ * in the revenue figures" needs an answer that outlives whoever knew it.
+ */
+export async function compSeat(_prev: CompState, formData: FormData): Promise<CompState> {
+  // Same reasoning as `decide`: a layout guard protects rendering, and this is
+  // a POST endpoint anyone with a session cookie can invoke directly.
+  await requireAdmin();
+
+  const id = String(formData.get("id") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!id) return { error: "No application to comp." };
+  if (reason.length < 3) {
+    return { error: "Give a reason. A free seat with no explanation is untraceable." };
+  }
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase.rpc("comp_seat", {
+    p_application_id: id,
+    p_reason: reason,
+  });
+
+  if (error) {
+    console.error(`[admin] comp_seat ${id}: ${error.message}`);
+
+    // Named precisely, because each of these tells the reviewer a different
+    // thing to do next.
+    if (/PGRST202|does not exist/i.test(error.message)) {
+      return {
+        error:
+          "This database hasn't had 0038_a_seat_without_a_payment.sql applied, so seats can't " +
+          "be comped. Apply it and try again.",
+      };
+    }
+    if (/Only an admitted application/i.test(error.message)) {
+      return { error: "Only an admitted application can be comped. Admit them first." };
+    }
+    if (/insufficient_privilege|Only an admin/i.test(error.message)) {
+      return { error: "Your account isn't an active admin any more. Sign in again." };
+    }
+    return { error: "The seat didn't save. Try again." };
+  }
+
+  revalidatePath("/admissions");
+  revalidatePath(`/admissions/${id}`);
+  return { done: true };
+}
+
 export interface PhotoState {
   error?: string;
 }
