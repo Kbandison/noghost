@@ -184,6 +184,20 @@ export interface ReviewVerdict {
   /** The two numbers, formatted for a screen. Null when they do not exist. */
   liveness: string | null;
   match: string | null;
+  /**
+   * 0037. How the liveness number was arrived at, when it was not the only
+   * one — "best of 4, lowest 0".
+   *
+   * An application now rests on the applicant's BEST completed attempt rather
+   * than their most recent, because retaking a check you already passed must
+   * not cost you anything. But a reviewer shown the best of five attempts and
+   * not told there were five is being flattered rather than informed, and the
+   * spread is exactly what distinguishes a camera that needed two goes from
+   * somebody fishing for a number.
+   *
+   * Null when there was only one attempt, because "best of 1" is noise.
+   */
+  attempts: string | null;
 }
 
 export function reviewVerdict(row: {
@@ -194,6 +208,10 @@ export function reviewVerdict(row: {
   livenessScore: number | null;
   challengePassed: boolean | null;
   autoReason: string | null;
+  /** 0037. Completed liveness attempts for this application. */
+  livenessAttempts?: number | null;
+  /** 0037. The lowest of them, which is what the spread is made of. */
+  livenessLowest?: number | null;
 }): ReviewVerdict {
   const liveness =
     row.livenessConfidence === null
@@ -201,7 +219,15 @@ export function reviewVerdict(row: {
       : `${row.livenessConfidence.toFixed(0)}/100`;
   const match = row.livenessScore === null ? null : `${row.livenessScore.toFixed(0)}/100`;
 
-  const base = { liveness, match };
+  const attempts =
+    (row.livenessAttempts ?? 0) > 1
+      ? `best of ${row.livenessAttempts}` +
+        (row.livenessLowest === null || row.livenessLowest === undefined
+          ? ""
+          : `, lowest ${row.livenessLowest.toFixed(0)}`)
+      : null;
+
+  const base = { liveness, match, attempts };
 
   if (row.livenessPassed === null) {
     return {

@@ -15,6 +15,7 @@ import {
   FINAL_STEP,
   FORM_ERROR,
   LIVENESS_CONFIDENCE,
+  bestAttempt,
   decideVerification,
   normalizePhone,
   roundForStorage,
@@ -467,25 +468,77 @@ async function runIdentityMatch(
    * lines ago — so this is the first moment the two numbers can be put
    * together: was somebody live, and are they the person in these photographs.
    *
-   * Most recent first: a retake issues a new challenge, and the one that
-   * counts is the last one they actually answered.
+   * ---------------------------------------------------------------------
+   * Their best attempt, not their last one
+   * ---------------------------------------------------------------------
+   *
+   * This used to read the most recent, and that threw away a pass. The
+   * applicant who turned it up scored 89.4 at 16:05, pressed "Do it again" —
+   * which the screen offers and gives no reason to decline — scored 0.0001 on
+   * a camera that had not focused, and filed hours later on the 0.0001.
+   * Retaking a check you have already passed must not be able to cost you
+   * anything.
+   *
+   * It concedes nothing to an attacker: against somebody retrying until they
+   * get through, most-recent and best-of-N admit exactly the same people,
+   * because their passing attempt is also their last. What bounds that is the
+   * six-per-ten-minutes limit on opening a session, not which row is read.
+   *
+   * Scoped to attempts made for THIS application. Challenges are keyed only to
+   * a person, so they outlive the application they were taken for; without a
+   * floor, somebody reapplying next season would inherit last season's good
+   * score and never have to prove liveness again. The previous application's
+   * timestamp is that floor, and it is entirely server-side — the draft cookie
+   * knows when this funnel began but the applicant owns the cookie.
    */
-  const { data: challenge } = await service
-    .from("verification_challenges")
-    .select("id,confidence,frame_paths")
+  const { data: earlier } = await service
+    .from("applications")
+    .select("created_at")
     .eq("user_id", userId)
-    .not("consumed_at", "is", null)
-    .order("issued_at", { ascending: false })
+    .neq("season_id", seasonId)
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  const { data: verification } = await service
-    .from("verifications")
-    .select("selfie_path")
+  let attemptQuery = service
+    .from("verification_challenges")
+    .select("id,confidence,frame_paths,consumed_at")
     .eq("user_id", userId)
-    .maybeSingle();
+    .not("consumed_at", "is", null);
 
-  const live = verification?.selfie_path;
+  if (earlier?.created_at) attemptQuery = attemptQuery.gt("consumed_at", earlier.created_at);
+
+  const { data: attempts } = await attemptQuery;
+
+  /*
+   * `Number()` before comparing, and it is load-bearing.
+   *
+   * `confidence` is a Postgres `numeric`, which can arrive over the wire as a
+   * string. `bestAttempt` picks with `>`, and on strings that is lexicographic:
+   * "9" would beat "89", so the worst attempt could win while the types say
+   * `number` and nothing anywhere throws. The surrounding code already coerces
+   * this column defensively; the comparison needs it more than the arithmetic
+   * does.
+   */
+  const challenge = bestAttempt(
+    (attempts ?? []).map((row) => ({
+      ...row,
+      confidence: row.confidence === null ? null : Number(row.confidence),
+      consumedAt: row.consumed_at!,
+    })),
+  );
+
+  /*
+   * The winning attempt's own reference image, not whatever the last capture
+   * left on the row.
+   *
+   * These have to come from the same video. Scoring liveness from attempt A
+   * while comparing the face in attempt B's photograph would attest that a live
+   * person was present and that a face matches, without those two statements
+   * ever being about the same recording — which is precisely the gap an
+   * attacker with one good capture and one good likeness would drive through.
+   */
+  const live = challenge?.frame_paths?.[0];
   // The lead photo — the one that leads their card, and the one a reviewer
   // would have compared by eye.
   const photo = photoPaths[0];
@@ -540,6 +593,17 @@ async function runIdentityMatch(
       // a number nobody can look up any more.
       challenge_passed: confidence === null ? null : confidence >= LIVENESS_CONFIDENCE,
       frame_paths: challenge?.frame_paths ?? null,
+      /*
+       * Re-pointed at the winning attempt's reference image.
+       *
+       * `fileApplication` wrote whatever the last capture left on the draft,
+       * which since best-of-N need not be the attempt this application rests
+       * on. The reviewer's screen, the member's own deletion request and the
+       * face comparison above all read this column, and all three must be
+       * looking at the recording that was actually judged. Left alone when
+       * there is no attempt at all, so this can never blank an existing path.
+       */
+      ...(live ? { selfie_path: live } : {}),
       liveness_score: similarity,
       liveness_passed: decision.livenessPassed,
       auto_reason: decision.reason,

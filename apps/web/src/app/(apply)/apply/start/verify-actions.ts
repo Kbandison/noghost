@@ -4,7 +4,13 @@ import { createServiceClient } from "@noghost/db/service";
 import { usingSeedData } from "@noghost/config/env";
 import { allowRequest } from "@/lib/rate-limit";
 import { livenessBrowserCredentials } from "@/lib/aws";
-import { createLivenessSession, livenessResult, faceChecksConfigured } from "@/lib/rekognition";
+import { assessCapture } from "@noghost/logic";
+import {
+  createLivenessSession,
+  livenessResult,
+  faceChecksConfigured,
+  frameQuality,
+} from "@/lib/rekognition";
 import { supabaseServer } from "@/lib/supabase";
 
 /**
@@ -41,6 +47,16 @@ export interface LivenessFinish {
   /** The reference frame's storage path — what `validateSelfie` looks for. */
   selfiePath?: string;
   error?: string;
+  /**
+   * Set when the camera was measurably not ready — soft frames, still
+   * focusing. An invitation to film it again, never a refusal: the capture is
+   * kept, scored and reviewable either way, and somebody who ignores this is
+   * exactly as admissible as somebody who never saw it.
+   *
+   * Keyed on the capture and never on the score, which is what lets it exist at
+   * all. Advice offered only after a low number IS that number, announced.
+   */
+  retake?: string;
 }
 
 async function currentUser() {
@@ -213,6 +229,15 @@ export async function finishLiveness(sessionId: string): Promise<LivenessFinish>
     return { error: "That didn't produce a usable photo. Start the check again." };
   }
 
+  /*
+   * Measured from the bytes already in hand, before they are let go.
+   *
+   * Re-downloading these from storage to ask Rekognition about them would be
+   * three more round trips for images sitting in memory right now, and the
+   * applicant is watching a spinner for every one of them.
+   */
+  const capture = assessCapture(await frameQuality([result.reference!, ...result.audit]));
+
   const { error: writeError } = await service
     .from("verification_challenges")
     .update({
@@ -221,6 +246,11 @@ export async function finishLiveness(sessionId: string): Promise<LivenessFinish>
       // the reviewer's screen explains. Stored raw here so a changed threshold
       // re-reads history correctly rather than being baked into the row.
       frame_paths: [reference, ...audit],
+      // Evidence and calibration, never a gate. Recorded on every attempt so
+      // `SETTLED_SHARPNESS` can be re-read against real applicants instead of
+      // the four captures it was set from.
+      capture_sharpness: capture.sharpness,
+      capture_brightness: capture.brightness,
     })
     .eq("id", claimed.id);
 
@@ -238,5 +268,5 @@ export async function finishLiveness(sessionId: string): Promise<LivenessFinish>
    * accusation. The reviewer sees everything; the applicant sees that their
    * photo was taken.
    */
-  return { ok: true, selfiePath: reference };
+  return { ok: true, selfiePath: reference, retake: capture.advice ?? undefined };
 }

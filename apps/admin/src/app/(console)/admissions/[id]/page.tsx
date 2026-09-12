@@ -5,7 +5,12 @@ import { notFound } from "next/navigation";
 import { GENDER_LABELS } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { ApplicationStatus } from "@noghost/types";
-import { LIVENESS_CONFIDENCE, MATCH_SIMILARITY, reviewVerdict } from "@noghost/logic";
+import {
+  LIVENESS_CONFIDENCE,
+  MATCH_SIMILARITY,
+  SETTLED_SHARPNESS,
+  reviewVerdict,
+} from "@noghost/logic";
 import { Panel, StatusPill } from "@/components/ui";
 import { getApplication } from "@/lib/admissions";
 import { signedSelfieUrl } from "@/lib/storage";
@@ -41,12 +46,15 @@ function Measure({
   line,
   raw,
   asks,
+  note,
 }: {
   label: string;
   value: string | null;
   line: number;
   raw: number | null;
   asks: string;
+  /** How the number was arrived at, when that is not obvious. */
+  note?: string | null;
 }) {
   const under = raw !== null && raw < line;
   return (
@@ -69,6 +77,12 @@ function Measure({
         {asks}
         <br />
         auto-admits at {line}
+        {note ? (
+          <>
+            <br />
+            <span className="text-[var(--text-secondary)]">{note}</span>
+          </>
+        ) : null}
       </p>
     </div>
   );
@@ -164,6 +178,14 @@ export default async function ApplicationPage({
                 line={LIVENESS_CONFIDENCE}
                 raw={application.livenessConfidence}
                 asks="Was somebody really there?"
+                /*
+                 * 0037. This is their BEST attempt, not their last, so say so
+                 * whenever there was more than one. A reviewer shown the best
+                 * of five and not told there were five is being flattered, and
+                 * the spread is what separates a camera that needed two goes
+                 * from somebody fishing for a number.
+                 */
+                note={verdict.attempts}
               />
               <Measure
                 label="Same person"
@@ -173,6 +195,30 @@ export default async function ApplicationPage({
                 asks="Are they the one in the photos?"
               />
             </dl>
+
+            {/*
+              * 0037. Said only when it is true, because it changes how the
+              * number above should be read.
+              *
+              * A capture filmed while the camera was still focusing produces a
+              * liveness score that is evidence about the lens, not about the
+              * person. The first one through this system scored 0.0001 with a
+              * face that separately matched its own profile photo at 99.99. A
+              * reviewer looking at a low number deserves to know which of those
+              * two things they are looking at.
+              */}
+            {application.captureSharpness !== null &&
+            application.captureSharpness < SETTLED_SHARPNESS ? (
+              <p className="border-b border-[var(--border-subtle)] px-4 py-3 text-[13px] leading-relaxed text-[var(--text-secondary)]">
+                <strong className="font-semibold">Soft capture</strong> &mdash; sharpness{" "}
+                <span className="tabular-nums">
+                  {application.captureSharpness.toFixed(0)}/100
+                </span>
+                , under {SETTLED_SHARPNESS}. The camera was still focusing while it filmed, so
+                a low liveness number here is as likely to be about the lens as the person.
+                They were offered a retake and carried on.
+              </p>
+            ) : null}
 
             <div className="grid gap-4 p-4 md:grid-cols-[minmax(0,17rem)_1fr]">
               <figure>

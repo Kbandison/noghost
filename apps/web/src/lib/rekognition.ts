@@ -6,7 +6,7 @@ import {
   GetFaceLivenessSessionResultsCommand,
   RekognitionClient,
 } from "@aws-sdk/client-rekognition";
-import { MODERATION_FLOOR, type PhotoReading } from "@noghost/logic";
+import { MODERATION_FLOOR, type FrameQuality, type PhotoReading } from "@noghost/logic";
 import { awsConfig } from "./aws";
 
 /**
@@ -156,6 +156,54 @@ export async function compareFaces(
     console.error(`[rekognition] compare: ${cause instanceof Error ? cause.message : cause}`);
     return null;
   }
+}
+
+/**
+ * How well the camera was doing while it filmed.
+ *
+ * One `DetectFaces` per frame, run in parallel, reading only `Quality` — the
+ * same call `readPhoto` already makes, asked a different question. Sharpness
+ * and brightness both come back 0-100.
+ *
+ * This exists because a genuine applicant scored 0.0001 with a face Rekognition
+ * separately matched to their profile photo at 99.99. Sharpness is what
+ * separated that capture from their three that scored; brightness is recorded
+ * alongside it and deliberately decides nothing, because across those same four
+ * captures it ordered randomly against the score.
+ *
+ * A frame with no face in it yields nulls rather than zeros. Zero is a
+ * measurement and this is the absence of one — `assessCapture` needs to tell
+ * "perfectly black" from "we could not look", and only one of those is a reason
+ * to ask somebody to film themselves again.
+ */
+export async function frameQuality(images: Uint8Array[]): Promise<FrameQuality[]> {
+  const aws = rekognition();
+  if (!aws) return [];
+
+  return Promise.all(
+    images.map(async (bytes) => {
+      try {
+        const out = await aws.send(
+          new DetectFacesCommand({ Image: { Bytes: bytes }, Attributes: ["DEFAULT"] }),
+        );
+        // The largest face is the subject, matching `readPhoto`. Somebody
+        // walking through the background must not decide the verdict.
+        const face = [...(out.FaceDetails ?? [])].sort(
+          (a, b) => (b.BoundingBox?.Width ?? 0) - (a.BoundingBox?.Width ?? 0),
+        )[0];
+        return {
+          sharpness: face?.Quality?.Sharpness ?? null,
+          brightness: face?.Quality?.Brightness ?? null,
+        };
+      } catch (cause) {
+        // Logged, not thrown. This is advisory: the worst outcome of failing
+        // here is that somebody is not offered a retake they might have wanted,
+        // which is where they were before any of this existed.
+        console.error(`[rekognition] frame quality: ${cause instanceof Error ? cause.message : cause}`);
+        return { sharpness: null, brightness: null };
+      }
+    }),
+  );
 }
 
 /**

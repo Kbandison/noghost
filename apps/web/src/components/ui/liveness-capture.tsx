@@ -134,6 +134,14 @@ export function LivenessCapture({
   const [session, setSession] = useState<LivenessStart | null>(null);
   const [selfiePath, setSelfiePath] = useState<string | null>(existingPath ?? null);
   const [trouble, setTrouble] = useState<string | null>(null);
+  /*
+   * Set when the camera was measurably not ready. An offer, not a verdict —
+   * see `assessCapture`: it is keyed on frame sharpness and never on the
+   * liveness score, so it says the same thing to somebody who scored 96 with a
+   * shaky camera as to somebody who scored 12, and tells a spoofer holding up a
+   * sharp, motionless photograph nothing at all.
+   */
+  const [retake, setRetake] = useState<string | null>(null);
 
   async function start() {
     setTrouble(null);
@@ -174,6 +182,7 @@ export function LivenessCapture({
     }
 
     setSelfiePath(finished.selfiePath ?? null);
+    setRetake(finished.retake ?? null);
     setPhase("done");
   }, [session?.sessionId]);
 
@@ -193,6 +202,43 @@ export function LivenessCapture({
   if (phase === "done") {
     return (
       <div className="space-y-4">
+        {retake ? (
+          /*
+           * Shown INSTEAD of the tick, not beneath it.
+           *
+           * "Check complete ✓" followed by a note asking them to do it again is
+           * two contradictory claims stacked, and people act on the first one.
+           * This is still not a failure — the capture is kept, scored and
+           * reviewed either way, and pressing Continue past this costs nothing.
+           * It says the camera was not ready, because that is the only thing
+           * that was actually measured.
+           */
+          <div className="border border-[var(--border)] p-4">
+            <p className="text-[15px] font-medium" aria-live="polite">
+              Your photo&rsquo;s saved &mdash; but let&rsquo;s get a sharper one
+            </p>
+            <p className="mt-2 text-[15px] leading-relaxed text-[var(--text-secondary)]">
+              {retake}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSelfiePath(null);
+                setSession(null);
+                setRetake(null);
+                setPhase("idle");
+              }}
+              className="mt-4 w-full rounded-md bg-[var(--accent)] px-4 py-3 text-[16px] text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-hover)]"
+            >
+              Film it again
+            </button>
+            {/* The way past, said plainly. An offer somebody cannot decline is
+                not an offer, and this one genuinely costs them nothing. */}
+            <p className="mt-3 text-[13px] leading-relaxed text-[var(--text-dim)]">
+              Or carry on with the one you&rsquo;ve got &mdash; it&rsquo;s saved either way.
+            </p>
+          </div>
+        ) : (
         <div className="border border-[var(--border)] p-4">
           <p className="text-[15px] font-medium" aria-live="polite">
             Check complete <span className="text-[var(--sage-text)]">✓</span>
@@ -225,6 +271,7 @@ export function LivenessCapture({
             onClick={() => {
               setSelfiePath(null);
               setSession(null);
+              setRetake(null);
               setPhase("idle");
             }}
             className="mt-3 text-[14px] text-[var(--accent-text)] underline underline-offset-4"
@@ -232,6 +279,7 @@ export function LivenessCapture({
             Do it again
           </button>
         </div>
+        )}
         <input type="hidden" name="selfiePath" value={selfiePath ?? ""} />
       </div>
     );
@@ -309,30 +357,28 @@ export function LivenessCapture({
             there, rather than a photo of one.
           </p>
           {/*
-            * Lighting guidance, because the check is a light meter.
+            * Give the camera a moment, because that is what actually decided it.
             *
-            * It works by reading the screen's colour sequence reflected off a
-            * face. A window or lamp BEHIND somebody defeats that twice over:
-            * their face sits darker than the wall behind it, so there is little
-            * reflected signal to read, and the camera's exposure then hunts the
-            * bright background for the whole recording, moving the very
-            * measurement being taken.
+            * The first capture to score 0.0001 through this screen looked like
+            * a lighting failure and was not. AWS's own face-brightness put it
+            * at 83.6, against 82.5 for the same person's best attempt — the
+            * face was lit fine. What separated them was focus: frame sharpness
+            * ran 60.5 → 78.6 → 89.9 across that capture while every attempt
+            * that scored held flat above 92, and whole-frame exposure drifted
+            * 28% against under 5%. It was also the fastest start of the four,
+            * twelve seconds from opening the session.
             *
-            * That is not hypothetical. The first backlit capture through this
-            * screen scored 0.0001 while matching its own profile photo at
-            * 99.99 — Rekognition was certain of the face and certain it was not
-            * live. Its three well-lit attempts that day scored 64.6, 73.5 and
-            * 89.4, and every one of them held exposure within 5% across the
-            * capture where the failed one swung 28%.
+            * The camera was still focusing and metering while it was being
+            * filmed. That is AWS's confounding variation #3, "camera focus and
+            * video capture imperfections" — not lighting.
             *
-            * AWS's own guidance is to say this BEFORE the check rather than
-            * retry afterwards, and saying it to everybody up front is the only
-            * version compatible with never telling somebody their score — a
-            * lighting tip offered after a low one is a score, spelled out.
+            * Said to everybody up front rather than as a retry prompt, which is
+            * the only version compatible with never telling somebody their
+            * score: advice offered only after a low one IS the score.
             */}
           <p className="border-l-2 border-[var(--border)] pl-4 text-[15px] leading-relaxed text-[var(--text-secondary)]">
-            Face a window or a lamp if you can &mdash; light <em>behind</em> you leaves your
-            face in shadow, and shadow is the one thing this check struggles to read.
+            Give your camera a second to focus before you start, then hold still &mdash; a
+            soft or shaky few frames is the one thing this check can&rsquo;t read past.
           </p>
           <button
             type="button"

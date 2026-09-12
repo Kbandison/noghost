@@ -137,6 +137,19 @@ export interface VerificationChallenge {
   passed: boolean | null;
   /** Reference frame first, then up to four audit frames. */
   frame_paths: string[] | null;
+  /**
+   * 0037. Rekognition's `Quality.Sharpness` for the WORST frame of this
+   * capture, 0–100. The worst rather than the mean because a still-focusing
+   * camera recovers, and averaging hides the opening frames that are the
+   * signal. Offers the applicant a retake; never gates anything.
+   */
+  capture_sharpness: number | null;
+  /**
+   * 0037. `Quality.Brightness` for the worst frame, 0–100. Recorded for
+   * calibration and deliberately part of no decision — across the captures
+   * that motivated 0037 it ordered randomly against the liveness score.
+   */
+  capture_brightness: number | null;
   issued_at: Timestamp;
   expires_at: Timestamp;
   consumed_at: Timestamp | null;

@@ -329,7 +329,7 @@ async function main() {
         const { data } = await admin.rpc("review_verification", { p_user_id: M.id });
         const row = data?.[0];
         check(Math.round(Number(row?.liveness_confidence)) === 65,
-          "and the liveness confidence from their latest completed attempt",
+          "and the liveness confidence from a completed attempt",
           `${row?.liveness_confidence}`);
         check(
           Number(row?.liveness_confidence) !== Number(row?.liveness_score),
@@ -345,6 +345,50 @@ async function main() {
         check(Math.round(Number(data?.[0]?.liveness_confidence)) === 65,
           "an abandoned attempt afterwards does not hide the real result",
           `${data?.[0]?.liveness_confidence}`);
+      }
+      {
+        /*
+         * 0037, and the reason it exists.
+         *
+         * A real applicant scored 89.4, pressed "Do it again" — which the
+         * screen offers and gives no reason to decline — and scored 0.0001 on
+         * a camera that had not finished focusing. Reading the most recent
+         * attempt threw the pass away. Retaking a check you have already
+         * passed must not be able to cost you anything.
+         *
+         * Ordered deliberately: the BAD attempt is completed LAST, so under
+         * the old most-recent rule this check reads 0 and fails. That is what
+         * makes it a test of the change rather than of the fixture.
+         */
+        const better = await issue(M.id);
+        await service
+          .from("verification_challenges")
+          .update({ confidence: 91.2, consumed_at: new Date().toISOString(), capture_sharpness: 96.4 })
+          .eq("id", better.id);
+
+        const worse = await issue(M.id);
+        await service
+          .from("verification_challenges")
+          .update({ confidence: 0.0001, consumed_at: new Date().toISOString(), capture_sharpness: 60.5 })
+          .eq("id", worse.id);
+
+        const { data } = await admin.rpc("review_verification", { p_user_id: M.id });
+        const row = data?.[0];
+        check(Math.round(Number(row?.liveness_confidence)) === 91,
+          "a later, worse attempt cannot bury a pass the applicant already earned",
+          `${row?.liveness_confidence} — most-recent would read ${(0.0001).toFixed(4)}`);
+
+        check(Number(row?.liveness_attempts) === 3,
+          "the reviewer is told how many attempts there were, not just the best",
+          `${row?.liveness_attempts} attempts`);
+
+        check(Number(row?.liveness_lowest) < 1,
+          "and how low they went, so best-of-N informs rather than flatters",
+          `lowest ${row?.liveness_lowest}`);
+
+        check(Math.round(Number(row?.capture_sharpness)) === 96,
+          "the sharpness shown belongs to the winning attempt, not the last one",
+          `${row?.capture_sharpness} — the 0.0001 attempt's was 60.5`);
       }
     }
 

@@ -58,6 +58,18 @@ export interface ApplicationDetail extends QueueRow {
    * the other, and they want different decisions.
    */
   livenessConfidence: number | null;
+  /** 0037. Completed liveness attempts for this application. */
+  livenessAttempts: number | null;
+  /** 0037. The lowest score among them. */
+  livenessLowest: number | null;
+  /**
+   * 0037. Worst-frame sharpness of the winning capture, 0–100.
+   *
+   * Below about 90 means the camera was still focusing while it filmed, which
+   * is what a low liveness score most often turns out to be. Worth knowing
+   * before reading a number as evidence about a person.
+   */
+  captureSharpness: number | null;
   livenessCheckedAt: string | null;
   livenessScore: number | null;
   /**
@@ -221,6 +233,18 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
         ? null
         : Number(review.liveness_confidence),
     livenessCheckedAt: review?.liveness_checked_at ?? null,
+    // 0037. The application rests on the applicant's BEST attempt now, so the
+    // count and the floor travel with it — best-of-N shown without the N is a
+    // flattering number rather than an informative one.
+    livenessAttempts: review?.liveness_attempts ?? null,
+    livenessLowest:
+      review?.liveness_lowest === null || review?.liveness_lowest === undefined
+        ? null
+        : Number(review.liveness_lowest),
+    captureSharpness:
+      review?.capture_sharpness === null || review?.capture_sharpness === undefined
+        ? null
+        : Number(review.capture_sharpness),
     livenessScore: review?.liveness_score === null || review?.liveness_score === undefined
       ? null
       : Number(review.liveness_score),

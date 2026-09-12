@@ -25,6 +25,7 @@ export * from "./tone-check";
 export * from "./application";
 export * from "./verification";
 export * from "./photo-moderation";
+export * from "./capture-quality";
 export * from "./claim";
 export * from "./pricing";
 export * from "./cohort-metrics";

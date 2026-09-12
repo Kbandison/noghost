@@ -153,6 +153,19 @@ export interface Database {
           auto_reason: string | null;
           auto_checked_at: string | null;
           phone_verified_at: string | null;
+          /**
+           * 0037. Worst-frame sharpness of the winning capture, 0–100. Below
+           * about 90 means the camera was still focusing while it filmed —
+           * which is what a low liveness score usually turns out to be.
+           */
+          capture_sharpness: number | null;
+          /**
+           * 0037. Completed liveness attempts for this application, and the
+           * lowest of them. The row reports the applicant's BEST attempt, and
+           * best-of-N shown without the N flatters rather than informs.
+           */
+          liveness_attempts: number | null;
+          liveness_lowest: number | null;
         }[];
       };
       send_connect: {
