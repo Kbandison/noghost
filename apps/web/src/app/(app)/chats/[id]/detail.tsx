@@ -9,6 +9,7 @@ import { requireMember } from "@/lib/member";
 import { getChat, type ChatDate, type ChatDetail, type ChatMessage } from "@/lib/chats";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { ReportSheet } from "@/components/report/report-sheet";
+import { LiveRefresh } from "@/components/live/live-refresh";
 import { ChatMenu } from "./chat-menu";
 import { Composer } from "./composer";
 import { DateProposal, RespondToDate } from "./propose-date";
@@ -57,6 +58,17 @@ export async function ChatDetailView({ id }: { id: string }) {
      * rather than scroll.
      */
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      {/*
+        * Narrowed to this chat. The filter is a convenience, not the control —
+        * `messages` RLS is `is_chat_participant(chat_id)`, so a subscriber is
+        * never sent a conversation they are not in, whatever this string says.
+        *
+        * Not on a closed chat: nothing more will be written to one, and a
+        * socket held open for a conversation that has ended is a socket held
+        * open for nothing.
+        */}
+      {!closed && <LiveRefresh table="messages" event="INSERT" filter={`chat_id=eq.${chat.id}`} />}
+
       <Header chat={chat} closed={closed} />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-8">

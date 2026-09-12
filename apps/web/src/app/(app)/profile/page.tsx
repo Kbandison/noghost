@@ -7,6 +7,7 @@ import { signedVoiceUrls } from "@/lib/voice-urls";
 import { PushToggle } from "@/components/push/push-toggle";
 import { LocationForm, PhotosForm, PromptsForm, VoiceIntroForm } from "./edit-forms";
 import { DeleteForm, NotificationForm, PauseForm } from "./settings-forms";
+import { LiveRefresh } from "@/components/live/live-refresh";
 
 export const metadata: Metadata = { title: "Profile" };
 export const dynamic = "force-dynamic";
@@ -57,6 +58,18 @@ export default async function ProfilePage() {
 
   return (
     <div className="mx-auto w-full max-w-[38rem] px-6 py-12">
+      {/*
+        * The member's own row and nobody else's — `profiles` RLS is
+        * `auth.uid() = id`, so no filter is needed here and none would add
+        * anything if it were.
+        *
+        * `revalidatePath` in the edit actions already refreshes this page after
+        * a save on THIS device. This is the other cases: a photo approved by a
+        * reviewer, a second tab, the phone still open in a pocket while the
+        * edit happened on a laptop.
+        */}
+      <LiveRefresh table="profiles" event="UPDATE" />
+
       <h1 className="font-[family-name:var(--font-display)] text-[32px] font-extrabold leading-[1.1] tracking-[-0.03em]">
         {identity.firstName}
       </h1>

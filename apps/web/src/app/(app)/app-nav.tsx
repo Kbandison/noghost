@@ -4,57 +4,58 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { worstUrgency, type FuseUrgency } from "@noghost/logic";
 import { cn } from "@/lib/utils";
+import { InboxIcon, ProfileIcon, TonightIcon } from "./nav-icons";
 
 /**
- * Three tabs.
+ * Three tabs, each an icon and a word.
  *
  * §7.2 specifies four — Tonight / Inbox / Chats / Profile — and Inbox and Chats
  * are now one, because a member with a note waiting and a conversation running
- * had to check two places to learn whether anybody was talking to them. The
- * two kinds are still kept apart, in sections inside the list rather than in
- * the navigation. See `inbox/rail.tsx`.
- *
- * The Inbox badge counts answers you owe someone, never a total. §3.3 bans
- * engagement bait, so this is never "3 people like you" — it is the one number
- * this product is entitled to put in front of a person.
+ * had to check two places to learn whether anybody was talking to them. The two
+ * kinds are still kept apart, in sections inside the list rather than in the
+ * navigation. See `inbox/rail.tsx`.
  *
  * ---------------------------------------------------------------------------
- * Two placements, because one row does not fit a phone
+ * The active tab is a colour, not a rule
  * ---------------------------------------------------------------------------
  *
- * The header used to hold the wordmark, all four tabs, the member's first name
- * and Sign out in a single flex row. That is comfortable from about 700px and
- * broken below it: on a 390px screen the row overflowed, "Profile" was clipped
- * at the edge, and the name and Sign out were pushed off the viewport
- * entirely — so on a phone there was no way to sign out at all.
+ * It used to be a 2px underline beneath the label. A line under one of three
+ * words is a small mark to find, and it says nothing until you have worked out
+ * which word it belongs to. The whole tab — icon and label together — now takes
+ * the accent, which is what the eye lands on first anyway.
  *
- * So the tabs render where each size wants them. `header` is the inline row,
- * shown from `md` up. `bottom` is a fixed bar at the foot of the screen below
- * `md`, which is where a thumb is and where every app a member has ever used
- * puts its tabs. The header keeps the wordmark and Sign out at every size.
+ * `aria-current="page"` is what the styling keys off, so the mark a screen
+ * reader gets and the mark everybody else gets cannot come apart.
+ *
+ * ---------------------------------------------------------------------------
+ * The Inbox badge stands in for its icon
+ * ---------------------------------------------------------------------------
+ *
+ * With nothing waiting, Inbox is an envelope like the others. The moment
+ * something is, the count takes the envelope's place rather than perching on
+ * its corner: at this size a badge beside an icon is two small things
+ * competing for the space of one, and the number is strictly more informative than the envelope
+ * it replaces — you already know which tab it is, the word is underneath it.
+ *
+ * Its colour is the nearest fuse, on the same thresholds as the per-row ring
+ * (§7.2 — calm above 72h, amber under 48h, warm-red under 24h), so the tab and
+ * the list can never tell a member different things.
  */
 
 interface Tab {
   href: "/tonight" | "/inbox" | "/profile";
   label: string;
+  Icon: (props: { className?: string }) => React.ReactElement;
 }
 
 const TABS: Tab[] = [
-  { href: "/tonight", label: "Tonight" },
-  { href: "/inbox", label: "Inbox" },
+  { href: "/tonight", label: "Tonight", Icon: TonightIcon },
+  { href: "/inbox", label: "Inbox", Icon: InboxIcon },
   // Never counted. Nothing in settings is ever waiting on you.
-  { href: "/profile", label: "Profile" },
+  { href: "/profile", label: "Profile", Icon: ProfileIcon },
 ];
 
-/*
- * One badge, now that notes and chats share a tab.
- *
- * The number is how many things involve you right now — notes you have not
- * answered plus conversations still running. The colour is how close the
- * nearest fuse is to going out, on the same thresholds as the per-row ring
- * (§7.2 — calm above 72h, amber under 48h, warm-red under 24h), so the tab and
- * the list can never tell a member different things.
- *
+/**
  * `paused` is a `date_scheduled` chat, whose fuse is stopped: it gets the quiet
  * treatment rather than a colour, because a colour would imply a clock that is
  * not running.
@@ -77,16 +78,20 @@ function Badge({
   n,
   urgency,
   notes,
+  size,
 }: {
   n: number;
   urgency: FuseUrgency;
   notes: number;
+  /** Matches the icon it replaces, so the row's height never shifts. */
+  size: string;
 }) {
   const tone = FUSE_BADGE[urgency];
   return (
     <span
       className={cn(
-        "min-w-5 rounded-full px-1.5 text-center text-[13px] font-medium leading-5",
+        "flex shrink-0 items-center justify-center rounded-full text-[12px] font-semibold tabular-nums",
+        size,
         tone.className,
       )}
       /*
@@ -101,7 +106,7 @@ function Badge({
         .filter(Boolean)
         .join("; ")}
     >
-      {n}
+      {n > 99 ? "99+" : n}
     </span>
   );
 }
@@ -133,22 +138,25 @@ export function AppNav({
    */
   const urgency = worstUrgency(waiting > 0 ? [chatUrgency, "amber"] : [chatUrgency]);
 
-  const badgeFor = (href: Tab["href"]) =>
-    href === "/inbox" && total > 0 ? (
-      <Badge n={total} urgency={urgency} notes={waiting} />
-    ) : null;
-
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+  /** The badge stands in for the icon; with nothing waiting, the icon stands. */
+  const mark = (tab: Tab, size: string) =>
+    tab.href === "/inbox" && total > 0 ? (
+      <Badge n={total} urgency={urgency} notes={waiting} size={size} />
+    ) : (
+      <tab.Icon className={size} />
+    );
 
   if (layout === "bottom") {
     return (
       <nav
         aria-label="Sections"
         /*
-         * `pb-[env(safe-area-inset-bottom)]` rather than a fixed bottom pad.
-         * On a phone with a home indicator the last few millimetres of the
-         * screen are not tappable, so without this the tabs sit under it and
-         * the bar looks like it is falling off the screen.
+         * `pb-[env(safe-area-inset-bottom)]` rather than a fixed bottom pad. On
+         * a phone with a home indicator the last few millimetres of the screen
+         * are not tappable, so without this the tabs sit under it and the bar
+         * looks like it is falling off the screen.
          */
         className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--bg-primary)] pb-[env(safe-area-inset-bottom)] md:hidden"
       >
@@ -160,28 +168,17 @@ export function AppNav({
                 <Link
                   href={tab.href}
                   aria-current={active ? "page" : undefined}
-                  // min-h-[3.25rem] keeps every target comfortably over the
-                  // 44px anyone can actually hit with a thumb.
+                  // min-h keeps every target comfortably over the 44px anyone
+                  // can actually hit with a thumb.
                   className={cn(
-                    "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 px-1 py-2 text-[12px] transition-colors",
+                    "flex min-h-[3.5rem] flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] transition-colors",
                     active
                       ? "font-semibold text-[var(--accent-text)]"
                       : "text-[var(--text-secondary)]",
                   )}
                 >
-                  <span className="flex items-center gap-1.5">
-                    {tab.label}
-                    {badgeFor(tab.href)}
-                  </span>
-                  {/* The active marker is a rule rather than a background fill:
-                      a filled pill this small reads as a button, not a tab. */}
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "h-[2px] w-6 rounded-full",
-                      active ? "bg-[var(--accent)]" : "bg-transparent",
-                    )}
-                  />
+                  {mark(tab, "h-6 w-6")}
+                  <span>{tab.label}</span>
                 </Link>
               </li>
             );
@@ -203,12 +200,12 @@ export function AppNav({
             className={cn(
               "flex items-center gap-2 rounded-md px-3 py-2 text-[15px] transition-colors duration-150",
               active
-                ? "bg-[var(--bg-tertiary)] font-medium text-[var(--text-primary)]"
+                ? "font-semibold text-[var(--accent-text)]"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
             )}
           >
+            {mark(tab, "h-[18px] w-[18px]")}
             {tab.label}
-            {badgeFor(tab.href)}
           </Link>
         );
       })}
