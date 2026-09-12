@@ -61,15 +61,18 @@ export function Modal({ children }: { children: React.ReactNode }) {
         * On a wide screen the panel stays, because there the space is free.
         */}
       <div className="flex h-full flex-col overflow-hidden bg-[var(--bg-primary)] md:max-h-[88dvh] md:rounded-md md:border md:border-[var(--border)]">
-        <div className="flex shrink-0 items-center justify-end border-b border-[var(--border-subtle)] px-4 py-2.5">
-          <button
-            type="button"
-            onClick={close}
-            className="rounded-md px-2 py-1 text-[15px] text-[var(--text-secondary)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--text-primary)]"
-          >
-            Close
-          </button>
-        </div>
+        {/*
+          * No close bar.
+          *
+          * A phone has a back gesture and a back button, and both already close
+          * this — the dialog exists because a navigation happened, so undoing
+          * that navigation is what closing it means. A row whose only job was
+          * to duplicate a control the device already provides was costing ~48px
+          * at the top of every conversation, directly above the name bar.
+          *
+          * Three ways out remain and none of them is hidden: back, Escape, and
+          * a press on the backdrop.
+          */}
         {/*
           * `overflow-hidden`, not `auto`.
           *

@@ -126,7 +126,7 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
      * plus a full-width button below `sm` gives the button its own row when
      * there is no space for it, and leaves the wide layout untouched.
      */
-    <header className="relative z-20 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2.5 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)] px-4 py-2.5 md:px-8 md:py-3">
+    <header className="relative z-20 flex shrink-0 items-start gap-x-3 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)] px-4 py-2.5 md:px-8 md:py-3">
       <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-[var(--bg-tertiary)]">
         {url && <Image src={url} alt="" fill sizes="36px" className="object-cover" />}
       </span>
@@ -162,6 +162,24 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
                 ? "How did it go?"
                 : `${chat.hoursLeft} hours left`}
         </p>
+
+        {/*
+          * Under the time left, not beside it.
+          *
+          * Sharing the row with the name meant the name gave up width to a
+          * button, and a long one ended in an ellipsis to make room. Below the
+          * status line it reads as what it is — the thing to do about the clock
+          * immediately above it.
+          *
+          * Expanding still drops a full-width panel below the whole header:
+          * that form is `absolute top-full` and resolves against the header,
+          * which is the nearest positioned ancestor, not this column.
+          */}
+        {!closed && chat.state !== "date_scheduled" && (
+          <div className="mt-2">
+            <DateProposal chatId={chat.id} name={chat.partner.firstName} />
+          </div>
+        )}
       </div>
 
       {/*
@@ -209,14 +227,6 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
         * independent form — and whichever one was hidden would quietly keep
         * whatever had been typed into it.
         */}
-      {/*
-        * Inline again. It took its own full-width row while the header also
-        * carried a fuse ring; with the ring gone and the menu reduced to three
-        * dots, a compact button fits on the name row at 390px.
-        */}
-      {!closed && chat.state !== "date_scheduled" && (
-        <DateProposal chatId={chat.id} name={chat.partner.firstName} />
-      )}
     </header>
   );
 }
