@@ -136,7 +136,7 @@ export default async function ProfilePage() {
         particular browser is somewhere you can hear it, and a member with two
         devices turns it on twice.
       */}
-      <Section title="Notifications on this device">
+      <Section id="notifications" title="Notifications on this device">
         <PushToggle vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? null} />
       </Section>
 
@@ -151,9 +151,19 @@ export default async function ProfilePage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  id,
+  children,
+}: {
+  title: string;
+  /** An anchor, so the header's bell can land on this section rather than the
+      top of a long page. */
+  id?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="mt-12 border-t border-[var(--border-subtle)] pt-8">
+    <section id={id} className="scroll-mt-20 mt-12 border-t border-[var(--border-subtle)] pt-8">
       <h2 className="font-[family-name:var(--font-display)] text-[22px] font-bold tracking-[-0.02em]">
         {title}
       </h2>

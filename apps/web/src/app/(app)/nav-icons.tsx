@@ -45,3 +45,34 @@ export function ProfileIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+
+/** A bell, for what the app is allowed to send you. */
+export function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className={className}>
+      <path {...stroke} d="M18 16V10.5a6 6 0 0 0-12 0V16l-1.5 2.5h15L18 16Z" />
+      <path {...stroke} d="M10 19.5a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
+/** A slider panel rather than a cog: these are preferences, not machinery. */
+export function SettingsIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className={className}>
+      <path {...stroke} d="M4 7.5h10M17.5 7.5H20M4 16.5h3.5M11 16.5h9" />
+      <circle {...stroke} cx="15.5" cy="7.5" r="2.25" />
+      <circle {...stroke} cx="9" cy="16.5" r="2.25" />
+    </svg>
+  );
+}
+
+/** A door with an arrow leaving it. */
+export function SignOutIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className={className}>
+      <path {...stroke} d="M14.5 4.5h-8a1.5 1.5 0 0 0-1.5 1.5v12a1.5 1.5 0 0 0 1.5 1.5h8" />
+      <path {...stroke} d="M14 12h6m0 0-2.75-2.75M20 12l-2.75 2.75" />
+    </svg>
+  );
+}

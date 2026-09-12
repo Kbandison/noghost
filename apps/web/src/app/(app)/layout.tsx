@@ -9,6 +9,7 @@ import { WarningScreen } from "@/components/warning/warning-screen";
 import { BroadcastBanner } from "@/components/broadcast/broadcast-banner";
 import { signOut } from "./actions";
 import { AppNav } from "./app-nav";
+import { BellIcon, SettingsIcon, SignOutIcon } from "./nav-icons";
 import { LiveRefresh } from "@/components/live/live-refresh";
 
 /**
@@ -22,6 +23,28 @@ import { LiveRefresh } from "@/components/live/live-refresh";
  * nothing in settings is ever waiting on you, and a badge there would be the
  * engagement bait §3.3 bans.
  */
+/** An icon that goes somewhere, named for anybody who cannot see it. */
+function IconLink({
+  href,
+  label,
+  children,
+}: {
+  href: "/profile" | "/profile#notifications";
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      title={label}
+      aria-label={label}
+      className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]"
+    >
+      {children}
+    </Link>
+  );
+}
+
 export default async function AppLayout({
   children,
   modal,
@@ -66,24 +89,50 @@ export default async function AppLayout({
               bottom bar, outside this row. */}
           <AppNav waiting={waiting} chats={chats.count} chatUrgency={chats.urgency} />
 
-          <div className="flex items-center gap-5">
+          {/*
+            * Three icons, and the reason they are icons is that the words did
+            * not fit. "Sign out" alone shared this row with the tabs and the
+            * member's name; adding "Notifications" and "Settings" as words
+            * would have taken more width than the tabs themselves.
+            *
+            * Each carries a visible tooltip via `title` and an `aria-label`,
+            * because an icon on its own is a guess for anybody who has not met
+            * it before — and two of these three go somewhere, while the third
+            * ends the session.
+            */}
+          <div className="flex items-center gap-1">
             {/*
-              * `md`, not `sm`.
-              *
-              * At `sm` (640px) the name still shared the row with four tabs and
-              * pushed Sign out past the right edge, so on a phone there was no
-              * way to sign out. The name is the least load-bearing thing here —
-              * a member knows who they are — so it is the first thing to go.
+              * `md`, not `sm`. At 640px the name still shared the row with the
+              * tabs and pushed the controls past the right edge. The name is
+              * the least load-bearing thing here — a member knows who they are.
               */}
-            <span className="hidden text-[15px] text-[var(--text-secondary)] md:inline">
+            <span className="mr-2 hidden text-[15px] text-[var(--text-secondary)] md:inline">
               {member.firstName}
             </span>
-            <form action={signOut}>
+
+            {/*
+              * Straight to the section rather than the top of a long settings
+              * page. There is deliberately no in-app notification centre — all
+              * three of §8's `inapp` templates already surface in context, and a
+              * centre would duplicate them and add the kind of badge §3.3 bans.
+              * What this opens is the switchboard for what the app may send.
+              */}
+            <IconLink href="/profile#notifications" label="Notifications">
+              <BellIcon className="h-5 w-5" />
+            </IconLink>
+
+            <IconLink href="/profile" label="Settings">
+              <SettingsIcon className="h-5 w-5" />
+            </IconLink>
+
+            <form action={signOut} className="contents">
               <button
                 type="submit"
-                className="text-[15px] text-[var(--text-secondary)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--text-primary)]"
+                title="Sign out"
+                aria-label="Sign out"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]"
               >
-                Sign out
+                <SignOutIcon className="h-5 w-5" />
               </button>
             </form>
           </div>

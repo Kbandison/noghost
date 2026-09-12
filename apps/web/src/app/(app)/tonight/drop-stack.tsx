@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useState } from "react";
+import { startTransition, useActionState, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { CARD_ACTIONS, DROP_COPY, PROMPT_LIBRARY } from "@noghost/config/copy";
 import type { PromptRef } from "@noghost/types";
@@ -54,6 +54,44 @@ export function DropStack({
     0,
   );
   const card = cards[index];
+
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  /** Move the track to a card. The dots are the only thing that calls this. */
+  const scrollTo = useCallback((cardId: string) => {
+    const slide = trackRef.current?.querySelector(`[data-card-id="${cardId}"]`);
+    slide?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, []);
+
+  /*
+   * Which card is in view, read from the scroller rather than tracked
+   * separately.
+   *
+   * `activeId` still drives "1 of 3" and which dot is filled, so it has to
+   * follow a swipe as well as a press. An IntersectionObserver against the
+   * track is what makes the two agree; a scroll handler doing arithmetic on
+   * offsets would drift the moment the card widths change.
+   *
+   * The threshold is 0.6 rather than 0.5: at exactly half, two slides can both
+   * qualify mid-swipe and the label flickers between two names.
+   */
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.find((entry) => entry.isIntersecting);
+        const id = visible?.target.getAttribute("data-card-id");
+        if (id) setActiveId(id);
+      },
+      { root: track, threshold: 0.6 },
+    );
+
+    for (const slide of track.querySelectorAll("[data-card-id]")) observer.observe(slide);
+    return () => observer.disconnect();
+  }, [cards.length]);
+
   if (!card) return null;
 
   const answered = cards.filter((c) => c.action !== "pending").length;
@@ -86,7 +124,7 @@ export function DropStack({
             <button
               key={c.cardId}
               type="button"
-              onClick={() => setActiveId(c.cardId)}
+              onClick={() => scrollTo(c.cardId)}
               aria-label={`Card ${i + 1}: ${c.profile.firstName}${c.action === "pending" ? "" : `, ${c.action}`}`}
               aria-current={i === index ? "true" : undefined}
               className={cn(
@@ -102,26 +140,38 @@ export function DropStack({
         </div>
       </div>
 
-      <Card key={card.cardId} card={card} />
-
-      <nav className="mt-8 flex items-center justify-between gap-4">
-        <button
-          type="button"
-          onClick={() => setActiveId(cards[Math.max(index - 1, 0)]!.cardId)}
-          disabled={index === 0}
-          className="text-[15px] text-[var(--text-secondary)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--text-primary)] disabled:opacity-40 disabled:no-underline"
-        >
-          &larr; Previous
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveId(cards[Math.min(index + 1, cards.length - 1)]!.cardId)}
-          disabled={index === cards.length - 1}
-          className="text-[15px] text-[var(--text-secondary)] underline decoration-[1.5px] underline-offset-4 transition-colors hover:text-[var(--text-primary)] disabled:opacity-40 disabled:no-underline"
-        >
-          Next &rarr;
-        </button>
-      </nav>
+      {/*
+        * All three, side by side, moved by scrolling.
+        *
+        * It was one card with "← Previous" and "Next →" underneath — two small
+        * text targets at the bottom of a long card, so reaching the second
+        * person meant scrolling to the end of the first and aiming at a word.
+        * A swipe is what anybody tries on a deck of three profiles, and it
+        * failed silently.
+        *
+        * Snap-mandatory so a card always lands squarely rather than halfway
+        * between two faces; `scroll-pl` is absent on purpose because each slide
+        * is the full width of the track.
+        *
+        * All three mount at once now rather than one at a time. That is the
+        * point of a scroller — and it means a half-written reply survives
+        * scrolling away and back, which the previous version threw away every
+        * time somebody looked at the next person.
+        */}
+      <div
+        ref={trackRef}
+        className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-6 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {cards.map((c) => (
+          <div
+            key={c.cardId}
+            data-card-id={c.cardId}
+            className="w-full shrink-0 snap-center"
+          >
+            <Card card={c} />
+          </div>
+        ))}
+      </div>
 
       {answered === cards.length && (
         <div className="mt-10 border-t border-[var(--border-subtle)] pt-8 text-center">
