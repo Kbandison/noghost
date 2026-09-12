@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import { publicPhotoUrl } from "@/lib/photos";
 import { requireMember } from "@/lib/member";
 import { getChat, type ChatDate, type ChatDetail, type ChatMessage } from "@/lib/chats";
-import { FuseRing } from "../fuse-ring";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { ReportSheet } from "@/components/report/report-sheet";
 import { Composer } from "./composer";
@@ -193,7 +192,15 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
         </p>
       </div>
 
-      {!closed && <FuseRing urgency={chat.urgency} hoursLeft={chat.hoursLeft} />}
+      {/*
+        * No ring here.
+        *
+        * The line directly to the left already says "15 hours left" in words,
+        * so the ring was saying the same thing twice in the one place where
+        * there is room to say it properly. It still earns its place in the
+        * list, where a row has no room for a sentence and the whole point is
+        * comparing one conversation's urgency against another's.
+        */}
 
       {/* Always visible while the chat is open — §7.2 calls this the chat's
           entire purpose, so it does not hide behind a menu. */}

@@ -47,22 +47,20 @@ export function Modal({ children }: { children: React.ReactNode }) {
       onClick={(event) => {
         if (event.target === ref.current) close();
       }}
-      className="m-auto max-h-[82dvh] w-[min(52rem,92vw)] border-0 bg-transparent p-0 backdrop:bg-black/50"
+      className="m-0 h-[100dvh] max-h-none w-screen max-w-none border-0 bg-transparent p-0 backdrop:bg-black/50 md:m-auto md:h-auto md:max-h-[88dvh] md:w-[min(52rem,92vw)]"
     >
       {/*
-        * A panel, not a takeover — on a phone as much as anywhere.
+        * Full-bleed on a phone, a panel from `md` up.
         *
-        * The first version was full-bleed below `md`: `h-[100dvh] w-screen`.
-        * That is the pattern a native app uses for a pushed screen, and it made
-        * the dialog indistinguishable from the navigation it was meant to
-        * replace — nothing behind it, no edges, no sense that the list was
-        * still there. The point of opening over the Inbox is being able to see
-        * that you are still in the Inbox.
+        * This was briefly an 82dvh card on every size, to keep the list visible
+        * around it. On a phone that was the wrong trade: a conversation is what
+        * this product is for, and boxing it into four-fifths of a 390px screen
+        * spends the only room it has on proving the Inbox is still behind it.
+        * The header says where you are, and Back and Escape both return there.
         *
-        * 82dvh leaves the backdrop visible top and bottom, and clears the fixed
-        * tab bar at the foot of the screen rather than sitting under it.
+        * On a wide screen the panel stays, because there the space is free.
         */}
-      <div className="flex max-h-[82dvh] flex-col overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-primary)] shadow-[0_12px_40px_rgba(0,0,0,0.18)]">
+      <div className="flex h-full flex-col overflow-hidden bg-[var(--bg-primary)] md:max-h-[88dvh] md:rounded-md md:border md:border-[var(--border)]">
         <div className="flex shrink-0 items-center justify-end border-b border-[var(--border-subtle)] px-4 py-2.5">
           <button
             type="button"
