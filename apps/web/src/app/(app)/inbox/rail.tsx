@@ -24,11 +24,13 @@ import { WaitingBubbles } from "./waiting-bubbles";
  * running had to check two places to find out whether anybody was talking to
  * them, and nothing on either screen said the other existed.
  *
- * Three sections now, each foldable and each remembering how it was left:
+ * Three groups. Two of them fold and remember how they were left; the first
+ * does not fold at all:
  *
- *   Waiting on you  notes nobody has answered — faces with an answer-window
- *                   ring, open by default, because it is the only section
- *                   somebody is owed something from
+ *   (unlabelled)    notes nobody has answered — faces with an answer-window
+ *                   ring. No heading and no fold: a row of faces already reads
+ *                   as a different kind of thing, and these are the only people
+ *                   on the screen owed an answer
  *   Conversations   open chats AND notes you sent — both are "something you
  *                   started that is still going", and keeping them apart meant
  *                   scrolling past your own sent notes to reach a reply
@@ -134,9 +136,24 @@ export function Rail({
 
   return (
     <div className="w-full shrink-0 border-[var(--border-subtle)] md:w-[24rem] md:border-r">
-      <Section id="waiting" title="Waiting on you" count={waiting.length} defaultOpen>
-        <WaitingBubbles connects={waiting} now={now} activeId={activeId} />
-      </Section>
+      {/*
+        * No heading, and not for lack of one to write.
+        *
+        * A row of faces with rings around them does not need to be told apart
+        * from a list of rows — it already looks like a different kind of thing,
+        * which was the point of making them faces. A bar reading "WAITING ON
+        * YOU 2" above two faces is a label for something already labelled by
+        * its own shape, and it pushed the thing it described further down the
+        * screen.
+        *
+        * It is also the one section nobody should be able to fold away. These
+        * are the people owed an answer.
+        */}
+      {waiting.length > 0 && (
+        <div className="border-b border-[var(--border-subtle)]">
+          <WaitingBubbles connects={waiting} now={now} activeId={activeId} />
+        </div>
+      )}
 
       <Section
         id="conversations"

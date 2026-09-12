@@ -146,12 +146,24 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
   const url = chat.partner.photos[0] ? publicPhotoUrl(chat.partner.photos[0].path) : "";
 
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)] px-6 py-4 md:px-10">
+    /*
+     * Wraps, because this now renders at 372px as well as at full width.
+     *
+     * As one unwrapped row it was built for a page. Inside the dialog the
+     * "Propose a date" button took most of the line, the name truncated to
+     * "T." and "15 hours left" broke over three lines next to it. `flex-wrap`
+     * plus a full-width button below `sm` gives the button its own row when
+     * there is no space for it, and leaves the wide layout untouched.
+     */
+    <header className="sticky top-0 z-10 flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)] px-5 py-3.5 md:px-10 md:py-4">
       <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-[var(--bg-tertiary)]">
         {url && <Image src={url} alt="" fill sizes="44px" className="object-cover" />}
       </span>
 
-      <div className="min-w-0 flex-1">
+      {/* `basis-0` with `flex-1` so the name column gives up space to the ring
+          before it starts truncating — a name is the one thing here that must
+          stay readable. */}
+      <div className="min-w-0 flex-1 basis-0">
         {/* Labelled for the same reason as the drop card's heading: only a margin
             separates the name from the age, so the accessible name would read as
             one word. */}
@@ -185,8 +197,16 @@ function Header({ chat, closed }: { chat: ChatDetail; closed: boolean }) {
 
       {/* Always visible while the chat is open — §7.2 calls this the chat's
           entire purpose, so it does not hide behind a menu. */}
+      {/*
+        * Rendered once, not twice behind breakpoints. `DateProposal` holds
+        * form state, so a second copy for narrow screens would be a second
+        * independent form — and whichever one was hidden would quietly keep
+        * whatever had been typed into it.
+        */}
       {!closed && chat.state !== "date_scheduled" && (
-        <DateProposal chatId={chat.id} name={chat.partner.firstName} />
+        <div className="w-full sm:w-auto">
+          <DateProposal chatId={chat.id} name={chat.partner.firstName} />
+        </div>
       )}
     </header>
   );

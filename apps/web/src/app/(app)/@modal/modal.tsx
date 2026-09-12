@@ -47,17 +47,22 @@ export function Modal({ children }: { children: React.ReactNode }) {
       onClick={(event) => {
         if (event.target === ref.current) close();
       }}
-      className="m-0 h-[100dvh] max-h-none w-screen max-w-none border-0 bg-transparent p-0 backdrop:bg-black/50 md:m-auto md:h-auto md:max-h-[88dvh] md:w-[min(52rem,92vw)]"
+      className="m-auto max-h-[82dvh] w-[min(52rem,92vw)] border-0 bg-transparent p-0 backdrop:bg-black/50"
     >
       {/*
-        * Full-bleed on a phone and a panel on a desktop.
+        * A panel, not a takeover — on a phone as much as anywhere.
         *
-        * A centred card with margins on a 390px screen wastes the only space
-        * a conversation has, and a conversation is the thing this product is
-        * for. On a wide screen the list stays visible behind it, which is the
-        * whole reason for a dialog rather than a page.
+        * The first version was full-bleed below `md`: `h-[100dvh] w-screen`.
+        * That is the pattern a native app uses for a pushed screen, and it made
+        * the dialog indistinguishable from the navigation it was meant to
+        * replace — nothing behind it, no edges, no sense that the list was
+        * still there. The point of opening over the Inbox is being able to see
+        * that you are still in the Inbox.
+        *
+        * 82dvh leaves the backdrop visible top and bottom, and clears the fixed
+        * tab bar at the foot of the screen rather than sitting under it.
         */}
-      <div className="flex h-full flex-col overflow-hidden bg-[var(--bg-primary)] md:max-h-[88dvh] md:rounded-md md:border md:border-[var(--border)]">
+      <div className="flex max-h-[82dvh] flex-col overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-primary)] shadow-[0_12px_40px_rgba(0,0,0,0.18)]">
         <div className="flex shrink-0 items-center justify-end border-b border-[var(--border-subtle)] px-4 py-2.5">
           <button
             type="button"
