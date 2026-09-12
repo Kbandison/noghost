@@ -442,8 +442,44 @@ export async function chatsTabState(
     .or(`user_a.eq.${memberId},user_b.eq.${memberId}`);
 
   const rows = data ?? [];
+
+  /*
+   * Conversations holding something unread — not conversations, full stop.
+   *
+   * The badge used to be the number of open chats, which meant it never went
+   * away: five conversations you have read and answered still read as "5", the
+   * same as five you have not opened. A number that is always lit is a number
+   * nobody looks at.
+   *
+   * Counted per conversation rather than per message, matching how a note is
+   * counted. "Three people said something" is what a member acts on; "eleven
+   * messages" is a different and less useful fact.
+   *
+   * One query rather than one per chat: `read_at is null` on a message somebody
+   * else sent, grouped by hand.
+   */
+  const ids = rows.map((chat) => chat.id);
+  let unread = new Set<string>();
+  if (ids.length > 0) {
+    const { data: pending } = await supabase
+      .from("messages")
+      .select("chat_id")
+      .in("chat_id", ids)
+      .neq("sender_id", memberId)
+      .is("read_at", null);
+    unread = new Set((pending ?? []).map((message) => message.chat_id));
+  }
+
   return {
-    count: rows.length,
+    count: unread.size,
+    /*
+     * Urgency still reads every open chat, not only the unread ones.
+     *
+     * The count answers "what is new"; the colour answers "is anything about to
+     * go out", and a conversation you have read can still be two hours from
+     * closing. Narrowing this to the unread set would make the badge calm on
+     * the day a chat you are in the middle of burns.
+     */
     urgency: worstUrgency(
       rows.map((chat) =>
         fuseUrgency({ state: chat.state, fuseExpiresAt: chat.fuse_expires_at }, now),
@@ -451,3 +487,4 @@ export async function chatsTabState(
     ),
   };
 }
+

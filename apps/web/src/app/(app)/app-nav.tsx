@@ -33,13 +33,22 @@ import { InboxIcon, ProfileIcon, TonightIcon } from "./nav-icons";
  *
  * With nothing waiting, Inbox is an envelope like the others. The moment
  * something is, the count takes the envelope's place rather than perching on
- * its corner: at this size a badge beside an icon is two small things
- * competing for the space of one, and the number is strictly more informative than the envelope
- * it replaces — you already know which tab it is, the word is underneath it.
+ * its corner: at this size a badge beside an icon is two small things competing
+ * for the space of one, and the number is strictly more informative than the
+ * envelope it replaces — you already know which tab it is, the word is written
+ * underneath it.
  *
- * Its colour is the nearest fuse, on the same thresholds as the per-row ring
- * (§7.2 — calm above 72h, amber under 48h, warm-red under 24h), so the tab and
- * the list can never tell a member different things.
+ * **It counts what is new, not what exists.** Notes nobody has answered, plus
+ * conversations holding a message this member has not seen. It was the number
+ * of open chats, which meant it never went away — five conversations read and
+ * answered showed the same "5" as five nobody had opened, and a number that is
+ * always lit is a number nobody looks at.
+ *
+ * Its colour still reads every open chat rather than only the unread ones. The
+ * count answers "what is new"; the colour answers "is anything about to go
+ * out", and a conversation you have read can still be two hours from closing.
+ * Same thresholds as the per-row ring (§7.2 — calm above 72h, amber under 48h,
+ * warm-red under 24h), so the tab and the list cannot disagree.
  */
 
 interface Tab {
@@ -101,7 +110,11 @@ function Badge({
        */
       aria-label={[
         notes > 0 && `${notes} note${notes === 1 ? "" : "s"} to answer`,
-        n - notes > 0 && `${n - notes} chat${n - notes === 1 ? "" : "s"} open, ${tone.says}`,
+        n - notes > 0 &&
+          `${n - notes} conversation${n - notes === 1 ? "" : "s"} with something new`,
+        // The colour is about every open chat, not only the unread ones, so it
+        // is said as its own clause rather than attached to the count.
+        `${tone.says}`,
       ]
         .filter(Boolean)
         .join("; ")}

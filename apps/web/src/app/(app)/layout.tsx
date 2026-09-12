@@ -9,6 +9,7 @@ import { WarningScreen } from "@/components/warning/warning-screen";
 import { BroadcastBanner } from "@/components/broadcast/broadcast-banner";
 import { signOut } from "./actions";
 import { AppNav } from "./app-nav";
+import { LiveRefresh } from "@/components/live/live-refresh";
 
 /**
  * Member app chrome.
@@ -121,6 +122,22 @@ export default async function AppLayout({
         * signing out or reading the standards must not require acknowledging
         * anything first, and on a phone these tabs ARE that escape route.
         */}
+      {/*
+        * One subscription for the whole member app, in the layout because the
+        * badge is.
+        *
+        * It was on the conversation screen only, which meant a message arriving
+        * while somebody sat in the Inbox changed nothing — the badge is
+        * rendered here, and nothing here was listening. `router.refresh()`
+        * re-runs the entire current route, so this one subscription updates the
+        * badge, the list behind it and any conversation open over it.
+        *
+        * Unfiltered, because RLS is the filter: `messages` is
+        * `is_chat_participant(chat_id)`, so a member is sent their own chats
+        * and no others whatever this subscribes to.
+        */}
+      <LiveRefresh table="messages" event="INSERT" />
+
       {/* Outside <main> and before the nav: a dialog is not part of the
           document's reading order, and `showModal()` moves focus into it. */}
       {modal}

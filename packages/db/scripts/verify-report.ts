@@ -282,6 +282,62 @@ async function main() {
       check(row?.resolution === null, "unresolved — a human has not seen it yet");
     }
 
+    section("A message is not editable by the person who received it — 0040");
+    {
+      /*
+       * `messages` has a policy called "recipient marks a message read", whose
+       * only conditions are "you are in this chat" and "you did not send this".
+       * For the life of the project `authenticated` also held UPDATE on every
+       * column of the table, so that policy let a member rewrite the body of
+       * anything said to them — in a product whose promise is that an ending is
+       * honest and an answer is real, close to the worst write to leave open.
+       * §5's closing notes are messages.
+       *
+       * Nothing had ever exercised it: `read_at` was null on every row because
+       * no code wrote it either, which is why the grant behind it went unseen.
+       */
+      const { data: theirs } = await service
+        .from("messages")
+        .insert({ chat_id: CHAT_AB, sender_id: a!.id, kind: "text", body: "What A actually said." })
+        .select("id")
+        .single();
+
+      const tampered = await clientB
+        .from("messages")
+        .update({ body: "What B would rather A had said." })
+        .eq("id", theirs!.id)
+        .select();
+      const { data: after } = await service
+        .from("messages").select("body,read_at").eq("id", theirs!.id).single();
+
+      check(after?.body === "What A actually said.",
+        "the recipient cannot rewrite what the sender said",
+        tampered.error ? `refused: ${tampered.error.code}` : `body is now "${after?.body}"`);
+
+      // The other half: the thing the policy is actually named for still works.
+      const marked = await clientB
+        .from("messages")
+        .update({ read_at: new Date().toISOString() })
+        .eq("id", theirs!.id);
+      const { data: readNow } = await service
+        .from("messages").select("read_at").eq("id", theirs!.id).single();
+      check(!marked.error && readNow?.read_at !== null,
+        "but can still mark it read, which is what the policy is for",
+        marked.error ? marked.error.message : `read_at ${readNow?.read_at ? "set" : "still null"}`);
+
+      // And the sender cannot mark their own message read to fake a receipt.
+      const self = await clientA
+        .from("messages")
+        .update({ read_at: new Date().toISOString() })
+        .eq("id", theirs!.id)
+        .select();
+      check((self.data?.length ?? 0) === 0,
+        "and the sender cannot mark their own message read",
+        self.error ? `refused: ${self.error.code}` : `${self.data?.length ?? 0} row(s) updated`);
+
+      await service.from("messages").delete().eq("id", theirs!.id);
+    }
+
     section("The protection, before anyone reviews it");
     {
       const { data: seesB } = await clientA

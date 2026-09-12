@@ -45,6 +45,46 @@ export interface ChatActionState {
 
 const CLOSED = "That chat is closed. Nothing more can be sent.";
 
+/**
+ * Mark everything the other person said as seen.
+ *
+ * Runs when the conversation is on screen, which is the only honest definition
+ * of read this product can offer — there is no read receipt shown to the
+ * sender, so this exists solely to decide what the Inbox badge counts.
+ *
+ * Through the member's own session rather than the service role, so RLS is what
+ * authorizes it: "recipient marks a message read" allows only messages in a
+ * chat they are in and only ones they did not send. 0040 narrowed their UPDATE
+ * grant to `read_at`, so this is also the only column this call *could* touch.
+ *
+ * Failure is logged, not surfaced. The worst case is a badge that still shows a
+ * number, and interrupting somebody reading a conversation to tell them so
+ * would be worse than the number.
+ */
+export async function markChatRead(chatId: string): Promise<void> {
+  const supabase = await supabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { error } = await supabase
+    .from("messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("chat_id", chatId)
+    .neq("sender_id", user.id)
+    .is("read_at", null);
+
+  if (error) {
+    console.error(`[chats] marking ${chatId} read: ${error.message}`);
+    return;
+  }
+
+  // The badge lives in the layout, which this page does not re-render on its
+  // own. Without this the number stays up until the next navigation.
+  revalidatePath("/inbox");
+}
+
 export async function sendMessage(
   _prev: ChatActionState,
   formData: FormData,

@@ -9,8 +9,8 @@ import { requireMember } from "@/lib/member";
 import { getChat, type ChatDate, type ChatDetail, type ChatMessage } from "@/lib/chats";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { ReportSheet } from "@/components/report/report-sheet";
-import { LiveRefresh } from "@/components/live/live-refresh";
 import { ChatMenu } from "./chat-menu";
+import { MarkRead } from "./mark-read";
 import { Composer } from "./composer";
 import { DateProposal, RespondToDate } from "./propose-date";
 import { CloseKindly } from "./close-kindly";
@@ -58,16 +58,12 @@ export async function ChatDetailView({ id }: { id: string }) {
      * rather than scroll.
      */
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-      {/*
-        * Narrowed to this chat. The filter is a convenience, not the control —
-        * `messages` RLS is `is_chat_participant(chat_id)`, so a subscriber is
-        * never sent a conversation they are not in, whatever this string says.
-        *
-        * Not on a closed chat: nothing more will be written to one, and a
-        * socket held open for a conversation that has ended is a socket held
-        * open for nothing.
-        */}
-      {!closed && <LiveRefresh table="messages" event="INSERT" filter={`chat_id=eq.${chat.id}`} />}
+      {/* No subscription here: the layout holds one for every message this
+          member can see, and `router.refresh()` from there re-runs this screen
+          too. Two would mean two refreshes per message. */}
+      {/* Seen, because it is on screen. Keyed on the newest message so a reply
+          arriving while somebody reads is marked too. */}
+      <MarkRead chatId={chat.id} latestMessageId={chat.messages.at(-1)?.id ?? ""} />
 
       <Header chat={chat} closed={closed} />
 
