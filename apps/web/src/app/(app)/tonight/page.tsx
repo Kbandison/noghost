@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { DROP_COPY, EMPTY_STATES } from "@noghost/config/copy";
+import { noSeasonReason } from "@noghost/logic";
 import { Ghost } from "@/components/ui/ghost";
 import { requireMember } from "@/lib/member";
 import { tonightsDrop } from "@/lib/drop";
@@ -52,16 +53,33 @@ export default async function TonightPage() {
   const drop = await tonightsDrop(member.id, now);
 
   if (drop.kind === "no-season") {
+    /*
+     * Three cases, not two.
+     *
+     * This asked one question — "is the start date in the future?" — and called
+     * everything else a finished season. `isSeasonServing` needs the phase to
+     * be `live` or `finale_week`, and that column is written by a cron at 6 AM
+     * ET, so moving a season's start to today after 6 AM made every paying
+     * member read "That season is a wrap" on day one. `pre_season` had the same
+     * problem by design, since it deliberately does not serve.
+     *
+     * `noSeasonReason` is unit-tested and is the only thing allowed to decide
+     * that somebody's season has ended.
+     */
+    const reason = noSeasonReason(drop.phase, drop.startsAt, drop.endsAt, now);
+
     return (
       <Shell>
         <Ghost className="mb-6 h-16 w-16" />
-        <h1 className="font-[family-name:var(--font-display)] text-[30px] font-extrabold leading-[1.15] tracking-[-0.03em]">
-          {drop.startsAt && Date.parse(drop.startsAt) > Date.parse(now)
+        <h1 className="font-[family-name:var(--font-display)] text-[clamp(1.5rem,7vw,1.875rem)] font-extrabold leading-[1.15] tracking-[-0.03em]">
+          {reason === "not-started"
             ? "Not yet."
-            : "That season is a wrap."}
+            : reason === "over"
+              ? "That season is a wrap."
+              : "Any moment now."}
         </h1>
         <p className="mt-4 text-[17px] leading-relaxed text-[var(--text-secondary)]">
-          {drop.startsAt && Date.parse(drop.startsAt) > Date.parse(now) ? (
+          {reason === "not-started" && drop.startsAt ? (
             <>
               {drop.seasonName ?? "The season"} starts{" "}
               {new Date(drop.startsAt).toLocaleDateString("en-US", {
@@ -71,8 +89,20 @@ export default async function TonightPage() {
               })}
               . Everyone begins together &mdash; that&rsquo;s the point of a season.
             </>
-          ) : (
+          ) : reason === "over" ? (
             <>Thanks for being in it. We&rsquo;ll write when the next one opens.</>
+          ) : (
+            /*
+             * Deliberately vague about when, and deliberately certain about
+             * what. The exact moment depends on a cron this screen cannot see,
+             * so naming a time would be a promise it cannot keep — but the one
+             * thing that is definitely true is that the season has not ended,
+             * which is what the old copy got wrong.
+             */
+            <>
+              {drop.seasonName ?? "The season"} has started and your first drop is being put
+              together. Nothing is wrong and nothing is over &mdash; profiles land at 8:00 PM.
+            </>
           )}
         </p>
       </Shell>

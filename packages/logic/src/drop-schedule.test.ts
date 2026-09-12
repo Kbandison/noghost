@@ -4,6 +4,7 @@ import {
   dropTimeMinutes,
   isReleaseDue,
   isSeasonServing,
+  noSeasonReason,
   localParts,
 } from "./drop-schedule";
 
@@ -124,5 +125,49 @@ describe("isSeasonServing", () => {
     // A phase flipped early by hand must not out-rank the calendar.
     expect(isSeasonServing("live", starts, ends, "2026-10-04T00:00:00.000Z")).toBe(false);
     expect(isSeasonServing("live", starts, ends, starts)).toBe(true);
+  });
+});
+
+describe("noSeasonReason", () => {
+  const starts = "2026-10-05T04:00:00.000Z";
+  const ends = "2026-11-30T05:00:00.000Z";
+
+  it("says not-started before day one", () => {
+    expect(noSeasonReason("pre_season", starts, ends, "2026-10-01T00:00:00.000Z")).toBe(
+      "not-started",
+    );
+  });
+
+  it("says over past the end", () => {
+    expect(noSeasonReason("finale_week", starts, ends, ends)).toBe("over");
+    expect(noSeasonReason("closed", starts, ends, "2026-12-25T00:00:00.000Z")).toBe("over");
+  });
+
+  it("says over for a season an admin closed early, calendar notwithstanding", () => {
+    // `nextPhase` never moves a season backwards; a person's decision outranks
+    // the clock, and this has to agree with that.
+    expect(noSeasonReason("closed", starts, ends, "2026-10-10T00:00:00.000Z")).toBe("over");
+  });
+
+  it("does NOT say over for a started season that is merely not serving yet", () => {
+    /*
+     * The bug this exists for. `isSeasonServing` needs phase `live` or
+     * `finale_week`, and the phase is written by a cron that runs at 6 AM ET.
+     * Set a season's start date to today after 6 AM and every member saw
+     * "That season is a wrap" on day one.
+     */
+    for (const phase of ["applications_open", "pre_season"] as const) {
+      expect(noSeasonReason(phase, starts, ends, "2026-10-05T14:00:00.000Z"), phase).toBe(
+        "warming-up",
+      );
+    }
+  });
+
+  it("treats a missing season as over rather than inventing one to wait for", () => {
+    expect(noSeasonReason(null, null, null, "2026-10-05T14:00:00.000Z")).toBe("over");
+  });
+
+  it("never reports over while the season is live and within its dates", () => {
+    expect(noSeasonReason("live", starts, ends, "2026-10-10T00:00:00.000Z")).not.toBe("over");
   });
 });

@@ -5,7 +5,7 @@ import {
   localParts,
   seasonWeek,
 } from "@noghost/logic";
-import type { CardAction, ProfilePhoto, ProfilePromptAnswer } from "@noghost/types";
+import type { CardAction, ProfilePhoto, ProfilePromptAnswer, SeasonPhase } from "@noghost/types";
 import { supabaseServer } from "./supabase";
 import { signedVoiceUrls } from "./voice-urls";
 
@@ -42,8 +42,20 @@ export interface DropCardView {
 }
 
 export type DropState =
-  /** No season is serving — before day one, or after the last night. */
-  | { kind: "no-season"; seasonName: string | null; startsAt: string | null }
+  /**
+   * No season is serving. Three different situations, and the screen must not
+   * conflate them — see `noSeasonReason`. `endsAt` and `phase` travel with it
+   * because "started but not yet serving" is indistinguishable from "over"
+   * without them, and that mistake tells a paying member on day one that their
+   * season has ended.
+   */
+  | {
+      kind: "no-season";
+      seasonName: string | null;
+      startsAt: string | null;
+      endsAt: string | null;
+      phase: SeasonPhase | null;
+    }
   /** Serving, but tonight's drop has not been released yet. */
   | { kind: "before-release"; releasesAt: string }
   /** Released with nothing in it. Honest, and its own screen (§9.6). */
@@ -101,6 +113,8 @@ export async function tonightsDrop(memberId: string, now: string): Promise<DropS
       kind: "no-season",
       seasonName: season?.name ?? null,
       startsAt: season?.starts_at ?? null,
+      endsAt: season?.ends_at ?? null,
+      phase: (season?.phase as SeasonPhase | undefined) ?? null,
     };
   }
 

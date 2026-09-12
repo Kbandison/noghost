@@ -97,6 +97,58 @@ export function isSeasonServing(
 }
 
 /**
+ * Why there is no drop tonight — and specifically, whether the season is over.
+ *
+ * The screen behind this used two cases where there are three: a start date in
+ * the future meant "Not yet", and *anything else* meant "That season is a
+ * wrap." So a member whose season had started but was not yet serving was told
+ * it had ended.
+ *
+ * That is not a hypothetical. `isSeasonServing` requires `phase` to be `live`
+ * or `finale_week`, and the phase is written by a cron that runs once a day at
+ * 6 AM ET. Move a season's start date to today after 6 AM — which is exactly
+ * what setting up a test season looks like — and every paying member sees
+ * "That season is a wrap" on day one, until the next morning.
+ *
+ * The same gap opens in `pre_season`, which deliberately does not serve while
+ * the cohort forms, and would likewise have read as over.
+ *
+ * So the question is asked of the calendar AND the stored phase, and the three
+ * answers are kept apart:
+ *
+ *   "not-started"   before day one            → Not yet.
+ *   "over"          past the end, or closed   → That season is a wrap.
+ *   "warming-up"    started, not yet serving  → neither of those things
+ *
+ * Only `over` may ever tell somebody their season has ended.
+ */
+export type NoSeasonReason = "not-started" | "over" | "warming-up";
+
+export function noSeasonReason(
+  phase: SeasonPhase | null,
+  startsAt: string | null,
+  endsAt: string | null,
+  now: string,
+): NoSeasonReason {
+  /*
+   * No season row at all. "Over" rather than "starting soon", because there is
+   * nothing to be waiting for and the alternative invents a season that does
+   * not exist.
+   */
+  if (!startsAt || !endsAt) return "over";
+
+  const at = Date.parse(now);
+  if (at < Date.parse(startsAt)) return "not-started";
+
+  // `closed` is a decision, and an admin who closed a season early outranks
+  // the calendar — the same asymmetry `nextPhase` enforces by never moving a
+  // season backwards.
+  if (phase === "closed" || at >= Date.parse(endsAt)) return "over";
+
+  return "warming-up";
+}
+
+/**
  * Why a run did nothing. Returned rather than logged, so the cron's HTTP body
  * says which gate stopped it — "0 drops built" alone is indistinguishable from
  * a broken query.
