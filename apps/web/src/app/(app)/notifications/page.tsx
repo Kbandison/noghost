@@ -31,16 +31,18 @@ export default async function NotificationsPage() {
       <h1 className="font-[family-name:var(--font-display)] text-[28px] font-extrabold leading-[1.1] tracking-[-0.03em]">
         Notifications
       </h1>
-      <p className="mt-2 text-[15px] leading-relaxed text-[var(--text-secondary)]">
-        Everything we&rsquo;ve sent you. Nothing here needs an answer &mdash; it&rsquo;s a
-        record, in case a notification came and went before you saw it.
-      </p>
-
+      {/*
+        * No explanation above the list, and no paragraph explaining the
+        * absence of one below it.
+        *
+        * Both were describing a screen that describes itself: a page titled
+        * Notifications holding a list of notifications does not need a sentence
+        * saying so, and an empty one needs three words rather than a promise
+        * about what will eventually appear. The words a member reads here
+        * should be the notifications, not the framing around them.
+        */}
       {entries.length === 0 ? (
-        <p className="mt-10 border-t border-[var(--border-subtle)] pt-8 text-[16px] leading-relaxed text-[var(--text-secondary)]">
-          Nothing yet. When we write to you &mdash; a drop, a reply, a conversation running
-          out of time &mdash; it will be here too.
-        </p>
+        <p className="mt-8 text-[16px] text-[var(--text-secondary)]">Nothing yet.</p>
       ) : (
         <ul className="mt-8 border-t border-[var(--border-subtle)]">
           {entries.map((entry) => (
