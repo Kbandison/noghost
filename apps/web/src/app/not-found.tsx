@@ -10,8 +10,10 @@ export default function NotFound() {
         This one actually did vanish.
       </h1>
       <p className="mt-5 max-w-md text-[17px] leading-relaxed text-[var(--text-secondary)]">
-        The page isn&rsquo;t here. Everything else on this site ends with an explanation, so
-        here&rsquo;s yours.
+        {/* The second sentence used to be "Everything else on this site ends
+            with an explanation, so here's yours" — the product admiring its own
+            copy convention at somebody who was looking for a page. */}
+        The page isn&rsquo;t here.
       </p>
       <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
         <ButtonLink href="/">Back to the start</ButtonLink>

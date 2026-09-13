@@ -55,7 +55,7 @@ export default async function FaqPage() {
             Still deciding?
           </h2>
           <p className="mx-auto mt-6 max-w-lg text-[17px] leading-relaxed text-[var(--text-secondary)]">
-            Applying is free. You only pay if a person reads your application and says yes.
+            Applying is free. You only pay if you&rsquo;re admitted.
           </p>
           <div className="mt-9">
             <ButtonLink href="/apply">Apply for {season.name}</ButtonLink>

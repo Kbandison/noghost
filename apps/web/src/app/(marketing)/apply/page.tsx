@@ -43,8 +43,11 @@ export default async function ApplyPage() {
     },
     {
       n: "04",
-      title: "Wait for a person",
-      body: "Someone on our review team reads every application. You'll hear back within five days either way.",
+      // Not "wait for a person": since auto-admit some applications are cleared
+      // by the identity check and never reach one. What is true on every path
+      // is that an answer comes back, which is what this step is promising.
+      title: "Wait for an answer",
+      body: "Most applications are read by a person; some clear our identity check without one. Either way you'll hear back within five days.",
     },
     {
       n: "05",

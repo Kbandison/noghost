@@ -27,7 +27,12 @@ export const LIFECYCLE_EMAILS = {
     subject: "You're in. Claim your seat in {{SEASON_NAME}}.",
     preheader: "Your seat is held for {{CLAIM_HOURS}} hours.",
     body: [
-      "You're admitted to {{SEASON_NAME}}. A person read your application and said yes.",
+      // Not "a person read your application and said yes" — since auto-admit
+      // that is false for everybody the identity check clears, and this is the
+      // one message they are certain to read. The outcome is the news; how it
+      // was reached is on the review screen, which knows which door they came
+      // through.
+      "You're admitted to {{SEASON_NAME}}.",
       "Your pass is {{PRICE}}. Your seat is held until {{CLAIM_DEADLINE}} — after that it goes to the next person on the waitlist. That deadline is real, and it's the only countdown we'll ever put in front of you besides the fuse.",
       "What the pass includes: the full {{SEASON_WEEKS}} weeks, every nightly drop, and the finale event. That's everything. There is no upgrade, no premium tier, and nothing else to buy — not this season, not ever.",
     ],

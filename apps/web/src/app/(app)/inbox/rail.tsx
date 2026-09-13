@@ -163,7 +163,10 @@ export function Rail({
       >
         {open.length + sent.length === 0 ? (
           <p className="px-5 py-6 text-[15px] text-[var(--text-dim)]">
-            Nothing going yet. Tonight&rsquo;s drop is another three chances.
+            {/* "Tonight's drop is another three chances" came after this and is
+                gone: an empty section is a fact, not an opening to pitch the
+                next screen. */}
+            Nothing going yet.
           </p>
         ) : (
           <ul>

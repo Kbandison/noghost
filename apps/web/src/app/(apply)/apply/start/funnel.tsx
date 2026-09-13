@@ -35,7 +35,14 @@ const COPY: Record<
 > = {
   phone: {
     statement: "Three hundred people, one start date.",
-    sub: "Applying is free and takes about ten minutes. You only pay if a person reads this and says yes.",
+    /*
+     * "if a person reads this" was true until `seasons.auto_admit` was turned
+     * on (2026-09-12). Some applications clear the identity check and reach
+     * nobody, so the sentence promised a reader those applicants never get. The
+     * part that is still true, and the only part doing work here, is that
+     * applying costs nothing.
+     */
+    sub: "Applying is free and takes about ten minutes. You only pay if you're admitted.",
     cta: "Send me a code",
     component: PhoneStep,
   },

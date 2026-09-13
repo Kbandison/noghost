@@ -117,7 +117,7 @@ export function ApplyCta({ vars }: { vars: CopyVars }) {
           {interpolate("{{SEATS_REMAINING}} seats left in {{SEASON_NAME}}.", vars)}
         </h2>
         <p className="mx-auto mt-7 max-w-xl text-[18px] leading-[1.6] text-[var(--text-secondary)]">
-          Applying is free and takes about ten minutes. A person reads every one.
+          Applying is free and takes about ten minutes. You only pay if you&rsquo;re admitted.
         </p>
         <div className="mt-10 flex flex-col items-center gap-4">
           <ButtonLink href="/apply">{interpolate(HERO.cta, vars)}</ButtonLink>
