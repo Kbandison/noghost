@@ -83,7 +83,14 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
-      <header className="border-b border-[var(--border-subtle)]">
+      {/*
+        * Pinned. It carries the wordmark, notifications, settings and sign out,
+        * and it scrolled away the moment anybody read past the first screen —
+        * so on a long profile or a full drop the only way back to any of them
+        * was to scroll to the top first. The tab bar is fixed at the foot for
+        * the same reason; this is the other half of it.
+        */}
+      <header className="sticky top-0 z-30 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]">
         <div className="mx-auto flex h-16 w-full max-w-[var(--content-max)] items-center justify-between gap-3 px-5 md:gap-6 md:px-8">
           <Link
             href="/tonight"

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BRAND } from "@noghost/config";
 import { requireMember } from "@/lib/member";
@@ -107,12 +106,6 @@ export default async function SettingsPage() {
         <DeleteForm />
       </Section>
 
-      <Link
-        href="/profile"
-        className="mt-12 inline-block text-[15px] text-[var(--accent-text)] underline decoration-[1.5px] underline-offset-4"
-      >
-        Your profile &rarr;
-      </Link>
     </div>
   );
 }

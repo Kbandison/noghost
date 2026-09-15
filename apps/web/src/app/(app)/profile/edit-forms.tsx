@@ -1,13 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { startTransition, useActionState, useEffect, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { PHOTO_MAX, PHOTO_MIN, PROMPT_COUNT } from "@noghost/config";
 import { PROMPT_LIBRARY } from "@noghost/config/copy";
 import { Button } from "@/components/ui/button";
 import { VoicePlayer } from "@/components/ui/voice-player";
 import { VoiceRecorder, type Recording } from "@/components/ui/voice-recorder";
+import { cn } from "@/lib/utils";
 import { publicPhotoUrl } from "@/lib/photos";
+import { SaveNote, useAutosave } from "./use-autosave";
 import { screeningThumbnail, uploadImage, uploadVoiceIntro } from "@/lib/upload";
 import {
   screenBeforeUpload,
@@ -36,7 +38,13 @@ export function PromptsForm({
 }: {
   prompts: { prompt_id: string; answer: string }[];
 }) {
-  const [state, action, pending] = useActionState(savePrompts, initial);
+  const [state, action] = useActionState(savePrompts, initial);
+  const form = useRef<HTMLFormElement>(null);
+  const { state: saveState, queue, flush } = useAutosave((data) =>
+    startTransition(() => action(data)),
+  );
+  const send = () => form.current && queue(new FormData(form.current));
+
   const [rows, setRows] = useState(() =>
     Array.from({ length: PROMPT_COUNT }, (_, i) => ({
       prompt_id: prompts[i]?.prompt_id ?? PROMPT_LIBRARY[i]?.id ?? "",
@@ -44,11 +52,18 @@ export function PromptsForm({
     })),
   );
 
-  const set = (i: number, patch: Partial<(typeof rows)[number]>) =>
+  const set = (i: number, patch: Partial<(typeof rows)[number]>) => {
     setRows((current) => current.map((row, j) => (j === i ? { ...row, ...patch } : row)));
+    /*
+     * Queued from the DOM on the next tick rather than from `rows`: this runs
+     * before React has re-rendered, so reading state here would send the
+     * answer as it was one keystroke ago.
+     */
+    queueMicrotask(send);
+  };
 
   return (
-    <form action={action} className="space-y-6">
+    <form ref={form} action={action} className="space-y-6" onBlur={flush}>
       {rows.map((row, i) => (
         <div key={i}>
           <label htmlFor={`prompt-${i}`} className="sr-only">
@@ -88,20 +103,7 @@ export function PromptsForm({
         </div>
       ))}
 
-      {state.error && (
-        <p role="alert" className="text-[15px] leading-snug text-[var(--error)]">
-          {state.error}
-        </p>
-      )}
-      {state.saved && !state.error && (
-        <p role="status" className="text-[15px] text-[var(--success)]">
-          Saved.
-        </p>
-      )}
-
-      <Button type="submit" disabled={pending}>
-        {pending ? "Saving…" : "Save answers"}
-      </Button>
+      <SaveNote state={saveState} error={state.error} />
     </form>
   );
 }
@@ -137,24 +139,37 @@ export function AboutForm({
   occupation: string | null;
   heightCm: number | null;
 }) {
-  const [state, action, pending] = useActionState(saveAbout, initial);
+  const [state, action] = useActionState(saveAbout, initial);
+  const form = useRef<HTMLFormElement>(null);
+  const { state: saveState, queue, flush } = useAutosave((data) =>
+    startTransition(() => action(data)),
+  );
+
+  /** Whatever is in the fields right now, whichever one moved. */
+  const send = () => form.current && queue(new FormData(form.current));
 
   const totalInches = heightCm === null ? null : Math.round(heightCm / 2.54);
   const feet = totalInches === null ? "" : Math.floor(totalInches / 12);
   const inches = totalInches === null ? "" : totalInches % 12;
 
   return (
-    <form action={action} className="space-y-5">
+    <form ref={form} action={action} className="space-y-5">
+      {/*
+        * The heading is gone and the label is not: a visible "What you do"
+        * above a box whose placeholder also says what it is was the same words
+        * twice. `sr-only` keeps the field named for anybody who cannot see the
+        * placeholder, which is the half of it that was doing work.
+        */}
       <label className="block">
-        <span className="mb-1.5 block text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
-          What you do
-        </span>
+        <span className="sr-only">What you do</span>
         <input
           name="occupation"
           type="text"
           maxLength={60}
           defaultValue={occupation ?? ""}
-          placeholder="Optional"
+          placeholder="What you do — optional"
+          onChange={send}
+          onBlur={flush}
           className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-[16px] focus:border-[var(--accent)] focus:outline-none"
         />
       </label>
@@ -172,6 +187,8 @@ export function AboutForm({
               max={8}
               defaultValue={feet}
               placeholder="—"
+              onChange={send}
+              onBlur={flush}
               className="w-20 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-3 text-[16px] tabular-nums focus:border-[var(--accent)] focus:outline-none"
             />
             <span className="text-[15px] text-[var(--text-secondary)]">ft</span>
@@ -184,6 +201,8 @@ export function AboutForm({
               max={11}
               defaultValue={inches}
               placeholder="—"
+              onChange={send}
+              onBlur={flush}
               className="w-20 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-3 text-[16px] tabular-nums focus:border-[var(--accent)] focus:outline-none"
             />
             <span className="text-[15px] text-[var(--text-secondary)]">in</span>
@@ -194,20 +213,7 @@ export function AboutForm({
         </p>
       </fieldset>
 
-      {state.error && (
-        <p role="alert" className="text-[15px] text-[var(--error)]">
-          {state.error}
-        </p>
-      )}
-      {state.saved && !state.error && (
-        <p role="status" className="text-[15px] text-[var(--success)]">
-          Saved.
-        </p>
-      )}
-
-      <Button type="submit" disabled={pending}>
-        {pending ? "Saving…" : "Save"}
-      </Button>
+      <SaveNote state={saveState} error={state.error} />
     </form>
   );
 }
@@ -249,6 +255,7 @@ export function LocationForm({
     </form>
   );
 }
+
 
 /**
  * Editing photos — §7.2, and the member half of 0020's review loop.
@@ -337,11 +344,74 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
     save(next);
   }
 
-  function move(index: number, by: -1 | 1) {
+  /*
+   * Reordering by pointer, which is the gesture anybody tries on a grid of
+   * photos and the one the arrow buttons underneath were standing in for.
+   *
+   * Pointer events rather than HTML5 drag-and-drop: `draggable` does not fire
+   * on touch at all, so the native API would have shipped a feature that works
+   * only on the devices that were already served by the arrows.
+   *
+   * A short hold before the drag engages, because this grid sits inside a
+   * scrolling page. Engaging on first contact would mean every attempt to
+   * scroll past three-across photos picked one up instead; 180ms separates the
+   * two without feeling like a wait.
+   */
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const grid = useRef<HTMLDivElement>(null);
+
+  const indexAt = (x: number, y: number): number | null => {
+    const tiles = grid.current?.querySelectorAll("[data-photo-index]");
+    if (!tiles) return null;
+    for (const tile of tiles) {
+      const box = tile.getBoundingClientRect();
+      if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
+        return Number(tile.getAttribute("data-photo-index"));
+      }
+    }
+    return null;
+  };
+
+  const cancelHold = () => {
+    if (hold.current) {
+      clearTimeout(hold.current);
+      hold.current = null;
+    }
+  };
+
+  function startDrag(path: string, event: React.PointerEvent) {
+    if (pending || busy) return;
+    const { clientX, clientY } = event;
+    hold.current = setTimeout(() => {
+      setDragging(path);
+      setOver(indexAt(clientX, clientY));
+    }, 180);
+  }
+
+  function onMove(event: React.PointerEvent) {
+    if (!dragging) {
+      // Moved before the hold elapsed: they were scrolling, not dragging.
+      cancelHold();
+      return;
+    }
+    event.preventDefault();
+    setOver(indexAt(event.clientX, event.clientY));
+  }
+
+  function endDrag() {
+    cancelHold();
+    if (!dragging) return;
+    const from = rows.findIndex((photo) => photo.path === dragging);
+    const to = over;
+    setDragging(null);
+    setOver(null);
+    if (from < 0 || to === null || to === from) return;
+
     const next = [...rows];
-    const target = index + by;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target]!, next[index]!];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved!);
     setRows(next);
     save(next);
   }
@@ -350,17 +420,45 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div
+        ref={grid}
+        onPointerMove={onMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        className="grid grid-cols-3 gap-3"
+      >
         {rows.map((photo, i) => (
-          <div key={photo.path}>
-            <div className="relative aspect-[4/5] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg-secondary)]">
+          <div
+            key={photo.path}
+            data-photo-index={i}
+            onPointerDown={(event) => startDrag(photo.path, event)}
+            /*
+             * `touch-none` only while a drag is live. Applied always it would
+             * stop the page scrolling whenever a finger landed on a photo,
+             * which in a three-across grid is most of the width.
+             */
+            className={cn(
+              "relative select-none transition-transform duration-150",
+              dragging === photo.path && "scale-[0.97] opacity-60",
+              dragging && "touch-none",
+              over === i && dragging !== null && dragging !== photo.path && "-translate-y-1",
+            )}
+          >
+            <div
+              className={cn(
+                "relative aspect-[4/5] overflow-hidden rounded-md border bg-[var(--bg-secondary)]",
+                over === i && dragging !== null && dragging !== photo.path
+                  ? "border-[var(--accent)]"
+                  : "border-[var(--border)]",
+              )}
+            >
               {publicPhotoUrl(photo.path) ? (
                 <Image
                   src={publicPhotoUrl(photo.path)}
                   alt=""
                   fill
                   sizes="(max-width: 640px) 30vw, 180px"
-                  className="object-cover"
+                  className="pointer-events-none object-cover"
                 />
               ) : null}
               {i === 0 && (
@@ -368,35 +466,42 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
                   Leads
                 </span>
               )}
+
+              {/*
+                * Top right, on the photo. It replaces a "Remove" link that sat
+                * underneath beside two arrows; the arrows went with the drag,
+                * so this is the only control left and it belongs on the thing
+                * it acts on. `stopPropagation` on pointerdown so pressing it
+                * never starts a drag.
+                */}
+              <button
+                type="button"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => remove(photo.path)}
+                disabled={pending || rows.length <= PHOTO_MIN}
+                aria-label={`Remove photo ${i + 1}`}
+                title={rows.length <= PHOTO_MIN ? `${PHOTO_MIN} photos minimum` : "Remove"}
+                className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-primary)]/85 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-[var(--text-secondary)]"
+              >
+                <svg
+                  viewBox="0 0 16 16"
+                  aria-hidden
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                >
+                  <path d="M2.5 4h11M6.5 4V2.75h3V4M4 4l.6 9.2a1 1 0 0 0 1 .8h4.8a1 1 0 0 0 1-.8L12 4" />
+                  <path d="M6.6 6.6v5M9.4 6.6v5" />
+                </svg>
+              </button>
+
               {!photo.approved && (
                 <span className="absolute inset-x-0 bottom-0 bg-[var(--bg-primary)]/90 px-1.5 py-1 text-center text-[11px] leading-tight text-[var(--text-dim)]">
                   Being reviewed
                 </span>
               )}
-            </div>
-
-            <div className="mt-1.5 flex items-center justify-between gap-1">
-              <div className="flex gap-1">
-                <Nudge label="Move left" onClick={() => move(i, -1)} disabled={i === 0 || pending}>
-                  ←
-                </Nudge>
-                <Nudge
-                  label="Move right"
-                  onClick={() => move(i, 1)}
-                  disabled={i === rows.length - 1 || pending}
-                >
-                  →
-                </Nudge>
-              </div>
-              <button
-                type="button"
-                onClick={() => remove(photo.path)}
-                disabled={pending || rows.length <= PHOTO_MIN}
-                title={rows.length <= PHOTO_MIN ? `${PHOTO_MIN} photos minimum` : undefined}
-                className="text-[13px] text-[var(--text-dim)] underline decoration-[1.5px] underline-offset-2 transition-colors hover:text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-[var(--text-dim)]"
-              >
-                Remove
-              </button>
             </div>
           </div>
         ))}
@@ -446,30 +551,6 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
         />
       </label>
     </div>
-  );
-}
-
-function Nudge({
-  label,
-  onClick,
-  disabled,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      disabled={disabled}
-      className="rounded border border-[var(--border)] px-2 py-0.5 text-[13px] transition-colors hover:border-[var(--text-dim)] disabled:opacity-30"
-    >
-      {children}
-    </button>
   );
 }
 

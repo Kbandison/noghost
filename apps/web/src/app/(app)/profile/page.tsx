@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/member";
 import { readSettings } from "@/lib/settings";
@@ -88,15 +87,6 @@ export default async function ProfilePage() {
         <VoiceIntroForm url={voiceIntroUrl} hasIntro={Boolean(identity.voiceIntroPath)} />
       </Section>
 
-      {/* A link, not an inventory. Listing the other page's sections here
-          means maintaining its table of contents in two places, and saying
-          them out loud is the habit this app keeps being trimmed of. */}
-      <Link
-        href="/settings"
-        className="mt-12 inline-block text-[15px] text-[var(--accent-text)] underline decoration-[1.5px] underline-offset-4"
-      >
-        Settings &rarr;
-      </Link>
     </div>
   );
 }
