@@ -16,7 +16,7 @@ import {
 import { VOICE_INTRO_MAX_MS } from "@/lib/voice";
 import type { ProfilePhotoRow } from "@/lib/settings";
 import { LocationField } from "@/components/ui/location-field";
-import { saveLocation, savePhotos, savePrompts, saveVoiceIntro, type SettingsState } from "./actions";
+import { saveAbout, saveLocation, savePhotos, savePrompts, saveVoiceIntro, type SettingsState } from "./actions";
 
 const initial: SettingsState = {};
 
@@ -118,6 +118,100 @@ export function PromptsForm({
  * Seeded with what is already stored so somebody who only wants to widen their
  * radius does not have to re-answer where they live.
  */
+/**
+ * What you do, and how tall you are — the two lines a card prints under your
+ * name that nothing has ever been able to fill in.
+ *
+ * Both optional and both say so. On a dating profile "would rather not say what
+ * I do" is an answer, and a required field would make it look like a form
+ * somebody failed to finish rather than a choice they made.
+ *
+ * Height goes in as feet and inches and is stored as centimetres, because the
+ * column is `height_cm` and the card converts back. Asking an American for
+ * centimetres to match a column name is the schema leaking into the product.
+ */
+export function AboutForm({
+  occupation,
+  heightCm,
+}: {
+  occupation: string | null;
+  heightCm: number | null;
+}) {
+  const [state, action, pending] = useActionState(saveAbout, initial);
+
+  const totalInches = heightCm === null ? null : Math.round(heightCm / 2.54);
+  const feet = totalInches === null ? "" : Math.floor(totalInches / 12);
+  const inches = totalInches === null ? "" : totalInches % 12;
+
+  return (
+    <form action={action} className="space-y-5">
+      <label className="block">
+        <span className="mb-1.5 block text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
+          What you do
+        </span>
+        <input
+          name="occupation"
+          type="text"
+          maxLength={60}
+          defaultValue={occupation ?? ""}
+          placeholder="Optional"
+          className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-[16px] focus:border-[var(--accent)] focus:outline-none"
+        />
+      </label>
+
+      <fieldset>
+        <legend className="mb-1.5 block text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
+          Height
+        </legend>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2">
+            <input
+              name="feet"
+              type="number"
+              min={3}
+              max={8}
+              defaultValue={feet}
+              placeholder="—"
+              className="w-20 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-3 text-[16px] tabular-nums focus:border-[var(--accent)] focus:outline-none"
+            />
+            <span className="text-[15px] text-[var(--text-secondary)]">ft</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              name="inches"
+              type="number"
+              min={0}
+              max={11}
+              defaultValue={inches}
+              placeholder="—"
+              className="w-20 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-3 text-[16px] tabular-nums focus:border-[var(--accent)] focus:outline-none"
+            />
+            <span className="text-[15px] text-[var(--text-secondary)]">in</span>
+          </label>
+        </div>
+        <p className="mt-2 text-[14px] text-[var(--text-dim)]">
+          Both optional. Leave them empty and your card just won&rsquo;t mention them.
+        </p>
+      </fieldset>
+
+      {state.error && (
+        <p role="alert" className="text-[15px] text-[var(--error)]">
+          {state.error}
+        </p>
+      )}
+      {state.saved && !state.error && (
+        <p role="status" className="text-[15px] text-[var(--success)]">
+          Saved.
+        </p>
+      )}
+
+      <Button type="submit" disabled={pending}>
+        {pending ? "Saving…" : "Save"}
+      </Button>
+    </form>
+  );
+}
+
 export function LocationForm({
   lat,
   lng,

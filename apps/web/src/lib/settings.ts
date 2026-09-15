@@ -42,6 +42,15 @@ export interface Identity {
   seeking: Gender[];
   neighborhood: string | null;
   /**
+   * Both of these are printed on every drop card and neither was ever
+   * collectable — no funnel step asks, and the profile had no field. Every
+   * seeded profile has them because a generator invented them; the only real
+   * member had neither, so a real card read as a name and a neighbourhood
+   * where a fixture read as a name, a job and a height.
+   */
+  occupation: string | null;
+  heightCm: number | null;
+  /**
    * The rounded point and the radius — matching input, not decoration.
    *
    * Read here so the settings page can seed the editor with what is already
@@ -81,7 +90,7 @@ export async function readSettings(): Promise<{
     supabase
       .from("profiles")
       .select(
-        "first_name,birthdate,gender,seeking,neighborhood,lat,lng,travel_radius_km,status,phone,photos,prompts,voice_intro_path",
+        "first_name,birthdate,gender,seeking,neighborhood,occupation,height_cm,lat,lng,travel_radius_km,status,phone,photos,prompts,voice_intro_path",
       )
       .eq("id", user.id)
       .maybeSingle(),
@@ -123,6 +132,8 @@ export async function readSettings(): Promise<{
       travelRadiusKm: profile.travel_radius_km,
       seeking: profile.seeking,
       neighborhood: profile.neighborhood,
+      occupation: profile.occupation,
+      heightCm: profile.height_cm,
       status: profile.status,
       locked: Boolean(application),
       phone: profile.phone,

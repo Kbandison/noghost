@@ -128,7 +128,7 @@ export default async function AppLayout({
               <BellIcon className="h-5 w-5" />
             </IconLink>
 
-            <IconLink href="/profile" label="Settings">
+            <IconLink href="/settings" label="Settings">
               <SettingsIcon className="h-5 w-5" />
             </IconLink>
 

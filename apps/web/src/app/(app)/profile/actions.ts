@@ -297,6 +297,66 @@ export async function savePrompts(
  * where the promise is kept for the honest path, and this is where it is kept
  * for a request that skipped the client entirely.
  */
+/**
+ * The two lines under your name on a card — and the reason this exists is that
+ * nothing could write them.
+ *
+ * `occupation` and `height_cm` are printed on every drop card and were never
+ * collectable: no funnel step asks for them, and the profile had no field. The
+ * only real member in the database had neither while all forty fixtures did,
+ * because a generator invented theirs. A real card read as a name and a
+ * neighbourhood where a seeded one read as a name, a job and a height.
+ *
+ * Both optional. Somebody who would rather not say what they do for a living is
+ * making a choice, not leaving a form incomplete, so blank clears the field
+ * rather than failing validation.
+ */
+export async function saveAbout(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const member = await requireMember();
+
+  const occupation = String(formData.get("occupation") ?? "").trim();
+  const feet = String(formData.get("feet") ?? "").trim();
+  const inches = String(formData.get("inches") ?? "").trim();
+
+  if (occupation.length > 60) {
+    return { error: "Keep that under 60 characters." };
+  }
+
+  /*
+   * Feet and inches in, centimetres stored. The column is `height_cm` and the
+   * card converts back for display; asking an American for centimetres to
+   * satisfy a column name would be the schema leaking into the product.
+   */
+  let heightCm: number | null = null;
+  if (feet !== "" || inches !== "") {
+    const ft = Number(feet);
+    const inch = inches === "" ? 0 : Number(inches);
+    if (!Number.isFinite(ft) || !Number.isFinite(inch) || ft < 3 || ft > 8 || inch < 0 || inch > 11) {
+      return { error: "Give a height between 3'0\" and 8'11\", or leave it blank." };
+    }
+    heightCm = Math.round((ft * 12 + inch) * 2.54);
+  }
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ occupation: occupation === "" ? null : occupation, height_cm: heightCm })
+    .eq("id", member.id);
+
+  if (error) {
+    console.error(`[settings] about ${member.id}: ${error.message}`);
+    return { error: "That didn't save. Try again." };
+  }
+
+  revalidatePath("/profile");
+  // A card shows both, so the drop has to be re-rendered too.
+  revalidatePath("/tonight");
+  return { saved: true };
+}
+
 export async function saveLocation(
   _prev: SettingsState,
   formData: FormData,
