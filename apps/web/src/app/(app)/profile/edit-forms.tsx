@@ -359,7 +359,6 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
    */
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<number | null>(null);
-  const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const grid = useRef<HTMLDivElement>(null);
 
   const indexAt = (x: number, y: number): number | null => {
@@ -374,34 +373,37 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
     return null;
   };
 
-  const cancelHold = () => {
-    if (hold.current) {
-      clearTimeout(hold.current);
-      hold.current = null;
-    }
-  };
-
+  /*
+   * Dragging starts on a handle, and the handle is the fix for a bug the tests
+   * could not see.
+   *
+   * The first version listened on the whole tile and waited 180ms before
+   * engaging, switching `touch-action` to none at that point. With a mouse that
+   * works, which is why it passed — Playwright drives mouse events and a mouse
+   * has no `touch-action` semantics at all. On a phone it cannot work:
+   * `touch-action` is read when the gesture *begins*, so changing it 180ms in
+   * is too late. The browser has already claimed the touch for scrolling and
+   * sends `pointercancel`, which ends the drag before it starts.
+   *
+   * A handle carrying `touch-action: none` from the start is the way out. It is
+   * small, so the rest of the tile still scrolls the page, and it needs no hold
+   * because grabbing it is unambiguous.
+   */
   function startDrag(path: string, event: React.PointerEvent) {
     if (pending || busy) return;
-    const { clientX, clientY } = event;
-    hold.current = setTimeout(() => {
-      setDragging(path);
-      setOver(indexAt(clientX, clientY));
-    }, 180);
+    // Keeps the move and up events coming to this element even when the finger
+    // leaves it, which it immediately does.
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(path);
+    setOver(indexAt(event.clientX, event.clientY));
   }
 
   function onMove(event: React.PointerEvent) {
-    if (!dragging) {
-      // Moved before the hold elapsed: they were scrolling, not dragging.
-      cancelHold();
-      return;
-    }
-    event.preventDefault();
+    if (!dragging) return;
     setOver(indexAt(event.clientX, event.clientY));
   }
 
   function endDrag() {
-    cancelHold();
     if (!dragging) return;
     const from = rows.findIndex((photo) => photo.path === dragging);
     const to = over;
@@ -431,16 +433,9 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
           <div
             key={photo.path}
             data-photo-index={i}
-            onPointerDown={(event) => startDrag(photo.path, event)}
-            /*
-             * `touch-none` only while a drag is live. Applied always it would
-             * stop the page scrolling whenever a finger landed on a photo,
-             * which in a three-across grid is most of the width.
-             */
             className={cn(
               "relative select-none transition-transform duration-150",
               dragging === photo.path && "scale-[0.97] opacity-60",
-              dragging && "touch-none",
               over === i && dragging !== null && dragging !== photo.path && "-translate-y-1",
             )}
           >
@@ -461,11 +456,35 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
                   className="pointer-events-none object-cover"
                 />
               ) : null}
-              {i === 0 && (
-                <span className="absolute left-0 top-0 bg-[var(--accent)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--on-accent)]">
-                  Leads
-                </span>
-              )}
+              {/*
+                * The handle, and the only thing here that starts a drag.
+                *
+                * `touch-none` is on it permanently rather than applied when a
+                * drag begins — `touch-action` is read at the start of a
+                * gesture, so setting it later does nothing and the browser
+                * scrolls instead. Small on purpose: the rest of the tile still
+                * scrolls the page normally.
+                */}
+              <button
+                type="button"
+                onPointerDown={(event) => startDrag(photo.path, event)}
+                onPointerMove={onMove}
+                onPointerUp={endDrag}
+                onPointerCancel={endDrag}
+                disabled={rows.length < 2 || pending}
+                aria-label={`Reorder photo ${i + 1}`}
+                title="Drag to reorder"
+                className="absolute left-1.5 top-1.5 flex h-7 w-7 touch-none items-center justify-center rounded-full bg-[var(--bg-primary)]/85 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] disabled:opacity-0 cursor-grab active:cursor-grabbing"
+              >
+                <svg viewBox="0 0 16 16" aria-hidden className="h-4 w-4" fill="currentColor">
+                  <circle cx="6" cy="4" r="1.3" />
+                  <circle cx="10" cy="4" r="1.3" />
+                  <circle cx="6" cy="8" r="1.3" />
+                  <circle cx="10" cy="8" r="1.3" />
+                  <circle cx="6" cy="12" r="1.3" />
+                  <circle cx="10" cy="12" r="1.3" />
+                </svg>
+              </button>
 
               {/*
                 * Top right, on the photo. It replaces a "Remove" link that sat
@@ -503,12 +522,35 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
                 </span>
               )}
             </div>
+
+            {i === 0 && (
+              <p className="mt-1 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--accent-text)]">
+                Leads
+              </p>
+            )}
           </div>
         ))}
       </div>
 
+      {/*
+        * Why the bin is dead, said where it can be read.
+        *
+        * At the minimum every remove button is disabled, and the only
+        * explanation was a `title` — a tooltip, which a phone never shows. The
+        * control looked broken rather than refused, and the first report of
+        * this was somebody telling me delete did not work while holding exactly
+        * three photos.
+        */}
+      {rows.length <= PHOTO_MIN && (
+        <p className="text-[14px] leading-relaxed text-[var(--text-secondary)]">
+          {PHOTO_MIN} photos is the minimum, so there&rsquo;s nothing to remove right now. Add
+          one and the bins turn on.
+        </p>
+      )}
+
       <p className="text-[14px] leading-relaxed text-[var(--text-dim)]">
-        {PHOTO_MIN}&ndash;{PHOTO_MAX} photos. The first one leads your card.
+        {PHOTO_MIN}&ndash;{PHOTO_MAX} photos. The first one leads your card. Drag the grip to
+        reorder.
         {waiting > 0 && (
           <>
             {" "}
