@@ -317,7 +317,19 @@ export async function saveAbout(
 ): Promise<SettingsState> {
   const member = await requireMember();
 
+  const bio = String(formData.get("bio") ?? "").trim();
   const occupation = String(formData.get("occupation") ?? "").trim();
+
+  /*
+   * 300 characters, and the cap is a product decision rather than a column
+   * limit. §7.2's cards are photos, prompts and a voice note, and the prompts
+   * exist so a connect has to reply to something specific. A bio long enough to
+   * read *instead* of the prompts would quietly replace the mechanic; this one
+   * is short enough to read alongside them.
+   */
+  if (bio.length > 300) {
+    return { error: "Keep that under 300 characters." };
+  }
   const feet = String(formData.get("feet") ?? "").trim();
   const inches = String(formData.get("inches") ?? "").trim();
 
@@ -343,7 +355,11 @@ export async function saveAbout(
   const supabase = await supabaseServer();
   const { error } = await supabase
     .from("profiles")
-    .update({ occupation: occupation === "" ? null : occupation, height_cm: heightCm })
+    .update({
+      bio: bio === "" ? null : bio,
+      occupation: occupation === "" ? null : occupation,
+      height_cm: heightCm,
+    })
     .eq("id", member.id);
 
   if (error) {

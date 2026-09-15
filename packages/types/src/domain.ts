@@ -54,6 +54,8 @@ export interface Profile {
   travel_radius_km: number | null;
   height_cm: number | null;
   occupation: string | null;
+  /** 0042. A few lines in their own words, shown under the facts on a card. */
+  bio: string | null;
   photos: ProfilePhoto[];
   prompts: ProfilePromptAnswer[];
 /** Receipts and lifecycle mail (§7.4, 0026). Never a sign-in credential. */
@@ -78,6 +80,9 @@ export interface VisibleProfile {
   neighborhood: string | null;
   height_cm: number | null;
   occupation: string | null;
+  /** 0042. Their own words, appended to the view rather than inserted — a
+      `create or replace view` can only add columns at the end. */
+  bio: string | null;
   photos: ProfilePhoto[];
   prompts: ProfilePromptAnswer[];
   voice_intro_path: string | null;

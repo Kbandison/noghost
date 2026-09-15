@@ -188,6 +188,20 @@ const GENDERS: Gender[] = ["man", "woman", "nonbinary"];
  * Deterministic generator — the same array every run, so screenshots, tests,
  * and the local UI stay stable across sessions.
  */
+/**
+ * Fixture bios. Deliberately dull and obviously written by nobody — a reviewer
+ * glancing at the admissions queue should be able to tell a fixture from a
+ * person at a glance, the same reason the photos are coloured tiles.
+ */
+const SEED_BIOS = [
+  "Here for the long conversations and the short walks.",
+  "I will absolutely bring a tote bag to a nice restaurant.",
+  "Two speeds: extremely early, or forty minutes late.",
+  "I like being outside and I am bad at sitting still.",
+  "Ask me about the sourdough. Do not ask me about the sourdough.",
+  "New enough to this city to still find it interesting.",
+] as const;
+
 export function generateSeedProfiles(count = 40): Profile[] {
   const random = seededRandom(hashSeed("noghost-atlanta-season-one"));
   const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)] as T;
@@ -251,6 +265,17 @@ export function generateSeedProfiles(count = 40): Profile[] {
       age_max: ageMax,
       interests,
       neighborhood: pick(SEED_NEIGHBORHOODS),
+      /*
+       * Indexed, not drawn — and that is the whole point.
+       *
+       * Every field generated with `random()` shares one stream, so adding a
+       * draw here would shift every draw after it and change the birthdates of
+       * later profiles. `freeze_identity_after_admission` refuses that, so a
+       * re-seed after adding a field fails outright rather than quietly
+       * reshuffling forty identities. The geo fields dodged it with their own
+       * stream; this needs no randomness at all, so `i` is enough.
+       */
+      bio: SEED_BIOS[i % SEED_BIOS.length] as string,
       /*
        * Scattered around Atlanta rather than stacked on one point: identical
        * coordinates would give every seeded pair the full proximity bonus and

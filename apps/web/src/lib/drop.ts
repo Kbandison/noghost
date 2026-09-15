@@ -32,6 +32,8 @@ export interface DropCardView {
     neighborhood: string | null;
     occupation: string | null;
     heightCm: number | null;
+    /** 0042. Their own words, under the facts row. */
+    bio: string | null;
     photos: ProfilePhoto[];
     prompts: ProfilePromptAnswer[];
     interests: string[];
@@ -169,7 +171,7 @@ export async function tonightsDrop(memberId: string, now: string): Promise<DropS
     supabase
       .from("visible_profiles")
       .select(
-        "id,first_name,age,neighborhood,occupation,height_cm,photos,prompts,interests,voice_intro_path",
+        "id,first_name,age,neighborhood,occupation,height_cm,bio,photos,prompts,interests,voice_intro_path",
       )
       .in("id", shownIds),
     // For the encore banner's "you passed on them in week N". Their own earlier
@@ -220,6 +222,7 @@ export async function tonightsDrop(memberId: string, now: string): Promise<DropS
           neighborhood: profile.neighborhood,
           occupation: profile.occupation,
           heightCm: profile.height_cm,
+          bio: profile.bio,
           photos: photoList(profile.photos),
           prompts: promptList(profile.prompts),
           interests: profile.interests ?? [],

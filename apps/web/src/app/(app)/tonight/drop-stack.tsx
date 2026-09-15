@@ -215,6 +215,21 @@ function Card({ card }: { card: DropCardView }) {
         )}
 
         {/*
+          * Under the facts and above the photos: it is the one thing on a card
+          * written as themselves rather than listed about them, and the line
+          * that decides whether somebody keeps reading.
+          *
+          * Capped at 300 characters where it is written, so it sits alongside
+          * the prompts rather than in place of them — a connect still has to
+          * reply to something specific, which is what a prompt is for.
+          */}
+        {profile.bio && (
+          <p className="mt-4 whitespace-pre-line text-[17px] leading-relaxed text-[var(--text-primary)]">
+            {profile.bio}
+          </p>
+        )}
+
+        {/*
           §7.2 puts the intro player on the card, and here is where it belongs:
           next to the name, before the photos, so hearing someone is an
           alternative to looking at them rather than a reward for scrolling past

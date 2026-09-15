@@ -133,9 +133,11 @@ export function PromptsForm({
  * centimetres to match a column name is the schema leaking into the product.
  */
 export function AboutForm({
+  bio,
   occupation,
   heightCm,
 }: {
+  bio: string | null;
   occupation: string | null;
   heightCm: number | null;
 }) {
@@ -154,6 +156,30 @@ export function AboutForm({
 
   return (
     <form ref={form} action={action} className="space-y-5">
+      {/*
+        * Their own words, first, because the two fields under it are facts and
+        * this is the only place on a card outside the prompts where somebody
+        * writes as themselves.
+        *
+        * 300 characters is a product limit rather than a column one. §7.2's
+        * cards are photos, prompts and a voice note, and the prompts exist so a
+        * connect has to reply to something specific — a bio long enough to read
+        * *instead* of them would quietly replace the mechanic.
+        */}
+      <label className="block">
+        <span className="sr-only">About you</span>
+        <textarea
+          name="bio"
+          rows={3}
+          maxLength={300}
+          defaultValue={bio ?? ""}
+          placeholder="A few lines about you — optional"
+          onChange={send}
+          onBlur={flush}
+          className="w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-[16px] leading-relaxed focus:border-[var(--accent)] focus:outline-none"
+        />
+      </label>
+
       {/*
         * The heading is gone and the label is not: a visible "What you do"
         * above a box whose placeholder also says what it is was the same words

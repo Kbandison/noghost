@@ -72,7 +72,11 @@ export default async function ProfilePage() {
       </p>
 
       <Section title="About you">
-        <AboutForm occupation={identity.occupation} heightCm={identity.heightCm} />
+        <AboutForm
+          bio={identity.bio}
+          occupation={identity.occupation}
+          heightCm={identity.heightCm}
+        />
       </Section>
 
       <Section title="Your photos">

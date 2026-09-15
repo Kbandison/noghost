@@ -50,6 +50,8 @@ export interface Identity {
    */
   occupation: string | null;
   heightCm: number | null;
+  /** 0042. Their own words, as opposed to the facts around them. */
+  bio: string | null;
   /**
    * The rounded point and the radius — matching input, not decoration.
    *
@@ -90,7 +92,7 @@ export async function readSettings(): Promise<{
     supabase
       .from("profiles")
       .select(
-        "first_name,birthdate,gender,seeking,neighborhood,occupation,height_cm,lat,lng,travel_radius_km,status,phone,photos,prompts,voice_intro_path",
+        "first_name,birthdate,gender,seeking,neighborhood,occupation,height_cm,bio,lat,lng,travel_radius_km,status,phone,photos,prompts,voice_intro_path",
       )
       .eq("id", user.id)
       .maybeSingle(),
@@ -134,6 +136,7 @@ export async function readSettings(): Promise<{
       neighborhood: profile.neighborhood,
       occupation: profile.occupation,
       heightCm: profile.height_cm,
+      bio: profile.bio,
       status: profile.status,
       locked: Boolean(application),
       phone: profile.phone,
