@@ -16,6 +16,7 @@
  *   pnpm db:seed:remote --applications
  *   pnpm db:seed:remote --members
  *   pnpm db:seed:remote --live
+ *   pnpm db:seed:remote --reset-season           settings back to the fixture
  *   pnpm db:seed:remote --chats
  *   pnpm db:seed:remote --for you@example.com      one real account, every screen
  *   pnpm db:seed:remote --for you@example.com --purge-for
@@ -74,7 +75,9 @@ const withMembers = process.argv.includes("--members");
  * October. Implies `--members`; a live season with no members is not a season.
  *
  * It changes what the marketing hero says. `--purge` puts it back by removing
- * the season entirely, and re-seeding without the flag restores the fixture.
+ * the season entirely, and re-seeding then restores the fixture. A plain
+ * re-seed does NOT: an existing season keeps its settings, and
+ * `--reset-season` is the flag that puts them back.
  */
 /*
  * `--for` implies this, and finding out why cost a run.
@@ -92,6 +95,16 @@ const goLive =
   process.argv.includes("--live") ||
   process.argv.includes("--chats") ||
   process.argv.includes("--for");
+
+/**
+ * Put every season setting back to the fixture, including `auto_admit`.
+ *
+ * Normal runs no longer touch an existing season at all — see the season block
+ * in `seed()`. This is the way back to a clean fixture without deleting the
+ * season and everything hanging off it, and it has to be asked for by name so
+ * that reverting a live setting is never something a run does on the way past.
+ */
+const resetSeason = process.argv.includes("--reset-season");
 
 /** Day one, relative to the run, when `--live` is used. Mid-week-two. */
 const LIVE_STARTED_DAYS_AGO = 9;
@@ -1115,12 +1128,76 @@ async function seed() {
       ).toISOString();
     }
 
-    const { error } = await db.from("seasons").upsert(season, { onConflict: "id" });
-    if (error) {
-      console.error(`  ✗ season: ${error.message}`);
+    /*
+     * An existing season is not overwritten, and this is the second time that
+     * has cost a run.
+     *
+     * The old line upserted the whole fixture on every seed. `SEED_SEASON` is a
+     * literal, so every column in it was restated — including `auto_admit`,
+     * which is `false` in the fixture and was `true` in the database. Turning
+     * auto-admit on and then seeding a member app turned it back off silently,
+     * and nothing said so: the run printed a tick.
+     *
+     * `auto_admit` is the one that bit, but it is not special. The season
+     * console can edit the name, the dates, every cap, both prices and the
+     * seats display — so any of them could be reverted the same way by a run
+     * that was only meant to add fixtures. The rule is now about the class:
+     *
+     *   the season does not exist  →  create it from the fixture
+     *   the season exists          →  it belongs to whoever has been running it
+     *
+     * `--live` still moves the calendar, because moving the calendar is the
+     * entire reason that flag exists and it announces what it did. Everything
+     * else is left alone. `--reset-season` is the way back to a pristine
+     * fixture, and it says what it is rather than hiding inside a normal run.
+     */
+    const { data: current, error: readError } = await db
+      .from("seasons")
+      .select("id,phase,auto_admit")
+      .eq("id", season.id)
+      .maybeSingle();
+    if (readError) {
+      console.error(`  ✗ season: ${readError.message}`);
       process.exit(1);
     }
-    console.log(`  ✓ season "${season.name}" (${season.phase})`);
+
+    if (!current || resetSeason) {
+      const { error } = await db.from("seasons").upsert(season, { onConflict: "id" });
+      if (error) {
+        console.error(`  ✗ season: ${error.message}`);
+        process.exit(1);
+      }
+      console.log(
+        `  ✓ season "${season.name}" (${season.phase})` +
+          (current ? " — --reset-season put every setting back to the fixture" : ""),
+      );
+    } else if (goLive) {
+      /* Only the calendar. `auto_admit` and every console-editable setting are
+         deliberately absent from this update. */
+      const { error } = await db
+        .from("seasons")
+        .update({
+          phase: season.phase,
+          starts_at: season.starts_at,
+          ends_at: season.ends_at,
+          applications_open_at: season.applications_open_at,
+        })
+        .eq("id", season.id);
+      if (error) {
+        console.error(`  ✗ season: ${error.message}`);
+        process.exit(1);
+      }
+      console.log(
+        `  ✓ season "${season.name}" (${season.phase}) — calendar moved, ` +
+          `settings left as they were (auto_admit is ${current.auto_admit})`,
+      );
+    } else {
+      console.log(
+        `  · season left alone (${current.phase}, auto_admit ${current.auto_admit}) — ` +
+          `--reset-season restores the fixture`,
+      );
+    }
+
     if (goLive) {
       console.log(
         `    ! --live backdated day one to ${season.starts_at.slice(0, 10)} — ` +
