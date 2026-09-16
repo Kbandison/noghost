@@ -53,14 +53,15 @@ export interface Profile {
   /** How far they will travel, in km. Null means they have not said. */
   travel_radius_km: number | null;
   height_cm: number | null;
-  occupation: string | null;
+  /** 0043. Pounds, not kilos — the unit it is typed in, so it round-trips. */
+  weight_lb: number | null;
   /** 0042. A few lines in their own words, shown under the facts on a card. */
   bio: string | null;
   photos: ProfilePhoto[];
   prompts: ProfilePromptAnswer[];
-/** Receipts and lifecycle mail (§7.4, 0026). Never a sign-in credential. */
+  /** Receipts and lifecycle mail (§7.4, 0026). Never a sign-in credential. */
   email: string | null;
-    voice_intro_path: string | null;
+  voice_intro_path: string | null;
   phone: string | null;
   status: MemberStatus;
   created_at: Timestamp;
@@ -79,9 +80,9 @@ export interface VisibleProfile {
   gender: Gender;
   neighborhood: string | null;
   height_cm: number | null;
-  occupation: string | null;
-  /** 0042. Their own words, appended to the view rather than inserted — a
-      `create or replace view` can only add columns at the end. */
+  weight_lb: number | null;
+  /** 0042. Their own words. 0043 rebuilt the view, so this sits with the other
+      facts rather than hanging off the end where a replace had to put it. */
   bio: string | null;
   photos: ProfilePhoto[];
   prompts: ProfilePromptAnswer[];

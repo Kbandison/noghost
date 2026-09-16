@@ -111,14 +111,6 @@ const SEED_NEIGHBORHOODS = [
   "Vinings",
 ] as const;
 
-const OCCUPATIONS = [
-  "ER nurse", "line cook", "structural engineer", "middle-school teacher",
-  "bike mechanic", "public defender", "sound engineer", "florist",
-  "data analyst", "physical therapist", "brewer", "librarian",
-  "electrician", "landscape architect", "barista and sometime potter",
-  "social worker", "video editor", "pastry chef", "urban planner", "paramedic",
-] as const;
-
 const PROMPT_ANSWERS: Record<string, string[]> = {
   prompt_01: [
     "I have opinions about which stretch of the Beltline is best at 7am.",
@@ -285,7 +277,14 @@ export function generateSeedProfiles(count = 40): Profile[] {
       lng: Math.round((-84.39 + (geoRandom() - 0.5) * 0.44) * 1000) / 1000,
       travel_radius_km: geoPick([10, 25, 25, 50]),
       height_cm: 155 + Math.floor(random() * 35),
-      occupation: pick(OCCUPATIONS),
+      /*
+       * Exactly one `random()` draw, standing where the job title's `pick()`
+       * used to (0043). `pick` consumed one draw too, so the stream stays
+       * aligned and every profile after this one keeps the birthdate it already
+       * has — the same trap the bio had to dodge, avoided here by swapping one
+       * draw for one draw rather than removing a field from the middle.
+       */
+      weight_lb: 110 + Math.floor(random() * 130),
       // Photos are intentionally empty: Phase 4 of the LuxWeb workflow sources
       // real imagery, and a placeholder service would ship as demo code.
       photos: [],

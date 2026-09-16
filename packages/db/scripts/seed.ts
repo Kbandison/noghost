@@ -78,11 +78,11 @@ for (const p of SEED_PROFILES) {
   lines.push(
     `insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   ${q(p.id)}, ${q(p.first_name)}, ${q(p.birthdate)}, ${q(p.gender)},
   ${arr(p.seeking)}, ${p.age_min}, ${p.age_max}, ${arr(p.interests)},
-  ${q(p.neighborhood)}, ${p.height_cm ?? "NULL"}, ${q(p.occupation)},
+  ${q(p.neighborhood)}, ${p.height_cm ?? "NULL"}, ${p.weight_lb ?? "NULL"}, ${q(p.bio)},
   ${json(p.photos)}, ${json(p.prompts)}, ${q(p.status)}::member_status,
   ${q(p.created_at)}, ${q(p.updated_at)}
 ) on conflict (id) do nothing;`,

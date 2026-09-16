@@ -188,10 +188,18 @@ export function DropStack({
 
 function Card({ card }: { card: DropCardView }) {
   const { profile } = card;
+  /*
+   * Rounded to whole inches *before* the split, not after.
+   *
+   * The old line took the modulo and then rounded it, so any height landing
+   * above 11.5 inches rounded to 12 and printed 5'12" — 182cm did exactly that.
+   * Rounding to a total first means the feet and the inches always agree.
+   */
+  const totalInches = profile.heightCm === null ? null : Math.round(profile.heightCm / 2.54);
   const facts = [
     profile.neighborhood,
-    profile.occupation,
-    profile.heightCm ? `${Math.floor(profile.heightCm / 2.54 / 12)}'${Math.round((profile.heightCm / 2.54) % 12)}"` : null,
+    totalInches === null ? null : `${Math.floor(totalInches / 12)}'${totalInches % 12}"`,
+    profile.weightLb === null ? null : `${profile.weightLb} lb`,
   ].filter(Boolean);
 
   return (

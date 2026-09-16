@@ -298,18 +298,23 @@ export async function savePrompts(
  * for a request that skipped the client entirely.
  */
 /**
- * The two lines under your name on a card — and the reason this exists is that
- * nothing could write them.
+ * What sits under your name on a card — and the reason this exists is that
+ * nothing could write it.
  *
- * `occupation` and `height_cm` are printed on every drop card and were never
- * collectable: no funnel step asks for them, and the profile had no field. The
- * only real member in the database had neither while all forty fixtures did,
- * because a generator invented theirs. A real card read as a name and a
- * neighbourhood where a seeded one read as a name, a job and a height.
+ * These facts are printed on every drop card and were never collectable: no
+ * funnel step asks for them, and the profile had no field. The only real member
+ * in the database had none of them while all forty fixtures did, because a
+ * generator invented theirs. A real card read as a name and a neighbourhood
+ * where a seeded one read as a name, a job and a height.
  *
- * Both optional. Somebody who would rather not say what they do for a living is
- * making a choice, not leaving a form incomplete, so blank clears the field
- * rather than failing validation.
+ * The job is gone as of 0043. It was the only free-text field before the bio
+ * existed, which made "About you" a box asking what you do for a living; with
+ * somewhere to write in your own words, a job title beside it is the same
+ * question asked worse, and it is the one fact here that reads as a rank.
+ *
+ * All of it optional. Somebody who would rather not give a number is making a
+ * choice, not leaving a form incomplete, so blank clears the field rather than
+ * failing validation.
  */
 export async function saveAbout(
   _prev: SettingsState,
@@ -318,7 +323,6 @@ export async function saveAbout(
   const member = await requireMember();
 
   const bio = String(formData.get("bio") ?? "").trim();
-  const occupation = String(formData.get("occupation") ?? "").trim();
 
   /*
    * 300 characters, and the cap is a product decision rather than a column
@@ -332,10 +336,7 @@ export async function saveAbout(
   }
   const feet = String(formData.get("feet") ?? "").trim();
   const inches = String(formData.get("inches") ?? "").trim();
-
-  if (occupation.length > 60) {
-    return { error: "Keep that under 60 characters." };
-  }
+  const pounds = String(formData.get("pounds") ?? "").trim();
 
   /*
    * Feet and inches in, centimetres stored. The column is `height_cm` and the
@@ -352,13 +353,34 @@ export async function saveAbout(
     heightCm = Math.round((ft * 12 + inch) * 2.54);
   }
 
+  /*
+   * Pounds in, pounds stored — no conversion, so there is nothing to round off.
+   *
+   * Height can afford centimetres because a centimetre is finer than an inch,
+   * so 5'10" survives the trip out and back. A kilogram is coarser than a
+   * pound, so storing metric would hand somebody a different number than the
+   * one they typed, every time. The column is `weight_lb` for that reason.
+   *
+   * The bounds catch a slipped digit and nothing else: 60 to 600 is not an
+   * opinion about anybody's weight, it is the range outside which a value is
+   * certainly a typo.
+   */
+  let weightLb: number | null = null;
+  if (pounds !== "") {
+    const lb = Number(pounds);
+    if (!Number.isFinite(lb) || lb < 60 || lb > 600) {
+      return { error: "Give a weight between 60 and 600 lb, or leave it blank." };
+    }
+    weightLb = Math.round(lb);
+  }
+
   const supabase = await supabaseServer();
   const { error } = await supabase
     .from("profiles")
     .update({
       bio: bio === "" ? null : bio,
-      occupation: occupation === "" ? null : occupation,
       height_cm: heightCm,
+      weight_lb: weightLb,
     })
     .eq("id", member.id);
 
@@ -368,7 +390,7 @@ export async function saveAbout(
   }
 
   revalidatePath("/profile");
-  // A card shows both, so the drop has to be re-rendered too.
+  // A card shows all of it, so the drop has to be re-rendered too.
   revalidatePath("/tonight");
   return { saved: true };
 }
@@ -431,7 +453,12 @@ export async function savePhotos(
     .filter(Boolean);
 
   if (paths.length < PHOTO_MIN) {
-    return { error: `Keep at least ${PHOTO_MIN} photos on your profile.` };
+    return {
+      error:
+        PHOTO_MIN === 1
+          ? "Your card needs a photo."
+          : `Keep at least ${PHOTO_MIN} photos on your profile.`,
+    };
   }
   if (paths.length > PHOTO_MAX) return { error: `${PHOTO_MAX} photos maximum.` };
   if (new Set(paths).size !== paths.length) return { error: "That photo is already on there." };

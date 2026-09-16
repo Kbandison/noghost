@@ -106,7 +106,18 @@ export const GENDER_LABELS: Record<Gender, string> = {
 export const MIN_AGE = 18;
 
 /** Photo and prompt counts enforced by the profile builder (spec §5, §7.2). */
-export const PHOTO_MIN = 3;
+/*
+ * One, not three — a deliberate divergence from §7.2's "photos (3-6)".
+ *
+ * Three was a quality floor: more faces, more to reply to. In practice it is a
+ * wall at the front door of a product nobody has joined yet, and it makes the
+ * bin on every tile dead for anybody holding exactly three. A member with one
+ * good photo and a bio is a member; a member who bounced off an upload screen
+ * is not.
+ *
+ * `PHOTO_MAX` is untouched. The ceiling was never the problem.
+ */
+export const PHOTO_MIN = 1;
 export const PHOTO_MAX = 6;
 export const PROMPT_COUNT = 3;
 /**

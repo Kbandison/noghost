@@ -111,8 +111,13 @@ async function setup() {
       gender: "woman",
       seeking: ["man"],
       neighborhood: "Kirkwood",
-      occupation: "probe",
       height_cm: 170,
+      weight_lb: 165,
+      /* Free text the member wrote about themselves, which is the whole class
+         of thing erasure exists to remove. 0042 added the column and did not
+         add it to `delete_own_account`; this assertion is why that will not
+         happen silently again. */
+      bio: "probe bio, in their own words",
       photos: [{ path: `${person.id}/one.webp`, order: 0, approved: true }],
       prompts: [{ prompt_id: "prompt_01", answer: "Something personal." }],
     });
@@ -239,13 +244,14 @@ async function main() {
     {
       const { data: profile } = await service
         .from("profiles")
-        .select("first_name,birthdate,neighborhood,occupation,height_cm,photos,prompts,phone,voice_intro_path,status")
+        .select("first_name,birthdate,neighborhood,height_cm,weight_lb,bio,photos,prompts,phone,voice_intro_path,status")
         .eq("id", a!.id)
         .single();
       check(profile?.first_name === "Someone", "the name", profile?.first_name);
       check(profile?.birthdate === "1900-01-01", "the birthdate", profile?.birthdate);
-      check(profile?.neighborhood === null && profile?.occupation === null, "neighbourhood and job");
-      check(profile?.height_cm === null, "height");
+      check(profile?.neighborhood === null, "neighbourhood");
+      check(profile?.height_cm === null && profile?.weight_lb === null, "height and weight");
+      check(profile?.bio === null, "the bio", profile?.bio);
       check(
         Array.isArray(profile?.photos) && profile.photos.length === 0,
         "photos",

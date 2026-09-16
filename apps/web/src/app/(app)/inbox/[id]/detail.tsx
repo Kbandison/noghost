@@ -294,7 +294,6 @@ function Sent({ connect }: { connect: OutgoingConnect }) {
 
 function Person({ person }: { person: InboxPerson }) {
   const url = person.photos[0] ? publicPhotoUrl(person.photos[0].path) : "";
-  const facts = [person.neighborhood, person.occupation].filter(Boolean);
 
   return (
     <header className="flex items-start gap-5">
@@ -313,8 +312,8 @@ function Person({ person }: { person: InboxPerson }) {
           {person.firstName}
           <span className="ml-3 text-[var(--text-dim)]">{person.age}</span>
         </h1>
-        {facts.length > 0 && (
-          <p className="mt-2 text-[15px] text-[var(--text-secondary)]">{facts.join(" · ")}</p>
+        {person.neighborhood && (
+          <p className="mt-2 text-[15px] text-[var(--text-secondary)]">{person.neighborhood}</p>
         )}
         {person.interests.length > 0 && (
           <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--text-dim)]">

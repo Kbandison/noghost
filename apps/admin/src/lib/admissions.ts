@@ -38,8 +38,11 @@ export interface ApplicationDetail extends QueueRow {
   ageMin: number;
   ageMax: number;
   interests: string[];
-  occupation: string | null;
   heightCm: number | null;
+  weightLb: number | null;
+  /** 0042. Member-written free text, and nothing screens it — see the review
+      panel, which is the only place anybody reads it before admission. */
+  bio: string | null;
   phone: string | null;
   birthdate: string;
   photoPaths: string[];
@@ -103,8 +106,9 @@ interface ProfileRow {
   age_max: number;
   interests: string[];
   neighborhood: string | null;
-  occupation: string | null;
   height_cm: number | null;
+  weight_lb: number | null;
+  bio: string | null;
   phone: string | null;
   photos: unknown;
   prompts: unknown;
@@ -125,7 +129,7 @@ function promptList(prompts: unknown): { prompt_id: string; answer: string }[] {
 }
 
 const PROFILE_COLUMNS =
-  "id,first_name,birthdate,gender,seeking,age_min,age_max,interests,neighborhood,occupation,height_cm,phone,photos,prompts";
+  "id,first_name,birthdate,gender,seeking,age_min,age_max,interests,neighborhood,height_cm,weight_lb,bio,phone,photos,prompts";
 
 export async function listQueue(status: ApplicationStatus | "all" = "under_review") {
   const supabase = await supabaseServer();
@@ -241,8 +245,9 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
     ageMax: p.age_max,
     interests: p.interests ?? [],
     neighborhood: p.neighborhood,
-    occupation: p.occupation,
     heightCm: p.height_cm,
+    weightLb: p.weight_lb,
+    bio: p.bio,
     phone: p.phone,
     photoPaths: photoPaths(p.photos),
     photos: photoList(p.photos),

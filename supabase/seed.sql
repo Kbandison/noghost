@@ -12,7 +12,7 @@ insert into seasons (
   drop_time, drop_max, fuse_days, claim_hours, price_early_cents,
   price_standard_cents, early_bird_cap, encore_start_week, timezone, created_at
 ) values (
-  'deadbeef-0000-4000-8000-000000000001', 'Atlanta Season One', 'Atlanta',
+  'deadbeef-0000-4000-8000-000000000001', 'Season One', 'Atlanta',
   'applications_open'::season_phase, '2026-07-27T04:00:00.000Z',
   '2026-10-05T04:00:00.000Z', '2026-11-30T05:00:00.000Z', 300,
   '20:00', 3, 7,
@@ -229,401 +229,401 @@ on conflict (id) do nothing;
 -- ============ PROFILES ============
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000100', 'Maya', '1987-03-06', 'man',
   ARRAY['man','woman','nonbinary']::text[], 35, 44, ARRAY['stand-up','reading','motorcycles','thrifting','pottery','hiking','video games']::text[],
-  'College Park', 182, 'public defender',
+  'Avondale Estates', 182, 148, 'Here for the long conversations and the short walks.',
   '[]'::jsonb, '[{"prompt_id":"prompt_03","answer":"Why every good bakery smells slightly different."},{"prompt_id":"prompt_08","answer":"My own attempt at a sourdough starter. It''s named and it''s failing."},{"prompt_id":"prompt_11","answer":"A hot dog is a sandwich and the debate is beneath us."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000101', 'Devon', '1989-05-18', 'woman',
   ARRAY['man']::text[], 30, 42, ARRAY['volunteering','coffee','church','yoga','baking']::text[],
-  'Riverdale', 173, 'structural engineer',
+  'Tucker', 173, 127, 'I will absolutely bring a tote bag to a nice restaurant.',
   '[]'::jsonb, '[{"prompt_id":"prompt_10","answer":"…drove to Savannah for a sandwich. It was worth it. I''d do it again."},{"prompt_id":"prompt_03","answer":"The Braves'' bullpen management. Bring a chair."},{"prompt_id":"prompt_08","answer":"My neighbour''s dog has learned to open the screen door and act innocent."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000102', 'Priya', '1996-03-11', 'nonbinary',
   ARRAY['nonbinary']::text[], 22, 34, ARRAY['sewing','running','cycling','painting','cats','politics','dive bars']::text[],
-  'Fayetteville', 188, 'urban planner',
+  'Smyrna', 188, 232, 'Two speeds: extremely early, or forty minutes late.',
   '[]'::jsonb, '[{"prompt_id":"prompt_11","answer":"Restaurant butter should be room temperature or it''s a hostility."},{"prompt_id":"prompt_08","answer":"My neighbour''s dog has learned to open the screen door and act innocent."},{"prompt_id":"prompt_09","answer":"…in the third hour of a project I said would take one."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000103', 'Marcus', '2001-06-27', 'man',
-  ARRAY['woman']::text[], 21, 34, ARRAY['theatre','writing','politics','startups','gardening','cooking','sewing','trivia']::text[],
-  'Sandy Springs', 170, 'line cook',
+  ARRAY['woman']::text[], 18, 34, ARRAY['theatre','writing','politics','startups','gardening','cooking','sewing','trivia']::text[],
+  'Buckhead', 170, 122, 'I like being outside and I am bad at sitting still.',
   '[]'::jsonb, '[{"prompt_id":"prompt_02","answer":"…with both of us already arguing about where to go next time."},{"prompt_id":"prompt_01","answer":"I still call it the Sears building and I will not be taking questions."},{"prompt_id":"prompt_06","answer":"Cilantro. Fourteen years of being wrong, corrected in one meal."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000104', 'Nia', '2003-07-04', 'woman',
-  ARRAY['nonbinary']::text[], 21, 30, ARRAY['travel','dancing','church','cats','investing','film','farmers markets','vegetarian cooking']::text[],
-  'Avondale Estates', 170, 'physical therapist',
+  ARRAY['nonbinary']::text[], 18, 30, ARRAY['travel','dancing','church','cats','investing','film','farmers markets','vegetarian cooking']::text[],
+  'Decatur', 170, 174, 'Ask me about the sourdough. Do not ask me about the sourdough.',
   '[]'::jsonb, '[{"prompt_id":"prompt_11","answer":"Restaurant butter should be room temperature or it''s a hostility."},{"prompt_id":"prompt_08","answer":"My own attempt at a sourdough starter. It''s named and it''s failing."},{"prompt_id":"prompt_02","answer":"…on a walk neither of us suggested out loud."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000105', 'Theo', '1991-06-15', 'nonbinary',
   ARRAY['nonbinary']::text[], 31, 42, ARRAY['hiking','soccer','politics','dive bars','fishing','cars','trivia','cooking','writing']::text[],
-  'Summerhill', 158, 'pastry chef',
+  'Downtown', 158, 222, 'New enough to this city to still find it interesting.',
   '[]'::jsonb, '[{"prompt_id":"prompt_02","answer":"…on a walk neither of us suggested out loud."},{"prompt_id":"prompt_07","answer":"…you''re looking for something casual. I''m not, and I''d rather say so."},{"prompt_id":"prompt_12","answer":"…to have been genuinely surprised at least once."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000106', 'Camille', '1995-02-08', 'man',
   ARRAY['woman']::text[], 23, 38, ARRAY['woodworking','cooking','investing','reading','sewing','baking','theatre','cycling','pickup basketball','history']::text[],
-  'Old Fourth Ward', 187, 'data analyst',
+  'Old Fourth Ward', 187, 165, 'Here for the long conversations and the short walks.',
   '[]'::jsonb, '[{"prompt_id":"prompt_06","answer":"That being busy meant anything at all."},{"prompt_id":"prompt_05","answer":"…I''m early to everything and slightly smug about it."},{"prompt_id":"prompt_04","answer":"I say the awkward thing early instead of letting it sit."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000107', 'Andre', '1991-05-21', 'woman',
   ARRAY['man']::text[], 27, 44, ARRAY['vegetarian cooking','dive bars','theatre','woodworking','stand-up','baking','astronomy']::text[],
-  'Alpharetta', 155, 'brewer',
+  'Poncey-Highland', 155, 177, 'I will absolutely bring a tote bag to a nice restaurant.',
   '[]'::jsonb, '[{"prompt_id":"prompt_03","answer":"The specific genius of a well-made public bus route."},{"prompt_id":"prompt_07","answer":"…you''re looking for something casual. I''m not, and I''d rather say so."},{"prompt_id":"prompt_11","answer":"Restaurant butter should be room temperature or it''s a hostility."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000108', 'Simone', '1987-03-02', 'nonbinary',
   ARRAY['man','woman']::text[], 31, 44, ARRAY['photography','writing','cycling','live music','vegetarian cooking','karaoke','cars','hiking']::text[],
-  'Stone Mountain', 166, 'ER nurse',
+  'College Park', 166, 111, 'Two speeds: extremely early, or forty minutes late.',
   '[]'::jsonb, '[{"prompt_id":"prompt_01","answer":"I have opinions about which stretch of the Beltline is best at 7am."},{"prompt_id":"prompt_02","answer":"…on a walk neither of us suggested out loud."},{"prompt_id":"prompt_08","answer":"My own attempt at a sourdough starter. It''s named and it''s failing."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000109', 'Wes', '2001-06-18', 'man',
-  ARRAY['woman','nonbinary']::text[], 21, 31, ARRAY['painting','cars','camping','farmers markets','climbing','karaoke','motorcycles','running']::text[],
-  'Alpharetta', 180, 'brewer',
+  ARRAY['woman','nonbinary']::text[], 19, 31, ARRAY['painting','cars','camping','farmers markets','climbing','karaoke','motorcycles','running']::text[],
+  'Poncey-Highland', 180, 177, 'I like being outside and I am bad at sitting still.',
   '[]'::jsonb, '[{"prompt_id":"prompt_02","answer":"…us realising we''ve been at the table two hours past closing."},{"prompt_id":"prompt_04","answer":"I remember what you told me last time and I ask about it."},{"prompt_id":"prompt_03","answer":"Why every good bakery smells slightly different."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000110', 'Imani', '1990-03-04', 'woman',
   ARRAY['man']::text[], 29, 46, ARRAY['baking','board games','film','astronomy','brunch','natural wine','podcasts','travel','volunteering']::text[],
-  'Summerhill', 188, 'urban planner',
+  'Cabbagetown', 188, 233, 'Ask me about the sourdough. Do not ask me about the sourdough.',
   '[]'::jsonb, '[{"prompt_id":"prompt_11","answer":"Grits do not need sugar and I''ll die on this."},{"prompt_id":"prompt_07","answer":"…you''re looking for something casual. I''m not, and I''d rather say so."},{"prompt_id":"prompt_12","answer":"…someone I''d want to introduce to my sister."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000111', 'Jonah', '2002-11-26', 'nonbinary',
-  ARRAY['nonbinary']::text[], 21, 28, ARRAY['film','climbing','sewing','pottery','gardening','cooking','cycling','podcasts']::text[],
-  'Riverdale', 168, 'urban planner',
+  ARRAY['nonbinary']::text[], 18, 28, ARRAY['film','climbing','sewing','pottery','gardening','cooking','cycling','podcasts']::text[],
+  'Tucker', 168, 230, 'New enough to this city to still find it interesting.',
   '[]'::jsonb, '[{"prompt_id":"prompt_04","answer":"I''m genuinely happy for people, including strangers."},{"prompt_id":"prompt_03","answer":"Why every good bakery smells slightly different."},{"prompt_id":"prompt_12","answer":"…to have been genuinely surprised at least once."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000112', 'Rosa', '1987-02-04', 'man',
   ARRAY['woman']::text[], 33, 46, ARRAY['theatre','cooking','video games','motorcycles','woodworking']::text[],
-  'Riverdale', 173, 'physical therapist',
+  'Tucker', 173, 173, 'Here for the long conversations and the short walks.',
   '[]'::jsonb, '[{"prompt_id":"prompt_10","answer":"…drove to Savannah for a sandwich. It was worth it. I''d do it again."},{"prompt_id":"prompt_02","answer":"…on a walk neither of us suggested out loud."},{"prompt_id":"prompt_11","answer":"Restaurant butter should be room temperature or it''s a hostility."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000113', 'Kwame', '2000-04-05', 'woman',
-  ARRAY['man']::text[], 21, 36, ARRAY['cats','painting','motorcycles','pickup basketball','astronomy','video games','climbing','karaoke']::text[],
-  'Cabbagetown', 187, 'brewer',
+  ARRAY['man']::text[], 18, 36, ARRAY['cats','painting','motorcycles','pickup basketball','astronomy','video games','climbing','karaoke']::text[],
+  'West End', 187, 178, 'I will absolutely bring a tote bag to a nice restaurant.',
   '[]'::jsonb, '[{"prompt_id":"prompt_04","answer":"I remember what you told me last time and I ask about it."},{"prompt_id":"prompt_11","answer":"A hot dog is a sandwich and the debate is beneath us."},{"prompt_id":"prompt_02","answer":"…on a walk neither of us suggested out loud."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000114', 'Elena', '1990-04-06', 'nonbinary',
   ARRAY['woman']::text[], 28, 39, ARRAY['vegetarian cooking','pottery','cooking','startups','cats']::text[],
-  'Avondale Estates', 177, 'public defender',
+  'Decatur', 177, 144, 'Two speeds: extremely early, or forty minutes late.',
   '[]'::jsonb, '[{"prompt_id":"prompt_09","answer":"…cooking for more people than I have chairs for."},{"prompt_id":"prompt_12","answer":"…to have been genuinely surprised at least once."},{"prompt_id":"prompt_02","answer":"…us realising we''ve been at the table two hours past closing."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000115', 'Beau', '1989-05-14', 'man',
   ARRAY['man','woman']::text[], 30, 40, ARRAY['stand-up','coffee','pickup basketball','dive bars','board games']::text[],
-  'Roswell', 161, 'librarian',
+  'Poncey-Highland', 161, 187, 'I like being outside and I am bad at sitting still.',
   '[]'::jsonb, '[{"prompt_id":"prompt_12","answer":"…fewer, better conversations. That''s the whole ask."},{"prompt_id":"prompt_10","answer":"…drove to Savannah for a sandwich. It was worth it. I''d do it again."},{"prompt_id":"prompt_11","answer":"Grits do not need sugar and I''ll die on this."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000116', 'Aaliyah', '1987-04-19', 'woman',
   ARRAY['man']::text[], 32, 42, ARRAY['pottery','karaoke','live music','sewing','politics','cooking','dogs','photography']::text[],
-  'Stone Mountain', 155, 'physical therapist',
+  'College Park', 155, 171, 'Ask me about the sourdough. Do not ask me about the sourdough.',
   '[]'::jsonb, '[{"prompt_id":"prompt_04","answer":"I''m genuinely happy for people, including strangers."},{"prompt_id":"prompt_06","answer":"Cilantro. Fourteen years of being wrong, corrected in one meal."},{"prompt_id":"prompt_02","answer":"…with both of us already arguing about where to go next time."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000117', 'Nico', '1995-01-22', 'nonbinary',
   ARRAY['nonbinary']::text[], 26, 40, ARRAY['theatre','sewing','pickup basketball','fishing','startups']::text[],
-  'Douglasville', 173, 'ER nurse',
+  'Vinings', 173, 113, 'New enough to this city to still find it interesting.',
   '[]'::jsonb, '[{"prompt_id":"prompt_09","answer":"…in the third hour of a project I said would take one."},{"prompt_id":"prompt_01","answer":"I know exactly which Publix to avoid on a Sunday."},{"prompt_id":"prompt_11","answer":"A hot dog is a sandwich and the debate is beneath us."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000118', 'Tessa', '2002-11-24', 'man',
-  ARRAY['woman']::text[], 21, 31, ARRAY['photography','board games','volunteering','cooking','live music','stand-up','dive bars','brunch','cycling','history']::text[],
-  'Cabbagetown', 177, 'barista and sometime potter',
+  ARRAY['woman']::text[], 18, 31, ARRAY['photography','board games','volunteering','cooking','live music','stand-up','dive bars','brunch','cycling','history']::text[],
+  'West End', 177, 206, 'Here for the long conversations and the short walks.',
   '[]'::jsonb, '[{"prompt_id":"prompt_08","answer":"A toddler at the market told me my haircut was ''a choice''."},{"prompt_id":"prompt_01","answer":"I have opinions about which stretch of the Beltline is best at 7am."},{"prompt_id":"prompt_05","answer":"…I narrate documentaries out loud. Every time."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000119', 'Malik', '1996-10-20', 'woman',
   ARRAY['man']::text[], 22, 37, ARRAY['climbing','pickup basketball','vegetarian cooking','natural wine','motorcycles','karaoke','travel','running','history','pottery']::text[],
-  'College Park', 186, 'landscape architect',
+  'Avondale Estates', 186, 200, 'I will absolutely bring a tote bag to a nice restaurant.',
   '[]'::jsonb, '[{"prompt_id":"prompt_04","answer":"I''m genuinely happy for people, including strangers."},{"prompt_id":"prompt_09","answer":"…cooking for more people than I have chairs for."},{"prompt_id":"prompt_08","answer":"My neighbour''s dog has learned to open the screen door and act innocent."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000120', 'Junie', '1989-07-06', 'nonbinary',
   ARRAY['nonbinary']::text[], 31, 44, ARRAY['baking','cats','politics','stand-up','cars','startups']::text[],
-  'Downtown', 168, 'structural engineer',
+  'East Atlanta', 168, 123, 'Two speeds: extremely early, or forty minutes late.',
   '[]'::jsonb, '[{"prompt_id":"prompt_06","answer":"That being busy meant anything at all."},{"prompt_id":"prompt_05","answer":"…I will absolutely reorganise your kitchen if you leave me alone in it."},{"prompt_id":"prompt_04","answer":"I say the awkward thing early instead of letting it sit."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000121', 'Ravi', '1996-11-26', 'man',
   ARRAY['woman']::text[], 24, 33, ARRAY['sewing','vegetarian cooking','lifting','cats','startups','karaoke']::text[],
-  'Alpharetta', 162, 'landscape architect',
+  'Candler Park', 162, 196, 'I like being outside and I am bad at sitting still.',
   '[]'::jsonb, '[{"prompt_id":"prompt_01","answer":"I still call it the Sears building and I will not be taking questions."},{"prompt_id":"prompt_06","answer":"Cilantro. Fourteen years of being wrong, corrected in one meal."},{"prompt_id":"prompt_08","answer":"My own attempt at a sourdough starter. It''s named and it''s failing."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000122', 'Cleo', '1988-04-26', 'woman',
   ARRAY['man']::text[], 33, 48, ARRAY['baking','live music','travel','podcasts','vegetarian cooking','investing','cats','reading','thrifting']::text[],
-  'Avondale Estates', 161, 'brewer',
+  'Chamblee', 161, 181, 'Ask me about the sourdough. Do not ask me about the sourdough.',
   '[]'::jsonb, '[{"prompt_id":"prompt_01","answer":"I still call it the Sears building and I will not be taking questions."},{"prompt_id":"prompt_09","answer":"…cooking for more people than I have chairs for."},{"prompt_id":"prompt_12","answer":"…fewer, better conversations. That''s the whole ask."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000123', 'Owen', '2002-11-16', 'nonbinary',
-  ARRAY['nonbinary']::text[], 21, 30, ARRAY['theatre','barbecue','history','yoga','natural wine','lifting']::text[],
-  'East Atlanta', 188, 'electrician',
+  ARRAY['nonbinary']::text[], 18, 30, ARRAY['theatre','barbecue','history','yoga','natural wine','lifting']::text[],
+  'Virginia-Highland', 188, 188, 'New enough to this city to still find it interesting.',
   '[]'::jsonb, '[{"prompt_id":"prompt_10","answer":"…drove to Savannah for a sandwich. It was worth it. I''d do it again."},{"prompt_id":"prompt_09","answer":"…cooking for more people than I have chairs for."},{"prompt_id":"prompt_12","answer":"…to have been genuinely surprised at least once."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000124', 'Sade', '1989-06-28', 'man',
   ARRAY['woman','nonbinary']::text[], 30, 41, ARRAY['dive bars','cooking','video games','stand-up','climbing','investing','pickup basketball']::text[],
-  'Vinings', 167, 'barista and sometime potter',
+  'Ormewood Park', 167, 203, 'Here for the long conversations and the short walks.',
   '[]'::jsonb, '[{"prompt_id":"prompt_12","answer":"…to have been genuinely surprised at least once."},{"prompt_id":"prompt_10","answer":"…drove to Savannah for a sandwich. It was worth it. I''d do it again."},{"prompt_id":"prompt_01","answer":"I know exactly which Publix to avoid on a Sunday."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000125', 'Bennett', '1988-03-14', 'woman',
   ARRAY['woman']::text[], 31, 43, ARRAY['trivia','live music','dogs','history','running','climbing','writing','pickup basketball','painting']::text[],
-  'Old Fourth Ward', 156, 'electrician',
+  'Old Fourth Ward', 156, 194, 'I will absolutely bring a tote bag to a nice restaurant.',
   '[]'::jsonb, '[{"prompt_id":"prompt_03","answer":"Why every good bakery smells slightly different."},{"prompt_id":"prompt_07","answer":"…you want someone who texts back within the hour. I''m a once-a-day person."},{"prompt_id":"prompt_01","answer":"I still call it the Sears building and I will not be taking questions."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000126', 'Yara', '1996-12-04', 'nonbinary',
   ARRAY['man','woman','nonbinary']::text[], 26, 34, ARRAY['cooking','coffee','cycling','thrifting','motorcycles']::text[],
-  'Old Fourth Ward', 162, 'sound engineer',
+  'Old Fourth Ward', 162, 153, 'Two speeds: extremely early, or forty minutes late.',
   '[]'::jsonb, '[{"prompt_id":"prompt_05","answer":"…I''m early to everything and slightly smug about it."},{"prompt_id":"prompt_07","answer":"…you''re looking for something casual. I''m not, and I''d rather say so."},{"prompt_id":"prompt_10","answer":"…drove to Savannah for a sandwich. It was worth it. I''d do it again."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000127', 'Cyrus', '2001-04-27', 'man',
   ARRAY['woman']::text[], 21, 33, ARRAY['hiking','cooking','thrifting','cycling','baking','theatre']::text[],
-  'Stone Mountain', 186, 'structural engineer',
+  'Tucker', 186, 123, 'I like being outside and I am bad at sitting still.',
   '[]'::jsonb, '[{"prompt_id":"prompt_07","answer":"…quiet Sundays sound like a waste of a weekend to you."},{"prompt_id":"prompt_05","answer":"…I narrate documentaries out loud. Every time."},{"prompt_id":"prompt_06","answer":"Cilantro. Fourteen years of being wrong, corrected in one meal."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000128', 'Delia', '2002-07-12', 'woman',
-  ARRAY['man']::text[], 21, 29, ARRAY['film','astronomy','thrifting','karaoke','fishing','dogs']::text[],
-  'Inman Park', 189, 'florist',
+  ARRAY['man']::text[], 18, 29, ARRAY['film','astronomy','thrifting','karaoke','fishing','dogs']::text[],
+  'Old Fourth Ward', 189, 157, 'Ask me about the sourdough. Do not ask me about the sourdough.',
   '[]'::jsonb, '[{"prompt_id":"prompt_07","answer":"…quiet Sundays sound like a waste of a weekend to you."},{"prompt_id":"prompt_10","answer":"…rebuilt an engine off a library book and it actually started."},{"prompt_id":"prompt_02","answer":"…with both of us already arguing about where to go next time."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000129', 'Amos', '1998-12-22', 'nonbinary',
   ARRAY['nonbinary']::text[], 23, 36, ARRAY['board games','pickup basketball','photography','woodworking','gardening']::text[],
-  'Downtown', 167, 'public defender',
+  'East Atlanta', 167, 146, 'New enough to this city to still find it interesting.',
   '[]'::jsonb, '[{"prompt_id":"prompt_10","answer":"…drove to Savannah for a sandwich. It was worth it. I''d do it again."},{"prompt_id":"prompt_01","answer":"I still call it the Sears building and I will not be taking questions."},{"prompt_id":"prompt_02","answer":"…us realising we''ve been at the table two hours past closing."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000130', 'Noor', '1993-04-07', 'man',
   ARRAY['man']::text[], 28, 36, ARRAY['live music','pottery','coffee','running','volunteering','stand-up','natural wine','farmers markets','cats','fishing']::text[],
-  'Marietta', 176, 'florist',
+  'Candler Park', 176, 161, 'Here for the long conversations and the short walks.',
   '[]'::jsonb, '[{"prompt_id":"prompt_03","answer":"The Braves'' bullpen management. Bring a chair."},{"prompt_id":"prompt_08","answer":"My own attempt at a sourdough starter. It''s named and it''s failing."},{"prompt_id":"prompt_11","answer":"Restaurant butter should be room temperature or it''s a hostility."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000131', 'Reggie', '1992-04-19', 'woman',
   ARRAY['woman']::text[], 28, 39, ARRAY['cats','coffee','soccer','painting','photography']::text[],
-  'Alpharetta', 174, 'public defender',
+  'Poncey-Highland', 174, 144, 'I will absolutely bring a tote bag to a nice restaurant.',
   '[]'::jsonb, '[{"prompt_id":"prompt_07","answer":"…you want someone who texts back within the hour. I''m a once-a-day person."},{"prompt_id":"prompt_08","answer":"My own attempt at a sourdough starter. It''s named and it''s failing."},{"prompt_id":"prompt_06","answer":"Cilantro. Fourteen years of being wrong, corrected in one meal."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000132', 'Fionna', '1990-11-13', 'nonbinary',
   ARRAY['nonbinary']::text[], 32, 42, ARRAY['cooking','astronomy','cats','cars','stand-up','painting','startups','fishing']::text[],
-  'Doraville', 161, 'paramedic',
+  'Sandy Springs', 161, 238, 'Two speeds: extremely early, or forty minutes late.',
   '[]'::jsonb, '[{"prompt_id":"prompt_02","answer":"…on a walk neither of us suggested out loud."},{"prompt_id":"prompt_07","answer":"…quiet Sundays sound like a waste of a weekend to you."},{"prompt_id":"prompt_04","answer":"I say the awkward thing early instead of letting it sit."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000133', 'Damon', '1990-05-01', 'man',
   ARRAY['woman']::text[], 30, 41, ARRAY['reading','lifting','climbing','farmers markets','trivia','volunteering','sewing']::text[],
-  'Riverdale', 183, 'paramedic',
+  'Tucker', 183, 235, 'I like being outside and I am bad at sitting still.',
   '[]'::jsonb, '[{"prompt_id":"prompt_03","answer":"The specific genius of a well-made public bus route."},{"prompt_id":"prompt_08","answer":"My neighbour''s dog has learned to open the screen door and act innocent."},{"prompt_id":"prompt_02","answer":"…on a walk neither of us suggested out loud."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000134', 'Perla', '1994-04-17', 'woman',
   ARRAY['man']::text[], 24, 40, ARRAY['farmers markets','live music','camping','running','cycling','climbing','theatre','stand-up','dive bars','yoga']::text[],
-  'Dunwoody', 169, 'urban planner',
+  'Reynoldstown', 169, 230, 'Ask me about the sourdough. Do not ask me about the sourdough.',
   '[]'::jsonb, '[{"prompt_id":"prompt_06","answer":"That being busy meant anything at all."},{"prompt_id":"prompt_01","answer":"I still call it the Sears building and I will not be taking questions."},{"prompt_id":"prompt_02","answer":"…us realising we''ve been at the table two hours past closing."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000135', 'Silas', '1989-06-25', 'nonbinary',
   ARRAY['nonbinary']::text[], 32, 41, ARRAY['politics','dive bars','writing','cycling','live music','stand-up','hiking','cats','investing']::text[],
-  'Norcross', 184, 'barista and sometime potter',
+  'Dunwoody', 184, 204, 'New enough to this city to still find it interesting.',
   '[]'::jsonb, '[{"prompt_id":"prompt_03","answer":"The specific genius of a well-made public bus route."},{"prompt_id":"prompt_08","answer":"My neighbour''s dog has learned to open the screen door and act innocent."},{"prompt_id":"prompt_02","answer":"…us realising we''ve been at the table two hours past closing."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000136', 'Adaeze', '1999-05-12', 'man',
   ARRAY['woman']::text[], 23, 30, ARRAY['coffee','live music','woodworking','sewing','reading','investing']::text[],
-  'Westside / Howell Mill', 181, 'bike mechanic',
+  'Kirkwood', 181, 138, 'Here for the long conversations and the short walks.',
   '[]'::jsonb, '[{"prompt_id":"prompt_08","answer":"My neighbour''s dog has learned to open the screen door and act innocent."},{"prompt_id":"prompt_12","answer":"…to have been genuinely surprised at least once."},{"prompt_id":"prompt_06","answer":"That being busy meant anything at all."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000137', 'Gus', '1997-06-08', 'woman',
   ARRAY['man']::text[], 22, 38, ARRAY['yoga','gardening','dive bars','woodworking','barbecue','natural wine','pottery','soccer']::text[],
-  'Roswell', 187, 'barista and sometime potter',
+  'Poncey-Highland', 187, 206, 'I will absolutely bring a tote bag to a nice restaurant.',
   '[]'::jsonb, '[{"prompt_id":"prompt_07","answer":"…you''re looking for something casual. I''m not, and I''d rather say so."},{"prompt_id":"prompt_05","answer":"…I will absolutely reorganise your kitchen if you leave me alone in it."},{"prompt_id":"prompt_11","answer":"A hot dog is a sandwich and the debate is beneath us."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000138', 'Lark', '2003-10-06', 'nonbinary',
-  ARRAY['man','woman','nonbinary']::text[], 21, 30, ARRAY['cooking','soccer','yoga','painting','brunch','trivia']::text[],
-  'Marietta', 172, 'sound engineer',
+  ARRAY['man','woman','nonbinary']::text[], 18, 30, ARRAY['cooking','soccer','yoga','painting','brunch','trivia']::text[],
+  'Candler Park', 172, 152, 'Two speeds: extremely early, or forty minutes late.',
   '[]'::jsonb, '[{"prompt_id":"prompt_01","answer":"I still call it the Sears building and I will not be taking questions."},{"prompt_id":"prompt_02","answer":"…with both of us already arguing about where to go next time."},{"prompt_id":"prompt_10","answer":"…accidentally joined a wedding photo and got sent the prints."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;
 insert into profiles (
   id, first_name, birthdate, gender, seeking, age_min, age_max, interests,
-  neighborhood, height_cm, occupation, photos, prompts, status, created_at, updated_at
+  neighborhood, height_cm, weight_lb, bio, photos, prompts, status, created_at, updated_at
 ) values (
   'deadbeef-0000-4000-8000-000000000139', 'Emmett', '2002-03-14', 'man',
-  ARRAY['woman']::text[], 21, 34, ARRAY['film','video games','gardening','woodworking','live music']::text[],
-  'Hapeville', 189, 'electrician',
+  ARRAY['woman']::text[], 18, 34, ARRAY['film','video games','gardening','woodworking','live music']::text[],
+  'East Point', 189, 188, 'I like being outside and I am bad at sitting still.',
   '[]'::jsonb, '[{"prompt_id":"prompt_10","answer":"…drove to Savannah for a sandwich. It was worth it. I''d do it again."},{"prompt_id":"prompt_12","answer":"…fewer, better conversations. That''s the whole ask."},{"prompt_id":"prompt_01","answer":"I know exactly which Publix to avoid on a Sunday."}]'::jsonb, 'active'::member_status,
   '2026-08-01T12:00:00.000Z', '2026-08-01T12:00:00.000Z'
 ) on conflict (id) do nothing;

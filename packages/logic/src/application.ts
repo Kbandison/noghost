@@ -260,7 +260,12 @@ export function validateInterests(draft: ApplicationDraft): StepResult {
 export function validatePhotos(draft: ApplicationDraft): StepResult {
   const count = draft.photoPaths?.length ?? 0;
   if (count < PHOTO_MIN) {
-    return fail({ photos: `Add at least ${PHOTO_MIN} photos. ${count} so far.` });
+    return fail({
+      photos:
+        PHOTO_MIN === 1
+          ? "Add a photo."
+          : `Add at least ${PHOTO_MIN} photos. ${count} so far.`,
+    });
   }
   if (count > PHOTO_MAX) {
     return fail({ photos: `${PHOTO_MAX} photos maximum.` });

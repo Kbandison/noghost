@@ -42,14 +42,17 @@ export interface Identity {
   seeking: Gender[];
   neighborhood: string | null;
   /**
-   * Both of these are printed on every drop card and neither was ever
-   * collectable — no funnel step asks, and the profile had no field. Every
-   * seeded profile has them because a generator invented them; the only real
-   * member had neither, so a real card read as a name and a neighbourhood
-   * where a fixture read as a name, a job and a height.
+   * Printed on every drop card and neither was ever collectable — no funnel
+   * step asks, and the profile had no field. Every seeded profile had them
+   * because a generator invented them; the only real member had neither, so a
+   * real card read as a name and a neighbourhood where a fixture read as a
+   * name, a job and a height.
+   *
+   * The job is gone as of 0043 — the bio is where a member says what they do,
+   * in their own words. Weight joins height as the other optional number.
    */
-  occupation: string | null;
   heightCm: number | null;
+  weightLb: number | null;
   /** 0042. Their own words, as opposed to the facts around them. */
   bio: string | null;
   /**
@@ -92,7 +95,7 @@ export async function readSettings(): Promise<{
     supabase
       .from("profiles")
       .select(
-        "first_name,birthdate,gender,seeking,neighborhood,occupation,height_cm,bio,lat,lng,travel_radius_km,status,phone,photos,prompts,voice_intro_path",
+        "first_name,birthdate,gender,seeking,neighborhood,height_cm,weight_lb,bio,lat,lng,travel_radius_km,status,phone,photos,prompts,voice_intro_path",
       )
       .eq("id", user.id)
       .maybeSingle(),
@@ -134,8 +137,8 @@ export async function readSettings(): Promise<{
       travelRadiusKm: profile.travel_radius_km,
       seeking: profile.seeking,
       neighborhood: profile.neighborhood,
-      occupation: profile.occupation,
       heightCm: profile.height_cm,
+      weightLb: profile.weight_lb,
       bio: profile.bio,
       status: profile.status,
       locked: Boolean(application),

@@ -134,12 +134,12 @@ export function PromptsForm({
  */
 export function AboutForm({
   bio,
-  occupation,
   heightCm,
+  weightLb,
 }: {
   bio: string | null;
-  occupation: string | null;
   heightCm: number | null;
+  weightLb: number | null;
 }) {
   const [state, action] = useActionState(saveAbout, initial);
   const form = useRef<HTMLFormElement>(null);
@@ -157,7 +157,7 @@ export function AboutForm({
   return (
     <form ref={form} action={action} className="space-y-5">
       {/*
-        * Their own words, first, because the two fields under it are facts and
+        * Their own words, first, because everything under it is a number and
         * this is the only place on a card outside the prompts where somebody
         * writes as themselves.
         *
@@ -177,26 +177,6 @@ export function AboutForm({
           onChange={send}
           onBlur={flush}
           className="w-full resize-y rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-[16px] leading-relaxed focus:border-[var(--accent)] focus:outline-none"
-        />
-      </label>
-
-      {/*
-        * The heading is gone and the label is not: a visible "What you do"
-        * above a box whose placeholder also says what it is was the same words
-        * twice. `sr-only` keeps the field named for anybody who cannot see the
-        * placeholder, which is the half of it that was doing work.
-        */}
-      <label className="block">
-        <span className="sr-only">What you do</span>
-        <input
-          name="occupation"
-          type="text"
-          maxLength={60}
-          defaultValue={occupation ?? ""}
-          placeholder="What you do — optional"
-          onChange={send}
-          onBlur={flush}
-          className="w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-[16px] focus:border-[var(--accent)] focus:outline-none"
         />
       </label>
 
@@ -234,10 +214,42 @@ export function AboutForm({
             <span className="text-[15px] text-[var(--text-secondary)]">in</span>
           </label>
         </div>
-        <p className="mt-2 text-[14px] text-[var(--text-dim)]">
-          Both optional. Leave them empty and your card just won&rsquo;t mention them.
-        </p>
       </fieldset>
+
+      {/*
+        * Pounds, and the field says so.
+        *
+        * Height is typed in feet and inches and stored in centimetres because
+        * that conversion round-trips exactly. This one does not — a kilogram is
+        * coarser than a pound, so metric storage would give somebody back a
+        * different number than the one they entered. So `weight_lb` (0043), and
+        * nothing here converts anything.
+        */}
+      <fieldset>
+        <legend className="mb-1.5 block text-[13px] font-medium uppercase tracking-[0.12em] text-[var(--text-dim)]">
+          Weight
+        </legend>
+        <label className="flex items-center gap-2">
+          <input
+            name="pounds"
+            type="number"
+            min={60}
+            max={600}
+            defaultValue={weightLb ?? ""}
+            placeholder="—"
+            onChange={send}
+            onBlur={flush}
+            className="w-24 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-3 text-[16px] tabular-nums focus:border-[var(--accent)] focus:outline-none"
+          />
+          <span className="text-[15px] text-[var(--text-secondary)]">lb</span>
+        </label>
+      </fieldset>
+
+      {/* One note for all of it, rather than a line under each field repeating
+          that the field is optional. */}
+      <p className="text-[14px] text-[var(--text-dim)]">
+        All optional. Leave anything empty and your card just won&rsquo;t mention it.
+      </p>
 
       <SaveNote state={saveState} error={state.error} />
     </form>
@@ -525,7 +537,7 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
                 onClick={() => remove(photo.path)}
                 disabled={pending || rows.length <= PHOTO_MIN}
                 aria-label={`Remove photo ${i + 1}`}
-                title={rows.length <= PHOTO_MIN ? `${PHOTO_MIN} photos minimum` : "Remove"}
+                title={rows.length <= PHOTO_MIN ? "Your card needs one photo" : "Remove"}
                 className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--bg-primary)]/85 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-[var(--text-secondary)]"
               >
                 <svg
@@ -549,7 +561,7 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
               )}
             </div>
 
-            {i === 0 && (
+            {i === 0 && rows.length > 1 && (
               <p className="mt-1 text-center text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--accent-text)]">
                 Leads
               </p>
@@ -559,24 +571,26 @@ export function PhotosForm({ photos }: { photos: ProfilePhotoRow[] }) {
       </div>
 
       {/*
-        * Why the bin is dead, said where it can be read.
+        * One paragraph, and it is a string rather than JSX children.
         *
-        * At the minimum every remove button is disabled, and the only
-        * explanation was a `title` — a tooltip, which a phone never shows. The
-        * control looked broken rather than refused, and the first report of
-        * this was somebody telling me delete did not work while holding exactly
-        * three photos.
+        * Two things this fixes. The first is that there were two stacked
+        * paragraphs saying overlapping things — a count, then why the bin was
+        * off — where one sentence covers it.
+        *
+        * The second is a rendering bug worth naming: a text node that follows
+        * an interpolation and then wraps loses its leading space in this
+        * toolchain, so `{PHOTO_MIN} photos` shipped as "3photos". Building the
+        * whole sentence as one template literal means there is no text node
+        * next to an interpolation for that to happen to.
+        *
+        * At one photo the bins are all disabled, and the only explanation used
+        * to be a `title` — a tooltip, which a phone never shows, so the control
+        * read as broken rather than refused. It is said in words here instead.
         */}
-      {rows.length <= PHOTO_MIN && (
-        <p className="text-[14px] leading-relaxed text-[var(--text-secondary)]">
-          {PHOTO_MIN} photos is the minimum, so there&rsquo;s nothing to remove right now. Add
-          one and the bins turn on.
-        </p>
-      )}
-
       <p className="text-[14px] leading-relaxed text-[var(--text-dim)]">
-        {PHOTO_MIN}&ndash;{PHOTO_MAX} photos. The first one leads your card. Drag the grip to
-        reorder.
+        {rows.length > 1
+          ? `Up to ${PHOTO_MAX} photos. The first one leads your card — drag the grip to reorder.`
+          : `Up to ${PHOTO_MAX} photos. This one leads your card, and the bin turns on as soon as there’s a second.`}
         {waiting > 0 && (
           <>
             {" "}

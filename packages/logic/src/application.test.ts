@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MIN_AGE } from "@noghost/config";
+import { MIN_AGE, PHOTO_MAX } from "@noghost/config";
 import {
   APPLICATION_STEPS,
   FINAL_STEP,
@@ -213,11 +213,25 @@ describe("interests", () => {
 });
 
 describe("photos", () => {
-  it("enforces 3–6", () => {
+  it("takes one photo and stops at six", () => {
     expect(validatePhotos(complete())).toEqual({ ok: true });
-    expect(validatePhotos(complete({ photoPaths: ["a.webp", "b.webp"] })).ok).toBe(false);
+
+    /*
+     * One is enough as of 0043 — a deliberate divergence from §7.2's "photos
+     * (3-6)". Three was a quality floor and in practice a wall at the front
+     * door, so it reads from PHOTO_MIN rather than asserting a literal that
+     * would have to be edited every time the floor moves.
+     */
+    expect(validatePhotos(complete({ photoPaths: ["a.webp"] })).ok).toBe(true);
+    expect(validatePhotos(complete({ photoPaths: [] })).ok).toBe(false);
     expect(
-      validatePhotos(complete({ photoPaths: Array.from({ length: 7 }, (_, i) => `${i}.webp`) })).ok,
+      validatePhotos(complete({ photoPaths: Array.from({ length: PHOTO_MAX }, (_, i) => `${i}.webp`) }))
+        .ok,
+    ).toBe(true);
+    expect(
+      validatePhotos(
+        complete({ photoPaths: Array.from({ length: PHOTO_MAX + 1 }, (_, i) => `${i}.webp`) }),
+      ).ok,
     ).toBe(false);
   });
 });

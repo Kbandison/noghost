@@ -270,7 +270,23 @@ export default async function ApplicationPage({
                   }
                 />
                 <Fact label="Neighbourhood" value={application.neighborhood ?? "—"} />
-                <Fact label="Occupation" value={application.occupation ?? "—"} />
+                {/* Height was fetched and never shown until now. Both are what
+                    the card prints, which is what a reviewer is deciding on. */}
+                <Fact
+                  label="Height"
+                  value={
+                    application.heightCm === null
+                      ? "—"
+                      : (() => {
+                          const inches = Math.round(application.heightCm / 2.54);
+                          return `${Math.floor(inches / 12)}'${inches % 12}"`;
+                        })()
+                  }
+                />
+                <Fact
+                  label="Weight"
+                  value={application.weightLb === null ? "—" : `${application.weightLb} lb`}
+                />
                 <Fact
                   label="Phone"
                   value={
@@ -290,6 +306,24 @@ export default async function ApplicationPage({
             </Panel>
 
             <Panel title="In their words">
+              {/*
+                * The bio, first, and it is here because nothing else reads it.
+                *
+                * Prompt answers and the bio are both member-written text shown
+                * to every member, and neither is tone-checked — reporting is
+                * the control once somebody is in. Before that, this panel is
+                * the control, and it was showing the prompts while the one
+                * free-form paragraph went straight past review onto a card.
+                */}
+              {application.bio && (
+                <div className="border-b border-[var(--border)] p-4">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">
+                    Bio
+                  </p>
+                  <p className="mt-1 text-[15px] leading-relaxed">{application.bio}</p>
+                </div>
+              )}
+
               <div className="space-y-4 p-4">
                 {application.prompts.map((prompt) => {
                   const text =

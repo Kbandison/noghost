@@ -22,7 +22,6 @@ export interface InboxPerson {
   firstName: string;
   age: number;
   neighborhood: string | null;
-  occupation: string | null;
   photos: ProfilePhoto[];
   prompts: ProfilePromptAnswer[];
   interests: string[];
@@ -70,14 +69,13 @@ export interface Inbox {
 }
 
 const PERSON_COLUMNS =
-  "id,first_name,age,neighborhood,occupation,photos,prompts,interests";
+  "id,first_name,age,neighborhood,photos,prompts,interests";
 
 type PersonRow = {
   id: string;
   first_name: string;
   age: number;
   neighborhood: string | null;
-  occupation: string | null;
   photos: unknown;
   prompts: unknown;
   interests: string[] | null;
@@ -89,7 +87,6 @@ function person(row: PersonRow): InboxPerson {
     firstName: row.first_name,
     age: row.age,
     neighborhood: row.neighborhood,
-    occupation: row.occupation,
     photos: Array.isArray(row.photos) ? (row.photos as ProfilePhoto[]) : [],
     prompts: Array.isArray(row.prompts) ? (row.prompts as ProfilePromptAnswer[]) : [],
     interests: row.interests ?? [],

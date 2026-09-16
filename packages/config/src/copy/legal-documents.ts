@@ -77,7 +77,7 @@ export const LEGAL_DOCUMENTS: LegalDocument[] = [
   {
     slug: "privacy",
     title: "Privacy Policy",
-    updated: "July 2026",
+    updated: "September 2026",
     intro: `${BRAND.APP_NAME} holds a phone number, a selfie, and a profile for every member. This page says exactly what we do with each of those, in plain language.`,
     sections: [
         {
@@ -97,7 +97,7 @@ export const LEGAL_DOCUMENTS: LegalDocument[] = [
         {
           heading: "What other members can see",
           body: [
-            "Your first name, age, gender, neighbourhood, height, occupation, photos, prompt answers, interests, and voice intro — and only once the app has actually introduced you: they appeared in your drop, one of you sent a connect, or you have a chat open.",
+            "Your first name, age, gender, neighbourhood, height, weight, bio, photos, prompt answers, interests, and voice intro — and only once the app has actually introduced you: they appeared in your drop, one of you sent a connect, or you have a chat open.",
             "Your birthdate, phone number, and email are never shown to another member. Neither is your answer to a post-date check-in.",
           ],
         },

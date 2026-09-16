@@ -478,7 +478,11 @@ export function PhotosStep({ draft, errors }: StepProps) {
         {uploading > 0
           ? `${stored} of ${PHOTO_MAX}. ${uploading} still uploading…`
           : stored < PHOTO_MIN
-            ? `${stored} of ${PHOTO_MAX} — ${PHOTO_MIN - stored} more needed.`
+            ? // "1 more needed" while holding none reads as a tally of a thing
+              // you have; at a floor of one it is just "add one".
+              PHOTO_MIN - stored === 1
+              ? `${stored} of ${PHOTO_MAX} — one more to continue.`
+              : `${stored} of ${PHOTO_MAX} — ${PHOTO_MIN - stored} more needed.`
             : `${stored} of ${PHOTO_MAX}. The first one leads your card.`}
       </p>
       {refused && (

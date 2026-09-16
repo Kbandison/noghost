@@ -23,11 +23,11 @@ export const dynamic = "force-dynamic";
  * there.
  *
  * "About you" is new, and it is here because nothing could write it. A card has
- * always printed `occupation` and `height_cm` under the name, no funnel step
- * asks for either, and the profile had no field: every seeded profile carried
- * both because a generator invented them, and the only real member in the
- * database had neither. A real card read as a name and a neighbourhood where a
- * fixture read as a name, a job and a height.
+ * always printed facts under the name, no funnel step asks for any of them, and
+ * the profile had no field: every seeded profile carried them because a
+ * generator invented them, and the only real member in the database had none. A
+ * real card read as a name and a neighbourhood where a fixture read as a name,
+ * a job and a height.
  *
  * A changed photo goes back through review (§7.3) rather than appearing
  * instantly. That loop only became real in 0020 — before it, an editor here
@@ -74,8 +74,8 @@ export default async function ProfilePage() {
       <Section title="About you">
         <AboutForm
           bio={identity.bio}
-          occupation={identity.occupation}
           heightCm={identity.heightCm}
+          weightLb={identity.weightLb}
         />
       </Section>
 
